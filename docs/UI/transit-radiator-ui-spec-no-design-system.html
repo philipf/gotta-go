@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home Transit Radiator — UI/UX Design Reference</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --epd-bg: #e8e6df;
+    --epd-rule: #b8b6ad;
+    --paper: #faf9f5;
+    --panel: #ffffff;
+    --line: #e0ddd2;
+    --line-strong: #c9c5b6;
+    --text: #2b2a26;
+    --text-soft: #6c6a60;
+    --text-faint: #9a978a;
+    --accent: #b5491f;
+    --good: #2f6f4f;
+    --bad: #a3392b;
+    --mono: 'Courier New', ui-monospace, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 64px 32px 96px; }
+
+  /* ---- Masthead ---- */
+  .masthead {
+    border: 2px solid var(--ink);
+    padding: 38px 40px;
+    margin-bottom: 56px;
+    position: relative;
+    background: var(--panel);
+  }
+  .masthead::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border: 1px solid var(--line-strong);
+    pointer-events: none;
+  }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: bold;
+    margin-bottom: 14px;
+  }
+  .masthead h1 {
+    font-size: 38px;
+    line-height: 1.12;
+    letter-spacing: -0.5px;
+    font-weight: 800;
+    margin-bottom: 14px;
+  }
+  .masthead p {
+    color: var(--text-soft);
+    font-size: 15px;
+    max-width: 62ch;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+  }
+  .meta-row b { color: var(--text); font-weight: bold; }
+
+  /* ---- Section scaffolding ---- */
+  section { margin-bottom: 64px; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .sec-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+  .sec-head h2 {
+    font-size: 25px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+  }
+  .lede { font-size: 16px; color: var(--text-soft); margin-bottom: 26px; max-width: 70ch; }
+  h3 { font-size: 18px; font-weight: 700; margin: 30px 0 12px; }
+  p { margin-bottom: 14px; }
+  p.body { max-width: 72ch; }
+
+  .principle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 22px;
+  }
+  .principle {
+    border: 1px solid var(--line-strong);
+    padding: 22px 24px;
+    background: var(--panel);
+  }
+  .principle h4 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    font-weight: bold;
+  }
+  .principle p { font-size: 14px; color: var(--text-soft); margin: 0; }
+
+  /* ---- Mockup card ---- */
+  .mock {
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+    margin-bottom: 36px;
+  }
+  .mock-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 26px;
+    border-bottom: 1px solid var(--line);
+    background: #f4f2eb;
+  }
+  .mock-title {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  .mock-title .n {
+    font-family: var(--mono);
+    font-weight: bold;
+    color: var(--accent);
+    font-size: 13px;
+  }
+  .mock-title h3 { font-size: 18px; margin: 0; font-weight: 700; }
+  .mock-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    padding: 5px 10px;
+  }
+  .mock-body { padding: 32px; }
+  .device {
+    position: relative;
+    width: 632px;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+  .bezel {
+    background: var(--ink);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.16);
+  }
+  .screen {
+    width: 100%;
+    aspect-ratio: 632 / 355.5;
+    background: var(--epd-bg);
+    position: relative;
+    overflow: hidden;
+  }
+  .mag {
+    position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: #444; box-shadow: inset 0 0 0 2px #2a2a2a;
+  }
+  .mag.tl { top: -3px; left: 26px; } .mag.tr { top: -3px; right: 26px; }
+  .mag.bl { bottom: -3px; left: 26px; } .mag.br { bottom: -3px; right: 26px; }
+
+  .px { font-family: var(--mono); font-weight: bold; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--ink); }
+
+  .mock-desc {
+    padding: 24px 32px 30px;
+    border-top: 1px solid var(--line);
+    background: #faf9f4;
+  }
+  .mock-desc h4 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    font-weight: bold;
+  }
+  .mock-desc p { font-size: 14.5px; color: var(--text-soft); margin-bottom: 10px; max-width: 74ch; }
+  .mock-desc ul { margin: 8px 0 0 0; padding-left: 20px; }
+  .mock-desc li { font-size: 14px; color: var(--text-soft); margin-bottom: 6px; }
+  .mock-desc b { color: var(--text); }
+
+  /* ---- Do / Don't ---- */
+  .dd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 8px; }
+  .dd-col { border: 1px solid var(--line-strong); background: var(--panel); }
+  .dd-col header {
+    padding: 14px 22px;
+    font-family: var(--mono);
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+  .dd-do header { background: var(--good); }
+  .dd-dont header { background: var(--bad); }
+  .dd-col ul { list-style: none; padding: 18px 22px; }
+  .dd-col li {
+    font-size: 14px;
+    color: var(--text-soft);
+    padding-left: 22px;
+    position: relative;
+    margin-bottom: 14px;
+    line-height: 1.55;
+  }
+  .dd-col li:last-child { margin-bottom: 0; }
+  .dd-col li::before {
+    position: absolute; left: 0; top: 0;
+    font-family: var(--mono); font-weight: bold;
+  }
+  .dd-do li::before { content: '+'; color: var(--good); }
+  .dd-dont li::before { content: '\00d7'; color: var(--bad); }
+  .dd-col li b { color: var(--text); }
+
+  /* ---- Design system ---- */
+  .ds-block { border: 1px solid var(--line-strong); background: var(--panel); margin-bottom: 22px; }
+  .ds-block > header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+    background: #f4f2eb;
+  }
+  .ds-block .ds-inner { padding: 24px; }
+
+  .swatches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .sw { border: 1px solid var(--line); }
+  .sw .chip { height: 64px; }
+  .sw .lbl { padding: 10px 12px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; }
+  .sw .lbl b { display: block; color: var(--text); font-size: 12px; margin-bottom: 2px; }
+  .sw .lbl span { color: var(--text-faint); }
+
+  .type-row {
+    display: flex; align-items: baseline; gap: 20px;
+    padding: 14px 0; border-bottom: 1px dashed var(--line-strong);
+  }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row .spec {
+    font-family: var(--mono); font-size: 11px; color: var(--text-faint);
+    width: 180px; flex-shrink: 0; letter-spacing: 0.5px;
+  }
+  .type-row .spec b { display: block; color: var(--text); font-size: 12px; }
+  .type-row .sample { color: var(--ink); font-family: var(--mono); font-weight: bold;
+                      text-transform: uppercase; letter-spacing: 1px; }
+
+  .tok-table { width: 100%; border-collapse: collapse; }
+  .tok-table th, .tok-table td {
+    text-align: left; padding: 11px 14px; font-size: 13px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tok-table th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--text-faint); font-weight: bold;
+  }
+  .tok-table td:first-child { font-family: var(--mono); color: var(--accent); font-weight: bold; }
+  .tok-table td b { color: var(--text); }
+  .tok-table tr:last-child td { border-bottom: 0; }
+
+  .comp-demo {
+    display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-end;
+    padding: 28px; background: var(--epd-bg); border: 1px solid var(--line-strong);
+  }
+  .comp-demo .unit { text-align: center; }
+  .comp-demo .unit .cap {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+    color: var(--text-faint); margin-top: 10px; text-transform: uppercase;
+  }
+
+  footer {
+    margin-top: 80px; padding-top: 24px; border-top: 2px solid var(--ink);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+    color: var(--text-faint); text-transform: uppercase;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: #f7f3ee;
+    padding: 16px 22px;
+    margin: 22px 0;
+    font-size: 14.5px;
+    color: var(--text-soft);
+  }
+  .callout b { color: var(--text); }
+
+  @media (max-width: 760px) {
+    .principle-grid, .dd-grid, .swatches { grid-template-columns: 1fr; }
+    .wrap { padding: 40px 18px 72px; }
+    .masthead h1 { font-size: 28px; }
+    .type-row { flex-direction: column; gap: 6px; }
+    .type-row .spec { width: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= MASTHEAD ================= -->
+  <div class="masthead">
+    <div class="kicker">UI / UX Design Reference · Companion to PRD v0.3</div>
+    <h1>Home Transit Radiator<br>Screen Design Specification</h1>
+    <p>The canonical visual and interaction reference for the e-ink display. This document supersedes the layout sketches in PRD §5 and should be read alongside it. All screens render at native 960×540, landscape, 1-bit monochrome.</p>
+    <div class="meta-row">
+      <div>Status&nbsp; <b>For UI build</b></div>
+      <div>Panel&nbsp; <b>LilyGO T5 4.7"</b></div>
+      <div>Resolution&nbsp; <b>960×540 · 1-bit</b></div>
+      <div>Typeface&nbsp; <b>Press Start 2P</b></div>
+    </div>
+  </div>
+
+  <!-- ================= 1. THINKING ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2>The thinking behind the UI &amp; UX</h2>
+    </div>
+    <p class="lede">The radiator is glanced at, never operated. Every design decision below follows from one question: <i>what does a tired person crossing a room at 7am need to know in under a second?</i></p>
+
+    <p class="body">Standard transit apps answer “when does the bus arrive?” That forces mental arithmetic — subtract the walk time, subtract the time you’ve been standing there, decide whether to move. The radiator removes that maths entirely. It answers the only question that triggers an action: <b>when do I need to leave the house?</b> Arrival time is still shown, but as supporting detail, not the headline.</p>
+
+    <p class="body">The display is information-sparse by design. It is mounted on a fridge or a bedside surface, read peripherally, and refreshes only every 2–3 minutes. That rules out anything requiring focus or motion to interpret. The hierarchy is strictly three tiers, and a glance should resolve the top tier alone.</p>
+
+    <div class="principle-grid">
+      <div class="principle">
+        <h4>Action over event</h4>
+        <p>The hero number is “LEAVE IN”, not “arrives in”. The screen tells you what to do, not what to calculate.</p>
+      </div>
+      <div class="principle">
+        <h4>Three-tier glance</h4>
+        <p>Tier 1: leave countdown. Tier 2: the BY / ARRIVES detail block. Tier 3: the NEXT fallback. Each tier is unmistakably lighter than the one above.</p>
+      </div>
+      <div class="principle">
+        <h4>Direction, not level</h4>
+        <p>The progress widget is a marker travelling left→right, never a fill. A moving marker reads as “time passing”; a fill reads ambiguously as filling <i>or</i> draining.</p>
+      </div>
+      <div class="principle">
+        <h4>Disruption is news, not error</h4>
+        <p>A delay buys time — it is shown as a positive shift, not a warning. A cancellation is shown by striking the dead service so the change is explained, never hidden.</p>
+      </div>
+      <div class="principle">
+        <h4>Every number is labelled</h4>
+        <p>Four times can appear at once (clock, leave-by, arrival, next). Each carries a glyph or prefix so none can be mistaken for another.</p>
+      </div>
+      <div class="principle">
+        <h4>Retro, on purpose</h4>
+        <p>The Press Start 2P pixel aesthetic is intentional and cohesive — including custom-drawn 8-bit mode icons — not a placeholder.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2. MOCKUPS ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2>Screen scenarios</h2>
+    </div>
+    <p class="lede">Four canonical screens. Each is the same column system; the differences are entirely in which state the column resolves to. All four are shown at true 632px-scaled fidelity.</p>
+
+    <!-- 2.1 MAIN -->
+    <div class="mock">
+      <div class="mock-head">
+        <div class="mock-title"><span class="n">2.1</span><h3>Main — dual commute</h3></div>
+        <span class="mock-tag">morning_commute · priority_split</span>
+      </div>
+      <div class="mock-body">
+        <div class="device">
+          <div class="bezel"><div class="screen" id="s-main"></div></div>
+          <div class="mag tl"></div><div class="mag tr"></div>
+          <div class="mag bl"></div><div class="mag br"></div>
+        </div>
+      </div>
+      <div class="mock-desc">
+        <h4>What it shows</h4>
+        <p>The primary screen. Two equal columns: bus left, train right, split by a hairline rule. Each column is the full three-tier stack.</p>
+        <ul>
+          <li><b>Header:</b> custom 8-bit mode icon stacked above the route code.</li>
+          <li><b>Tier 1:</b> <b>LEAVE IN</b> + the hero countdown. Bus reads <b>NOW</b> (go); train reads <b>7 MIN</b>.</li>
+          <li><b>Tier 2:</b> <b>BY 07:08</b> with <b>ARRIVES 4 MIN · 07:14</b> beneath — the leave deadline and the paired relative/exact arrival.</li>
+          <li><b>Widget:</b> the fixed-window track. The diamond travels left→right; hard-right means leave now.</li>
+          <li><b>Tier 3:</b> <b>NEXT 07:24</b> — the quietest element, below the separator.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 2.2 SINGLE -->
+    <div class="mock">
+      <div class="mock-head">
+        <div class="mock-title"><span class="n">2.2</span><h3>Single — school run</h3></div>
+        <span class="mock-tag">morning_school_run · auto 1-col</span>
+      </div>
+      <div class="mock-body">
+        <div class="device">
+          <div class="bezel"><div class="screen" id="s-single"></div></div>
+          <div class="mag tl"></div><div class="mag tr"></div>
+          <div class="mag bl"></div><div class="mag br"></div>
+        </div>
+      </div>
+      <div class="mock-desc">
+        <h4>What it shows</h4>
+        <p>A single-mode profile auto-scales the same layout to one full-width column — no divider, no second target. The mode icon and route code enlarge to use the recovered width; the three-tier hierarchy and the diamond track are otherwise identical to a single Main column.</p>
+        <p>This is the daughter’s dedicated bus-only stream: one service, zero clutter, the same mental model as the parents’ screen so nothing has to be re-learned.</p>
+      </div>
+    </div>
+
+    <!-- 2.3 CANCELLED -->
+    <div class="mock">
+      <div class="mock-head">
+        <div class="mock-title"><span class="n">2.3</span><h3>Cancelled service</h3></div>
+        <span class="mock-tag">exception · strike-through</span>
+      </div>
+      <div class="mock-body">
+        <div class="device">
+          <div class="bezel"><div class="screen" id="s-cancel"></div></div>
+          <div class="mag tl"></div><div class="mag tr"></div>
+          <div class="mag bl"></div><div class="mag br"></div>
+        </div>
+      </div>
+      <div class="mock-desc">
+        <h4>What it shows</h4>
+        <p>The train’s scheduled 07:19 is <b>struck through</b> directly above the active replacement. The strike-through alone carries the meaning — no “CANCELLED” label, no divider — so the reason for the changed timings is obvious without clutter.</p>
+        <ul>
+          <li>The replacement service drives Tier 1 and the diamond. Lots of margin here, so the diamond sits near the left.</li>
+          <li><b>NEXT 07:48</b> stays visible — the third option if the replacement also fails.</li>
+          <li>The unaffected bus column is untouched, so the contrast itself signals which side has the disruption.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 2.4 DELAYED -->
+    <div class="mock">
+      <div class="mock-head">
+        <div class="mock-title"><span class="n">2.4</span><h3>Delayed service</h3></div>
+        <span class="mock-tag">exception · positive shift</span>
+      </div>
+      <div class="mock-body">
+        <div class="device">
+          <div class="bezel"><div class="screen" id="s-delay"></div></div>
+          <div class="mag tl"></div><div class="mag tr"></div>
+          <div class="mag bl"></div><div class="mag br"></div>
+        </div>
+      </div>
+      <div class="mock-desc">
+        <h4>What it shows</h4>
+        <p>A delay is <b>good news</b> — it buys you time — so it is never an error state. A bordered <b>DELAYED +9 MIN</b> banner explains <i>why</i> the leave-by moved later, the leave countdown grows, and the diamond slides back toward the left to show the recovered margin at a glance.</p>
+        <p>The bus column is unaffected. Reading the two columns together, the screen says: “relax about the train, but the bus still needs you now.”</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. DO / DON'T ================= -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2>Build guidance — do &amp; don’t</h2>
+    </div>
+    <p class="lede">Hard-won decisions from design iteration. Treat the “don’t” column as regressions to avoid — most were tried and rejected for specific reasons.</p>
+    <div class="dd-grid">
+      <div class="dd-col dd-do">
+        <header>Do</header>
+        <ul>
+          <li>Render every glyph on the <b>1-bit grid</b> — pure black on the panel background, no anti-aliasing or grey.</li>
+          <li>Keep the <b>three-tier weight gap</b> obvious: the hero, the detail block, then NEXT must each be visibly lighter than the last.</li>
+          <li>Use the <b>diamond-on-a-line</b> for progress. The marker moves left→right; hitting the right cap = leave now.</li>
+          <li>Keep the <b>window fixed</b> so the diamond’s speed is always the same — users learn the rate.</li>
+          <li>Label <b>every</b> time: clock glyph for now, <b>BY</b> for leave, <b>ARRIVES</b> for the service, <b>NEXT</b> for the fallback.</li>
+          <li>Strike through a <b>cancelled</b> service in place — show what changed, don’t silently swap it.</li>
+          <li>Frame a <b>delay</b> as a positive shift with the explanatory banner.</li>
+          <li>Snap the pixel icons to whole device pixels at final BMP size.</li>
+          <li>Leave the last good frame on screen on network failure (e-ink holds with no power).</li>
+        </ul>
+      </div>
+      <div class="dd-col dd-dont">
+        <header>Don’t</header>
+        <ul>
+          <li>Don’t use a <b>filled/draining bar</b> — “is it filling or emptying?” was the original confusion and is banned.</li>
+          <li>Don’t make the hero an <b>unlabelled number</b>. “4 MIN” of <i>what</i> was the core defect this spec fixes.</li>
+          <li>Don’t lead with <b>arrival time</b> — it forces the mental subtraction the radiator exists to remove.</li>
+          <li>Don’t add <b>NOW / LEAVE end-labels</b> to the track — they reintroduced ambiguity; the motion is the meaning.</li>
+          <li>Don’t treat a <b>delay as an error</b> (no warning iconography) — it is time gained.</li>
+          <li>Don’t <b>hide a cancelled</b> service by jumping straight to the next — the change becomes inexplicable.</li>
+          <li>Don’t introduce <b>greys, gradients or anti-aliasing</b> — the panel is 1-bit; they render as dither mud.</li>
+          <li>Don’t let <b>NEXT</b> compete with the detail block — it is a footnote, not a third headline.</li>
+          <li>Don’t animate or expect smooth motion — frames are 2–3 min apart; the diamond <i>jumps</i>, like a clock hand.</li>
+          <li>Don’t introduce a second typeface — Press Start 2P only, including icons.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Home Transit Radiator — UI/UX Reference</span>
+    <span>Companion to PRD v0.3 · §5</span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  // ---- shared icon data ----
+  var BUS = ['.############.','.############.','.#...#..#...#.','.#...#..#...#.',
+    '.#...#..#...#.','.############.','.############.','##############',
+    '..##......##..','..##......##..'];
+  var TRAIN = ['.############.','.############.','.##...##....#.','.##...##....#.',
+    '.##...##....#.','.############.','.#####..#####.','.#####..#####.',
+    '.############.','##############','..###....###..','.....####.....'];
+
+  function pixelMap(rows, unit){
+    var R=rows.length, C=rows[0].length;
+    var s='<svg width="'+(C*unit)+'" height="'+(R*unit)+'" viewBox="0 0 '+C+' '+R+
+      '" shape-rendering="crispEdges" style="display:block">';
+    for(var y=0;y<R;y++)for(var x=0;x<C;x++)
+      if(rows[y][x]==='#')s+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#1a1a1a"/>';
+    return s+'</svg>';
+  }
+
+  // The screen renders relative to a 632-unit logical width regardless of the
+  // element's actual pixel size, using % positioning so it scales fluidly.
+  var LW = 632, LH = 355.5;
+  function pc(v, total){ return (v/total*100)+'%'; }
+  function HX(v){ return pc(v, LW); }
+  function VY(v){ return pc(v, LH); }
+  // PRD layout space is 960x540; map to the 632x355.5 logical box
+  var SX = LW/960, SY = LH/540;
+
+  function clockBar(time){
+    return '<div style="position:absolute;top:0;left:0;right:0;height:'+VY(43*SY)+
+      ';display:flex;align-items:center;justify-content:center;gap:2%;'+
+      'border-bottom:1px solid #b8b6ad;">'+
+      '<svg width="14" height="14" viewBox="0 0 14 14" style="flex:0 0 auto"><circle cx="7" cy="7" r="6" fill="none" stroke="#1a1a1a" stroke-width="1.5"/><path d="M7 3.5V7L9.3 8.6" fill="none" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/></svg>'+
+      '<span class="px" style="font-size:13px">'+time+'</span></div>';
+  }
+
+  function header(left, colW, mode, route, big){
+    var icon=(mode==='bus')?pixelMap(BUS,big?4:3):pixelMap(TRAIN,big?4:3);
+    return '<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+8)+
+      ';width:'+HX(colW)+';display:flex;flex-direction:column;align-items:center;gap:6px">'+
+      icon+'<span class="px" style="font-size:'+(big?22:18)+'px">'+route+'</span></div>';
+  }
+
+  function pxv(n){ return n*SY; }
+
+  function diamond(left, colW, prog){
+    var pad=24, tx=left+pad, tw=colW-pad*2;
+    var yy=43*SY+pxv(360);
+    var mx=tx+tw*Math.max(0,Math.min(1,prog));
+    var h='';
+    h+='<div style="position:absolute;left:'+HX(tx)+';top:'+VY(yy-8)+';width:2px;height:16px;background:#1a1a1a"></div>';
+    h+='<div style="position:absolute;left:'+HX(tx+tw-2)+';top:'+VY(yy-8)+';width:2px;height:16px;background:#1a1a1a"></div>';
+    h+='<div style="position:absolute;left:'+HX(tx)+';top:'+VY(yy-1)+';width:'+HX(tw)+';height:2px;background:#1a1a1a"></div>';
+    h+='<div style="position:absolute;left:'+HX(mx-7)+';top:'+VY(yy-7)+';width:14px;height:14px;background:#1a1a1a;transform:rotate(45deg)"></div>';
+    return h;
+  }
+
+  function sep(left, colW){
+    return '<div style="position:absolute;left:'+HX(left+26)+';top:'+VY(43*SY+pxv(450))+
+      ';width:'+HX(colW-52)+';border-top:1px solid #b8b6ad"></div>';
+  }
+  function nextLine(left, colW, t){
+    return '<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(470))+
+      ';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:13px;color:#555">NEXT '+t+'</span></div>';
+  }
+
+  function colNormal(left, colW, d){
+    var h=header(left,colW,d.mode,d.route,d.big);
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(118))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:13px;color:#555">LEAVE IN</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(146))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:'+(d.big?64:56)+'px">'+d.leaveMin+'</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(272))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:17px">BY '+d.leave+'</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(306))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:14px;color:#333">ARRIVES '+d.arrMin+' \u00B7 '+d.arr+'</span></div>';
+    h+=diamond(left,colW,d.prog);
+    h+=sep(left,colW)+nextLine(left,colW,d.next);
+    return h;
+  }
+  function colCancelled(left, colW, d){
+    var h=header(left,colW,d.mode,d.route);
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(108))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:21px;color:#888;text-decoration:line-through">'+d.cancelled+'</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(150))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:13px;color:#555">LEAVE IN</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(176))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:48px">'+d.leaveMin+'</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(286))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:14px">BY '+d.leave+' \u00B7 ARR '+d.arr+'</span></div>';
+    h+=diamond(left,colW,d.prog);
+    h+=sep(left,colW)+nextLine(left,colW,d.next);
+    return h;
+  }
+  function colDelayed(left, colW, d){
+    var h=header(left,colW,d.mode,d.route);
+    h+='<div style="position:absolute;left:'+HX(left+16)+';top:'+VY(43*SY+pxv(102))+';width:'+HX(colW-32)+';text-align:center;border:2px solid #1a1a1a;padding:5px 0"><span class="px" style="font-size:12px">DELAYED +'+d.delay+' MIN</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(168))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:13px;color:#555">LEAVE IN</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(194))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:50px">'+d.leaveMin+'</span></div>';
+    h+='<div style="position:absolute;left:'+HX(left)+';top:'+VY(43*SY+pxv(300))+';width:'+HX(colW)+';text-align:center"><span class="px" style="font-size:14px">BY '+d.leave+' \u00B7 ARR '+d.arr+'</span></div>';
+    h+=diamond(left,colW,d.prog);
+    h+=sep(left,colW)+nextLine(left,colW,d.next);
+    return h;
+  }
+
+  var W=632, half=W/2;
+  function dual(elId, time, lFn, lD, rFn, rD){
+    var s=clockBar(time);
+    s+=lFn(0,half,lD);
+    s+='<div style="position:absolute;left:50%;top:'+VY(43*SY)+';width:1px;bottom:0;background:#b8b6ad"></div>';
+    s+=rFn(half,half,rD);
+    document.getElementById(elId).innerHTML=s;
+  }
+  function single(elId, time, d){
+    document.getElementById(elId).innerHTML = clockBar(time)+colNormal(0,W,d);
+  }
+
+  dual('s-main','07:08',
+    colNormal,{mode:'bus',route:'BUS 22',leaveMin:'NOW',leave:'07:08',arrMin:'4 MIN',arr:'07:14',prog:1.0,next:'07:24'},
+    colNormal,{mode:'train',route:'TRAIN HVL',leaveMin:'7 MIN',leave:'07:15',arrMin:'11 MIN',arr:'07:19',prog:0.53,next:'07:34'});
+
+  single('s-single','07:42',
+    {mode:'bus',route:'BUS 14',leaveMin:'4 MIN',leave:'07:43',arrMin:'9 MIN',arr:'07:48',prog:0.73,next:'08:02',big:true});
+
+  dual('s-cancel','07:08',
+    colNormal,{mode:'bus',route:'BUS 22',leaveMin:'NOW',leave:'07:08',arrMin:'4 MIN',arr:'07:14',prog:1.0,next:'07:24'},
+    colCancelled,{mode:'train',route:'TRAIN HVL',cancelled:'07:19',leaveMin:'19 MIN',leave:'07:27',arr:'07:34',prog:0.15,next:'07:48'});
+
+  dual('s-delay','07:08',
+    colNormal,{mode:'bus',route:'BUS 22',leaveMin:'NOW',leave:'07:08',arrMin:'4 MIN',arr:'07:14',prog:1.0,next:'07:24'},
+    colDelayed,{mode:'train',route:'TRAIN HVL',delay:'9',leaveMin:'16 MIN',leave:'07:24',arr:'07:28',prog:0.20,next:'07:43'});
+})();
+</script>
+</body>
+</html>
