@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+	<rect width="960" height="540" fill="#ffffff"/>
+
+	<rect x="0" y="0" width="960" height="48" fill="#000000"/>
+	<text x="480" y="34" font-family="Press Start 2P" font-size="16" fill="#ffffff" text-anchor="middle">GOTTAGO BMP TEST</text>
+
+	<rect x="20" y="70" width="460" height="450" fill="none" stroke="#000000" stroke-width="2"/>
+	<text x="40" y="110" font-family="Press Start 2P" font-size="14" fill="#000000">LEAVE IN</text>
+	<text x="40" y="240" font-family="Press Start 2P" font-size="80" fill="#000000">7 MIN</text>
+	<text x="40" y="300" font-family="Press Start 2P" font-size="14" fill="#000000">BY 08:14</text>
+	<text x="40" y="330" font-family="Press Start 2P" font-size="12" fill="#000000">ARRIVES 12 MIN  08:21</text>
+
+	<line x1="40" y1="400" x2="460" y2="400" stroke="#000000" stroke-width="2"/>
+	<circle cx="320" cy="400" r="10" fill="#000000"/>
+	<text x="40" y="450" font-family="Press Start 2P" font-size="14" fill="#000000">NEXT 08:42</text>
+
+	<rect x="500" y="70" width="440" height="450" fill="none" stroke="#000000" stroke-width="2"/>
+	<text x="520" y="110" font-family="Press Start 2P" font-size="14" fill="#000000">LEAVE IN</text>
+	<text x="520" y="240" font-family="Press Start 2P" font-size="80" fill="#000000">NOW</text>
+	<text x="520" y="300" font-family="Press Start 2P" font-size="14" fill="#000000">BY 08:09</text>
+	<text x="520" y="330" font-family="Press Start 2P" font-size="12" fill="#000000">ARRIVES 15 MIN  08:24</text>
+
+	<line x1="520" y1="400" x2="920" y2="400" stroke="#000000" stroke-width="2"/>
+	<circle cx="920" cy="400" r="10" fill="#000000"/>
+	<text x="520" y="450" font-family="Press Start 2P" font-size="14" fill="#000000">NEXT 09:09</text>
+</svg>
