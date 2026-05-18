@@ -14,7 +14,6 @@
 - Added explicit handling for **cancelled** and **delayed** services (§5.1, §6).
 - Renamed config keys, HTTP headers, and Worker secrets to match the glossary:
   - `devices:` → `radiators:`
-  - `time_to_stop_mins` → `walk_time_mins`
   - `comfortable_buffer_factor` → `comfort_buffer`
   - `X-Device-User` → `X-Radiator-Slug`
   - `X-Device-Token` → `X-Radiator-Token`
@@ -38,7 +37,7 @@ When users are fatigued, rushing, or managing varying household schedules, they 
 ## 3. Success factors
 
 * **Zero-intervention UI:** The consumer interface requires no physical interaction to display context-relevant data.
-* **Math-free urgency:** A single glance tells the user when to leave home — based on **walk time** and **comfort buffer** — eliminating mental countdown calculations.
+* **Math-free urgency:** A single glance tells the user when to leave home — based on **time to stop** and **comfort buffer** — eliminating mental countdown calculations.
 * **Ultra-high scalability:** New radiators can be added to the network without firmware updates when upstream APIs change.
 * **High ambient blending:** Enclosures blend into household environments (bedside, fridge) without emitting disruptive light.
 
@@ -96,7 +95,7 @@ The **marker**'s horizontal position along the **track** is a function of **leav
 
 ```
 leave_margin    = max(0, leave_by_time − now)              # minutes; clamped at 0
-window          = walk_time_mins × comfort_buffer          # minutes; full track length
+window          = time_to_stop_mins × comfort_buffer       # minutes; full track length
 position_ratio  = 1 − clamp(leave_margin / window, 0, 1)   # 0 = hard left, 1 = hard right
 ```
 
@@ -211,11 +210,11 @@ profiles:
       transit_targets:
         bus:
           stop_id: "7104"
-          walk_time_mins: 7      # Walking — predictable, low variance
+          time_to_stop_mins: 7   # Walking — predictable, low variance
           comfort_buffer: 3
         train:
           station_id: "WELL"
-          walk_time_mins: 15     # Driving — subject to traffic variance (see §11 open question)
+          time_to_stop_mins: 15  # Driving — subject to traffic variance
           comfort_buffer: 4
 
     workday_focus:
@@ -232,7 +231,7 @@ profiles:
       transit_targets:
         train:
           station_id: "WELL"
-          walk_time_mins: 10
+          time_to_stop_mins: 10
           comfort_buffer: 4
 
   daughter_school:
@@ -244,7 +243,7 @@ profiles:
       transit_targets:
         bus:
           stop_id: "5112"
-          walk_time_mins: 5
+          time_to_stop_mins: 5
           comfort_buffer: 3
 
     afternoon_idle:
@@ -290,4 +289,3 @@ Before first deployment, complete in order:
 
 * **Battery level indicator:** Requires the radiator to pass its current charge level as a query parameter to the Worker. Deferred to a future version to keep the firmware simple and maintain the dumb-radiator contract.
 * **Battery life validation for `workday_focus`:** The 1-minute refresh cycle during a 7-hour workday on a 2000 mAh LiPo has not been empirically validated. If battery drain is unacceptable, options are: increase the refresh interval, show date only, or remove the workday clock feature.
-* **`walk_time_mins` naming when the leg is driven:** The train target uses 15 min of drive time. The key currently keeps "walk" for plain-English reasons but technically misnames the value. See [glossary.md §11](../glossary.md#11-open-questions-language-work-still-pending) — pending decision.

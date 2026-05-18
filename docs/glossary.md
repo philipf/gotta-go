@@ -87,7 +87,7 @@ Minutes until the user must leave home to make the **catchable service**. The Ti
 ### Leave By
 The absolute clock time at which the user must leave home. The Tier 2 anchor.
 - **Appears as:** UI label `BY hh:mm` (e.g. `BY 07:08`), code symbol `leave_by_time`.
-- **Relation:** `leave_by_time = arrival_time − walk_time_mins`. The comfort buffer is *not* part of Leave By — it only sizes the **window** for the marker.
+- **Relation:** `leave_by_time = arrival_time − time_to_stop_mins`. The comfort buffer is *not* part of Leave By — it only sizes the **window** for the marker.
 
 ### Arrives In
 Minutes until the catchable service arrives at the stop. Tier 2 detail, paired with **arrival time**.
@@ -116,7 +116,7 @@ The current local time, rendered in the **global header**.
 ## 4. Service states
 
 ### Catchable service
-A scheduled service the user can still make given their **walk time** and current wall-clock time. Drives Tier 1, Tier 2, and the marker position.
+A scheduled service the user can still make given their **time to stop** and current wall-clock time. Drives Tier 1, Tier 2, and the marker position.
 
 ### Missed service
 A service whose **Leave In** has reached zero and elapsed unmade. It is removed from the column; the **next service** is **promoted** into its slot.
@@ -158,13 +158,13 @@ The fixed time span represented by the full length of the track. Window length i
 
 ## 6. Margins, buffers, distances
 
-### Walk time
-The minutes it takes the user to travel from home to the stop. Driving counts (see open question §11).
-- **Appears as:** config key `walk_time_mins:`, code symbol `walk_time_mins`.
-- **Not to be confused with:** ~~time_to_stop_mins~~ (legacy key, deprecated).
+### Time to stop
+The minutes it takes the user to travel from home to the stop, regardless of mode — walking, driving, scootering, all count.
+- **Appears as:** config key `time_to_stop_mins:`, code symbol `time_to_stop_mins`.
+- **Not to be confused with:** ~~walk_time_mins~~ (deprecated — misleading when the leg is driven), ~~walk time~~ (same).
 
 ### Comfort buffer
-The multiplier on **walk time** that defines the left edge of the **window**. With walk = 7 min and comfort buffer = 3, the marker enters the track from hard-left when **leave margin** = 21 min (i.e. the user has 28 min until departure: 7 min walk + 21 min buffer).
+The multiplier on **time to stop** that defines the left edge of the **window**. With time to stop = 7 min and comfort buffer = 3, the marker enters the track from hard-left when **leave margin** = 21 min (i.e. the user has 28 min until departure: 7 min to stop + 21 min buffer).
 - **Appears as:** config key `comfort_buffer:`, code symbol `comfort_buffer`.
 - **Not to be confused with:** ~~comfortable_buffer_factor~~ (legacy key, deprecated).
 
@@ -252,7 +252,7 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 | safety margin | leave margin |
 | LEAVE NOW banner, urgency state, urgency filter | Now (the literal hero value under the `LEAVE IN` label) |
 | comfortable_buffer_factor | comfort buffer |
-| time_to_stop_mins | walk_time_mins |
+| walk_time_mins, walk time | time_to_stop_mins, time to stop |
 | state (for `morning_commute` etc.) | profile phase |
 | target (bare) | transit target |
 | X-Device-User, X-Device-Token | X-Radiator-Slug, X-Radiator-Token |
@@ -264,6 +264,5 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 
 ## 11. Open questions (language work still pending)
 
-1. **`walk_time_mins` when the leg is driven.** The train target in `philip_and_tania.morning_commute` uses 15 min of drive time. "Walk" is wrong; "time_to_stop" is the legacy term we rejected. Candidates: `leg_time_mins`, `journey_time_mins`, `time_to_stop_mins` (keep legacy), or leave `walk_time_mins` with a documented note that driving counts. **Current placeholder:** `walk_time_mins`.
-2. **Naming of the strike-through above a cancelled service.** Currently unnamed — we have "cancelled service" (the rendered struck line) and "replacement service" (Tier 1 below it). Probably fine without a third name, but flag if it surfaces in conversation.
-3. **`refresh_interval_minutes` vs `sleep duration`.** These describe the same thing from different sides — config-side cadence vs response-side instruction. Probably acceptable as two names for two angles; revisit if they ever drift.
+1. **Naming of the strike-through above a cancelled service.** Currently unnamed — we have "cancelled service" (the rendered struck line) and "replacement service" (Tier 1 below it). Probably fine without a third name, but flag if it surfaces in conversation.
+2. **`refresh_interval_minutes` vs `sleep duration`.** These describe the same thing from different sides — config-side cadence vs response-side instruction. Probably acceptable as two names for two angles; revisit if they ever drift.

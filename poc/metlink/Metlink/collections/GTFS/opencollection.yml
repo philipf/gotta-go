@@ -1,0 +1,31 @@
+opencollection: 1.0.0
+
+info:
+  name: GTFS
+config:
+  proxy:
+    inherit: true
+    config:
+      protocol: http
+      hostname: ""
+      port: ""
+      auth:
+        username: ""
+        password: ""
+      bypassProxy: ""
+
+request:
+  auth:
+    type: apikey
+    key: x-api-key
+    value: "{{Metlink-API-KEY}}"
+    placement: header
+  variables:
+    - name: base-uri
+      value: api.opendata.metlink.org.nz/v1
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

@@ -18,7 +18,7 @@ The canonical visual and interaction reference for the GottaGo radiator. This do
 
 The radiator is glanced at, never operated. Every design decision below follows from one question: *what does a tired person crossing a room at 7am need to know in under a second?*
 
-Standard transit apps answer "when does the bus arrive?" That forces mental arithmetic — subtract the **walk time**, subtract the time you've been standing there, decide whether to move. The radiator removes that maths entirely. It answers the only question that triggers an action: **when do I need to leave the house?** That's **Leave In**, the Tier 1 hero. **Arrives In** is still shown, but as supporting detail, not the headline.
+Standard transit apps answer "when does the bus arrive?" That forces mental arithmetic — subtract the **time to stop**, subtract the time you've been standing there, decide whether to move. The radiator removes that maths entirely. It answers the only question that triggers an action: **when do I need to leave the house?** That's **Leave In**, the Tier 1 hero. **Arrives In** is still shown, but as supporting detail, not the headline.
 
 The frame is information-sparse by design. It is mounted on a fridge or a bedside surface, read peripherally, and refreshes only every 2–3 minutes. That rules out anything requiring focus or motion to interpret. The hierarchy is strictly three tiers, and a glance should resolve the top tier alone.
 

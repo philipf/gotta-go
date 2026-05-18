@@ -1,0 +1,14 @@
+opencollection: 1.0.0
+info:
+  name: "Metlink"
+  type: workspace
+
+collections:
+  - name: "GTFS"
+    path: "collections/GTFS"
+  - name: "GTFS-RT (realtime)"
+    path: "collections/GTFS-RT (realtime)"
+
+specs:
+
+docs: ''

@@ -1,0 +1,9 @@
+{
+	"dependencies": {
+		"react": "^19.2.6",
+		"satori": "^0.26.0"
+	},
+	"devDependencies": {
+		"tsx": "^4.22.1"
+	}
+}
