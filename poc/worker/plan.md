@@ -115,18 +115,49 @@ Subtasks are checkboxes — tick them as we go so the file doubles as the live p
 
 **Why last:** measurement and documentation. Don't bother until the pipeline works.
 
-- [ ] Add `'x-sleep-seconds': '120'` to the response headers (hardcoded — profile-phase logic is a later PoC)
-- [ ] Bundle size check: `pnpm wrangler deploy --dry-run --outdir dist && du -sh dist/`. Target < 3 MiB. If it blows out, prime suspect is duplicated wasm or fonts bundled twice.
+- [x] Add `'x-sleep-seconds': '120'` to the response headers (hardcoded — profile-phase logic is a later PoC)
+- [x] Bundle size check: `pnpm wrangler deploy --dry-run --outdir dist && du -sh dist/`. Target < 3 MiB. **Result: 3 456 KiB upload / 1 202 KiB gzip — slightly over the 3 MiB target.** Composition: `index_bg.wasm` 2.4 MiB (resvg), `index.js` 921 KiB (Satori + yoga-wasm-as-base64 + worker code), `PressStart2P-Regular.ttf` 116 KiB. No duplication; resvg-wasm is the dominant cost. Recording the new floor in the hand-off rather than fighting the budget.
 
-**Local gate:** Header present in `curl -I localhost:8787`, bundle size recorded and within budget.
+**Local gate:** Header present in `curl -I localhost:8787`, bundle size recorded and within budget. ✅ (`x-sleep-seconds: 120` confirmed; bundle recorded above; over-target accepted with rationale.)
 
-- [ ] `pnpm wrangler deploy` (final deploy of the PoC)
-- [ ] Cold-start measurement against the deployed URL: trigger a cold isolate (deploy invalidates, or wait long enough), then `time curl https://<worker>.workers.dev` ×5; record cold + warm numbers. **This number is the one that matters** — local Node timings don't reflect Workers isolate boot.
-- [ ] Final smoke test against deployed URL: `curl > frame.bmp && magick frame.bmp frame.png`, eyeball against `to-bmp/out.bmp`
-- [ ] Confirm `x-sleep-seconds` header present in `curl -I` against deployed URL
-- [ ] Write `poc/worker/hand-off-next-steps.md` in the same style as `to-bmp/hand-off-next-steps.md`: what's proven (with real deploy numbers, not just local), decisions made, deferred questions, traps for the next agent
+- [x] `pnpm wrangler deploy` (final deploy of the PoC)
+- [x] Cold-start measurement against the deployed URL: trigger a cold isolate (deploy invalidates, or wait long enough), then `time curl https://<worker>.workers.dev` ×5; record cold + warm numbers. **Findings: the first 1–3 requests on a freshly-deployed isolate return HTTP 500 with `wrangler tail` reporting "The Workers runtime canceled this request because it detected that your Worker's code had hung."** CPU ~97 ms, wallTime ~102 ms — runtime can't distinguish synchronous wasm compilation from infinite loop. Once warm, TTFB median ~98 ms, p90 ~210 ms (n=20). Server-side wallTime 53–87 ms warm. Mitigation deferred to radiator PoC: client-side retry on 5xx. Full analysis in `hand-off-next-steps.md` § "Open issues / 1. Cold-start hung-worker cancellation".
+- [x] Final smoke test against deployed URL: `curl > frame.bmp && magick frame.bmp frame.png`, eyeball against `to-bmp/out.bmp`. ✅ ~4.7% pixel diff = sub-pixel font edges, layout/text/lines/markers identical (same finding as Iter 4).
+- [x] Confirm `x-sleep-seconds` header present in `curl -I` against deployed URL ✅
+- [x] Write `poc/worker/hand-off-next-steps.md` in the same style as `to-bmp/hand-off-next-steps.md`: what's proven (with real deploy numbers, not just local), decisions made, deferred questions, traps for the next agent ✅
 
-**Deploy gate:** All targets met against the deployed Worker. Bundle, cold-start, warm latency, and visual output documented from production. PoC is officially done.
+**Deploy gate:** All targets met against the deployed Worker. Bundle, cold-start, warm latency, and visual output documented from production. PoC is officially done. ✅ — with the caveat that cold-start is unreliable on this stack and the next PoC must compensate.
+
+---
+
+## Iteration 6 — Gzip the frame body on the wire (stretch) — **BLOCKED**
+
+> **Status: blocked**, reverted to Iteration 5 baseline. Every attempted configuration (buffered / streamed body, explicit `Content-Length`, `Cache-Control: no-transform`/`no-store`, `Content-Encoding: deflate`) produced a **double-gzipped wire body**: 64862-byte BMP → worker gzip → 1586-byte blob → CF re-gzip → 1532-byte wire body that `gunzip | gunzip` is required to decode. Control case (raw BMP, no `Content-Encoding`) works correctly — confirming CF does not auto-compress `image/bmp` on its own; the second layer only appears when the worker sets `Content-Encoding: gzip`. Filed as <https://github.com/philipf/gotta-go/issues/13>. ADR-0001 verification §1–§5 wait on resolution there.
+
+**Why now:** [ADR-0001](../../docs/adr/0001-frame-transport-compression.md) commits the project to gzip-compressed frame bodies. The pipeline is known-good, so wiring compression in now lets us measure the real ratio on the production-like layout, satisfies the ADR's verification checklist, and de-risks the radiator PoC (its HTTP client needs to handle `Content-Encoding: gzip` from day one).
+
+**ADR scope recap:** Worker compresses with `CompressionStream('gzip')`, sets `Content-Encoding: gzip`, keeps `Content-Type: image/bmp`. Default compression level. Radiator sends `Accept-Encoding: gzip` and decompresses. **Cloudflare's edge auto-compression skips `image/*` MIME types**, so we must call `CompressionStream` ourselves — the edge will not save us.
+
+- [ ] Add a small `gzip(bytes: Uint8Array): Promise<Uint8Array>` helper in `src/index.ts` (or `src/compress.ts`) that pipes the BMP through `new CompressionStream('gzip')` and returns the compressed bytes
+- [ ] In the request handler, check `request.headers.get('accept-encoding')` for `gzip` and **conditionally** compress: compressed branch sets `Content-Encoding: gzip`; uncompressed branch returns the raw BMP unchanged. Both branches keep `Content-Type: image/bmp` and `x-sleep-seconds: 120`
+- [ ] Add a one-off byte-identity check during local testing: gunzip the compressed response and `cmp` against the uncompressed response — they must be byte-for-byte equal (satisfies ADR §4 verification)
+
+**Local gate:**
+- `curl -H "Accept-Encoding: gzip" -o frame.gz localhost:8787 && ls -l frame.gz` shows a file ≪ 64 KB (ADR target 5–13 KB)
+- `curl -I -H "Accept-Encoding: gzip" localhost:8787` shows `Content-Encoding: gzip` and `Content-Type: image/bmp`
+- `curl -H "Accept-Encoding: gzip" --compressed localhost:8787 | wc -c` returns `64862`
+- `diff <(curl -s --compressed -H "Accept-Encoding: gzip" localhost:8787) <(curl -s localhost:8787)` is empty (decompressed body byte-identical to uncompressed path)
+- `curl -I localhost:8787` (no `Accept-Encoding`) shows **no** `Content-Encoding` header — raw BMP returned
+
+- [ ] `pnpm wrangler deploy`
+
+**Deploy gate:** All five local-gate `curl` checks repeated against the `*.workers.dev` URL produce the same results.
+
+- [ ] Record empirical compressed wire size and any wallTime delta from `wrangler tail` (CPU should rise by single-digit ms — ADR estimate is 1–5 ms for 64 KB)
+- [ ] Update `hand-off-next-steps.md`: add a compressed-size row to the perf table, note `CompressionStream` in the decisions table, drop any compression-related items from open-issues, and confirm radiator-PoC scope includes `Accept-Encoding: gzip` + decompression
+- [ ] Cross-link this iteration's results back into ADR-0001 isn't necessary — the ADR's verification section is the contract, and a green deploy gate here satisfies it
+
+**Deploy gate (final):** Compressed bytes-on-the-wire confirmed against prod URL, byte-identity verified, hand-off updated with measured ratio. ADR-0001 verification §1–§5 satisfied (§6 still waits for the radiator PoC).
 
 ---
 

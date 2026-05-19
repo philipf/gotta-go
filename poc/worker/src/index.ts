@@ -8,7 +8,10 @@ export default {
 		const rgba = await svgToRgba(svg);
 		const bmp = rgbaTo1BitBmp(rgba);
 		return new Response(bmp, {
-			headers: { 'content-type': 'image/bmp' },
+			headers: {
+				'content-type': 'image/bmp',
+				'x-sleep-seconds': '120',
+			},
 		});
 	},
 } satisfies ExportedHandler<Env>;
