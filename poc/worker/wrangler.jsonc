@@ -2,6 +2,7 @@
 	"name": "gotta-go-worker",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-07-18",
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true,
 	},
