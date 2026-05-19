@@ -16,6 +16,8 @@ pnpm wrangler dev
 # → http://127.0.0.1:8787
 ```
 
+> **Dev caveat — miniflare always negotiates gzip.** `wrangler dev` injects `Accept-Encoding: gzip` into every incoming request to simulate the CF edge, so the worker always enters the gzip branch locally. To inspect the rendered frame, use `curl --compressed localhost:8787 -o frame.bmp` (curl decompresses). To inspect the raw wire bytes, use `curl -H "Accept-Encoding: gzip" localhost:8787 -o frame.gz`. The "raw BMP" branch (`Accept-Encoding` absent) is unreachable under `wrangler dev` and is only verifiable against the deployed worker.
+
 ## Deploy
 
 ```sh

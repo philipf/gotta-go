@@ -130,34 +130,40 @@ Subtasks are checkboxes — tick them as we go so the file doubles as the live p
 
 ---
 
-## Iteration 6 — Gzip the frame body on the wire (stretch) — **BLOCKED**
+## Iteration 6 — Gzip the frame body on the wire (stretch) — ✅
 
-> **Status: blocked**, reverted to Iteration 5 baseline. Every attempted configuration (buffered / streamed body, explicit `Content-Length`, `Cache-Control: no-transform`/`no-store`, `Content-Encoding: deflate`) produced a **double-gzipped wire body**: 64862-byte BMP → worker gzip → 1586-byte blob → CF re-gzip → 1532-byte wire body that `gunzip | gunzip` is required to decode. Control case (raw BMP, no `Content-Encoding`) works correctly — confirming CF does not auto-compress `image/bmp` on its own; the second layer only appears when the worker sets `Content-Encoding: gzip`. Filed as <https://github.com/philipf/gotta-go/issues/13>. ADR-0001 verification §1–§5 wait on resolution there.
+> **Status: done.** Root cause of the double-gzip was Cloudflare's `Response.encodeBody` field defaulting to `"automatic"` — when the worker sets `Content-Encoding: gzip`, the runtime re-applies gzip on top. Setting `encodeBody: 'manual'` suppresses that. Earlier mitigation attempts (buffered/streamed body, explicit `Content-Length`, `Cache-Control: no-transform`/`no-store`, `Content-Encoding: deflate`) all failed because they don't address `encodeBody`. Filed and resolved as <https://github.com/philipf/gotta-go/issues/13>.
 
 **Why now:** [ADR-0001](../../docs/adr/0001-frame-transport-compression.md) commits the project to gzip-compressed frame bodies. The pipeline is known-good, so wiring compression in now lets us measure the real ratio on the production-like layout, satisfies the ADR's verification checklist, and de-risks the radiator PoC (its HTTP client needs to handle `Content-Encoding: gzip` from day one).
 
 **ADR scope recap:** Worker compresses with `CompressionStream('gzip')`, sets `Content-Encoding: gzip`, keeps `Content-Type: image/bmp`. Default compression level. Radiator sends `Accept-Encoding: gzip` and decompresses. **Cloudflare's edge auto-compression skips `image/*` MIME types**, so we must call `CompressionStream` ourselves — the edge will not save us.
 
-- [ ] Add a small `gzip(bytes: Uint8Array): Promise<Uint8Array>` helper in `src/index.ts` (or `src/compress.ts`) that pipes the BMP through `new CompressionStream('gzip')` and returns the compressed bytes
-- [ ] In the request handler, check `request.headers.get('accept-encoding')` for `gzip` and **conditionally** compress: compressed branch sets `Content-Encoding: gzip`; uncompressed branch returns the raw BMP unchanged. Both branches keep `Content-Type: image/bmp` and `x-sleep-seconds: 120`
-- [ ] Add a one-off byte-identity check during local testing: gunzip the compressed response and `cmp` against the uncompressed response — they must be byte-for-byte equal (satisfies ADR §4 verification)
+- [x] Add a small `gzip(bytes: Uint8Array): Promise<Uint8Array>` helper in `src/index.ts` (or `src/compress.ts`) that pipes the BMP through `new CompressionStream('gzip')` and returns the compressed bytes
+- [x] In the request handler, check `request.headers.get('accept-encoding')` for `gzip` and **conditionally** compress: compressed branch sets `Content-Encoding: gzip` **and `encodeBody: 'manual'`**; uncompressed branch returns the raw BMP unchanged. Both branches keep `Content-Type: image/bmp` and `x-sleep-seconds: 120`
+- [x] Add a one-off byte-identity check during local testing: gunzip the compressed response and `cmp` against the uncompressed response — they must be byte-for-byte equal (satisfies ADR §4 verification) — verified on prod (dev pollution noted below)
+
+> **Local-gate dev caveat:** miniflare/wrangler-dev injects `Accept-Encoding: gzip` into every incoming request to simulate the CF edge, so the worker always enters the compressed branch under `wrangler dev` regardless of what curl sends. Local-gate check 5 ("no `Accept-Encoding` → no `Content-Encoding`") is therefore unverifiable locally and was validated against the deploy gate instead, where CF correctly strips the encoding for clients that didn't ask for it.
 
 **Local gate:**
-- `curl -H "Accept-Encoding: gzip" -o frame.gz localhost:8787 && ls -l frame.gz` shows a file ≪ 64 KB (ADR target 5–13 KB)
-- `curl -I -H "Accept-Encoding: gzip" localhost:8787` shows `Content-Encoding: gzip` and `Content-Type: image/bmp`
-- `curl -H "Accept-Encoding: gzip" --compressed localhost:8787 | wc -c` returns `64862`
-- `diff <(curl -s --compressed -H "Accept-Encoding: gzip" localhost:8787) <(curl -s localhost:8787)` is empty (decompressed body byte-identical to uncompressed path)
-- `curl -I localhost:8787` (no `Accept-Encoding`) shows **no** `Content-Encoding` header — raw BMP returned
+- `curl -H "Accept-Encoding: gzip" -o frame.gz localhost:8787 && ls -l frame.gz` shows a file ≪ 64 KB (ADR target 5–13 KB) — **1 586 B** ✅
+- `curl -I -H "Accept-Encoding: gzip" localhost:8787` shows `Content-Encoding: gzip` and `Content-Type: image/bmp` ✅
+- `curl -H "Accept-Encoding: gzip" --compressed localhost:8787 | wc -c` returns `64862` ✅
+- `diff <(curl -s --compressed -H "Accept-Encoding: gzip" localhost:8787) <(curl -s localhost:8787)` is empty — **unverifiable in dev** (miniflare injects `Accept-Encoding`, so the "raw" curl also gets the compressed branch); verified on prod instead ✅
+- `curl -I localhost:8787` (no `Accept-Encoding`) shows **no** `Content-Encoding` header — **unverifiable in dev** (same reason); verified on prod ✅
 
-- [ ] `pnpm wrangler deploy`
+- [x] `pnpm wrangler deploy`
 
-**Deploy gate:** All five local-gate `curl` checks repeated against the `*.workers.dev` URL produce the same results.
+**Deploy gate:** All five local-gate `curl` checks repeated against the `*.workers.dev` URL produce the same results. ✅
+- Wire size with `Accept-Encoding: gzip`: **1 586 B** (40.9× smaller than 64 862 B — better than ADR estimate of 5–13 KB)
+- `--compressed` decoded body: 64 862 B, valid BMP1, byte-identical to the raw branch
+- `gunzip` once → valid BMP; cannot `gunzip` a second time (single gzip layer confirmed — double-gzip resolved)
+- No `Accept-Encoding` on request → CF strips `Content-Encoding`, client gets raw 64 862 B BMP
 
-- [ ] Record empirical compressed wire size and any wallTime delta from `wrangler tail` (CPU should rise by single-digit ms — ADR estimate is 1–5 ms for 64 KB)
-- [ ] Update `hand-off-next-steps.md`: add a compressed-size row to the perf table, note `CompressionStream` in the decisions table, drop any compression-related items from open-issues, and confirm radiator-PoC scope includes `Accept-Encoding: gzip` + decompression
-- [ ] Cross-link this iteration's results back into ADR-0001 isn't necessary — the ADR's verification section is the contract, and a green deploy gate here satisfies it
+- [x] Record empirical compressed wire size and any wallTime delta from `wrangler tail` (CPU should rise by single-digit ms — ADR estimate is 1–5 ms for 64 KB) — **wallTime 47–64 ms (median ~50, n=8 warm gzip requests)**; Iter-5 baseline was 53–87 ms, so gzip cost is within sampling noise (≤ 5 ms, consistent with ADR estimate)
+- [x] Update `hand-off-next-steps.md`: add a compressed-size row to the perf table, note `CompressionStream` + `encodeBody: 'manual'` in the decisions table, drop any compression-related items from open-issues, and confirm radiator-PoC scope includes `Accept-Encoding: gzip` + decompression
+- [x] Cross-link this iteration's results back into ADR-0001 isn't necessary — the ADR's verification section is the contract, and a green deploy gate here satisfies it
 
-**Deploy gate (final):** Compressed bytes-on-the-wire confirmed against prod URL, byte-identity verified, hand-off updated with measured ratio. ADR-0001 verification §1–§5 satisfied (§6 still waits for the radiator PoC).
+**Deploy gate (final):** Compressed bytes-on-the-wire confirmed against prod URL, byte-identity verified, hand-off updated with measured ratio. ADR-0001 verification §1–§5 satisfied (§6 still waits for the radiator PoC). ✅
 
 ---
 
