@@ -5,4 +5,7 @@
 	"observability": {
 		"enabled": true,
 	},
+	"rules": [
+		{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true },
+	],
 }

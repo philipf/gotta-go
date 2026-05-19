@@ -9,7 +9,7 @@ import worker from "../src/index";
 
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
-describe("Checkerboard BMP worker", () => {
+describe("BMP worker", () => {
 	it("returns a 1-bit BMP of the expected size (unit style)", async () => {
 		const request = new IncomingRequest("http://example.com");
 		const ctx = createExecutionContext();

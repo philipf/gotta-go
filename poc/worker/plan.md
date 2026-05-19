@@ -67,23 +67,25 @@ Subtasks are checkboxes — tick them as we go so the file doubles as the live p
 
 **Why next:** rasterisation is the part most likely to bite under Workers (wasm loading, font registration). Isolate it before adding Satori.
 
-- [ ] Add `@resvg/resvg-wasm` dependency
-- [ ] Copy `PressStart2P-Regular.ttf` from `to-bmp/` into `poc/worker/` (or `src/assets/`)
-- [ ] Static-import the wasm and font:
+- [x] Add `@resvg/resvg-wasm` dependency
+- [x] Copy `PressStart2P-Regular.ttf` from `to-bmp/` into `poc/worker/` (or `src/assets/`)
+- [x] Static-import the wasm and font:
   ```ts
   import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
   import pressStartTtf from './PressStart2P-Regular.ttf';
   ```
-- [ ] Use the lazy `wasmReady` pattern from the hand-off doc so `initWasm` runs once per isolate
-- [ ] Inline the contents of `to-bmp/input.svg` as a string constant for now (no Satori yet)
-- [ ] Pipeline in handler: SVG string → `new Resvg(svg, { font: { fontBuffers: [pressStartTtf], defaultFontFamily: 'Press Start 2P', loadSystemFonts: false } })` → `.render().pixels` → `rgbaTo1BitBmp()` → response
-- [ ] Verify Wrangler version is ≥ 3.15 (handles `.wasm` and binary imports natively)
+- [x] Use the lazy `wasmReady` pattern from the hand-off doc so `initWasm` runs once per isolate
+- [x] Inline the contents of `to-bmp/input.svg` as a string constant for now (no Satori yet)
+- [x] Pipeline in handler: SVG string → `new Resvg(svg, { font: { fontBuffers: [pressStartTtf], defaultFontFamily: 'Press Start 2P', loadSystemFonts: false } })` → `.render().pixels` → `rgbaTo1BitBmp()` → response
+- [x] Verify Wrangler version is ≥ 3.15 (handles `.wasm` and binary imports natively) — running 4.92.0
 
-**Local gate:** Output BMP visually matches `to-bmp/out.bmp`. Same hero text, same layout, no missing glyphs.
+> **Note:** `.wasm` bundles natively, but `.ttf` does not. Added a `rules: [{ type: "Data", globs: ["**/*.ttf"] }]` entry to `wrangler.jsonc` so the font is bundled as an `ArrayBuffer` import. Ambient declarations for `*.wasm` and `*.ttf` live in `src/assets.d.ts`.
 
-- [ ] `pnpm wrangler deploy`
+**Local gate:** Output BMP visually matches `to-bmp/out.bmp`. Same hero text, same layout, no missing glyphs. ✅ — **byte-identical** to `to-bmp/out.bmp`
 
-**Deploy gate:** Same visual match against the `*.workers.dev` URL. This is the iteration most likely to expose wasm/asset bundling issues — if it works in prod, the hard part is done.
+- [x] `pnpm wrangler deploy`
+
+**Deploy gate:** Same visual match against the `*.workers.dev` URL. This is the iteration most likely to expose wasm/asset bundling issues — if it works in prod, the hard part is done. ✅ — prod BMP byte-identical to local and to `to-bmp/out.bmp`. Upload: 2.5 MiB (980 KiB gzip).
 
 ---
 
