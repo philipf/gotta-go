@@ -2,6 +2,10 @@ import { rgbaTo1BitBmp } from './bmp';
 import { buildLayout } from './layout';
 import { jsxToSvg, svgToRgba } from './render';
 
+// Per-isolate counter — reqId === 1 means cold isolate. Logged on each request
+// so cold-start regressions are visible in `wrangler tail`.
+let requestCount = 0;
+
 async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
 	const stream = new Response(bytes).body!.pipeThrough(new CompressionStream('gzip'));
 	return new Uint8Array(await new Response(stream).arrayBuffer());
@@ -9,6 +13,9 @@ async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
 
 export default {
 	async fetch(request, _env, _ctx): Promise<Response> {
+		const reqId = ++requestCount;
+		console.log(`[req ${reqId}] start (isolate request #${reqId})`);
+
 		const svg = await jsxToSvg(buildLayout());
 		const rgba = await svgToRgba(svg);
 		const bmp = rgbaTo1BitBmp(rgba);
