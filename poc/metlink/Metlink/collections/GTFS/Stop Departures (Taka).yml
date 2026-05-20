@@ -5,19 +5,18 @@ info:
 
 http:
   method: GET
-  url: https://{{base-uri}}/stop-predictions?stop_id=3275
+  url: https://{{base-uri}}/stop-predictions?stop_id=TAKA1&limit=3
   params:
     - name: stop_id
-      value: "3275"
+      value: TAKA1
       type: query
     - name: service_id
       value: "1"
       type: query
       disabled: true
     - name: limit
-      value: "7"
+      value: "3"
       type: query
-      disabled: true
   auth: inherit
 
 settings:
