@@ -147,7 +147,7 @@ See [GottaGo — UI/UX Reference](../UI/GottaGo%20%E2%80%94%20UI_UX%20Design%20R
 * **When** a radiator cannot reach the Worker (Wi-Fi failure, network error, or unexpected response), the radiator **shall** take no action — the panel retains its last valid frame indefinitely without power. The radiator **shall** silently retry on the next scheduled wake cycle.
 
 ### Pre-implementation spikes required
-* The specific Metlink GTFS-Realtime API endpoints, response shapes, and field mappings for bus stop predictions (`stop_id`) and train station departures (`station_id`) must be validated against the live API before Worker implementation begins.
+* ~~The specific Metlink GTFS-Realtime API endpoints, response shapes, and field mappings for bus stop predictions (`stop_id`) and train station departures (`station_id`) must be validated against the live API before Worker implementation begins.~~ **Complete** — see [`docs/adr/0002-metlink-stop-predictions-field-mapping.md`](../adr/0002-metlink-stop-predictions-field-mapping.md). Key finding: the API uses `stop_id` for both bus and train; a `service_id` filter must be applied client-side in the Worker.
 * The TypeScript BMP rendering pipeline must be validated end-to-end in a Cloudflare Workers environment before full Worker implementation begins. The spike must confirm: Satori rendering with the Press Start 2P TTF asset produces pixel-accurate output at the required sizes; the manual 1-bit BMP encoder correctly encodes the rasterised pixel data; and the resulting BMP byte stream is faithfully flushed by the LilyGO T5 EPD panel without artefacts.
 
 ## 8. High-level architecture & solution design
@@ -159,7 +159,7 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 * **Caching layer:** Cloudflare KV Storage (30-second TTL for Metlink API responses).
 * **Graphics engine:** **Satori** for CSS-driven layout and Press Start 2P font rendering (TTF bundled as a static Worker asset), producing an intermediate SVG. The SVG pixel data is encoded into a 1-bit monochrome BMP byte array via manual BMP byte construction — zero native dependencies, sub-millisecond encode time.
 * **Firmware:** C++/Arduino ESP-IDF framework running on the LilyGO T5 (handles Wi-Fi connection, HTTP fetching, deep sleep management, and raw E-paper EPD buffer flushing).
-* **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions).
+* **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions). API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/adr/0002-metlink-stop-predictions-field-mapping.md`](../adr/0002-metlink-stop-predictions-field-mapping.md).
 
 ### Request / response contract
 
@@ -209,11 +209,13 @@ profiles:
       layout: "priority_split"
       transit_targets:
         bus:
-          stop_id: "7104"
+          stop_id: "3234"         # Westchester Dr at Waitohi Rd — validated ADR-0002
+          service_id: "1"         # Route 1 to Island Bay
           time_to_stop_mins: 7   # Walking — predictable, low variance
           comfort_buffer: 3
         train:
-          station_id: "WELL"
+          stop_id: "TAKA1"        # Takapu Rd Station (KPL line) — validated ADR-0002
+          service_id: "KPL"       # Kāpiti Line
           time_to_stop_mins: 15  # Driving — subject to traffic variance
           comfort_buffer: 4
 
@@ -230,7 +232,8 @@ profiles:
       layout: "priority_split"      # Single-column auto-scales for one target
       transit_targets:
         train:
-          station_id: "WELL"
+          stop_id: "WELL1"        # Wellington Station (KPL line outbound) — not yet live-validated
+          service_id: "KPL"       # Kāpiti Line
           time_to_stop_mins: 10
           comfort_buffer: 4
 
@@ -242,7 +245,8 @@ profiles:
       layout: "priority_split"
       transit_targets:
         bus:
-          stop_id: "5112"
+          stop_id: "TBD"          # Daughter's school bus stop — not yet validated
+          service_id: "TBD"       # Route TBD
           time_to_stop_mins: 5
           comfort_buffer: 3
 
@@ -278,7 +282,7 @@ METLINK_API_URL = "https://api.opendata.metlink.org.nz/v1"
 Before first deployment, complete in order:
 
 - [ ] Run BMP rendering spike: validate Satori + Press Start 2P TTF output and manual 1-bit BMP encoder against the LilyGO T5 EPD panel (see §7).
-- [ ] Validate Metlink GTFS-Realtime API endpoints for `stop_id` (bus) and `station_id` (train) — confirm field names and response shapes against the live API.
+- [x] Validate Metlink API endpoints for `stop_id` (bus and train) — confirmed field names, response shapes, and rate-limit behaviour. See ADR-0002.
 - [ ] Create the Cloudflare KV namespace and replace `prod_metlink_cache_kv_id_here` in `wrangler.toml` with the real ID.
 - [ ] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
 - [ ] Bundle Press Start 2P TTF as a static Worker asset.
