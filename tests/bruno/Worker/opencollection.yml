@@ -1,0 +1,33 @@
+opencollection: 1.0.0
+
+info:
+  name: Worker
+config:
+  proxy:
+    inherit: true
+    config:
+      protocol: http
+      hostname: ""
+      port: ""
+      auth:
+        username: ""
+        password: ""
+      bypassProxy: ""
+
+request:
+  auth:
+    type: apikey
+    key: X-Radiator-Token
+    value: "{{Radiator-Token}}"
+    placement: header
+  variables:
+    - name: base-uri
+      value: localhost:8787
+    - name: radiator-slug
+      value: bedroom-philip-tania
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git
