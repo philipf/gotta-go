@@ -1,0 +1,16 @@
+opencollection: 1.0.0
+info:
+  name: "GottaGo"
+  type: workspace
+
+collections:
+  - name: "Worker"
+    path: "Worker"
+  - name: "Metlink GTFS"
+    path: "Metlink/collections/GTFS"
+  - name: "Metlink GTFS-RT (realtime)"
+    path: "Metlink/collections/GTFS-RT (realtime)"
+
+specs:
+
+docs: ''
