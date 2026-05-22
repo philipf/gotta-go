@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePhase } from './index';
+import { buildViewModel, resolvePhase } from './index';
 import type { Profile } from '../../config/index';
 
 const seedProfile: Profile = {
@@ -23,5 +23,16 @@ describe('minimal_clock.resolvePhase', () => {
 		expect(result.phase).toBe('all_day_clock');
 		expect(result.sleepSeconds).toBeGreaterThanOrEqual(30);
 		expect(result.sleepSeconds).toBeLessThanOrEqual(14400);
+	});
+});
+
+describe('minimal_clock.buildViewModel', () => {
+	it('returns slug + HH:MM time + "Dow DD Mon" date in the profile timezone', () => {
+		// 2026-05-23T06:48:00Z = 2026-05-23T18:48:00+12:00 (Pacific/Auckland)
+		const vm = buildViewModel(seedProfile, new Date('2026-05-23T06:48:00Z'));
+
+		expect(vm.slug).toBe('bedroom-philip-tania');
+		expect(vm.time).toMatch(/^\d{2}:\d{2}$/);
+		expect(vm.date).toMatch(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/);
 	});
 });
