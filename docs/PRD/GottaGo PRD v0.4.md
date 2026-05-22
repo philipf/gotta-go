@@ -163,12 +163,11 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 
 ### Request / response contract
 
-| Direction | Mechanism | Purpose |
-|-----------|-----------|---------|
-| Radiator → Worker | `X-Radiator-Slug: <slug>` header | Identifies the radiator; Worker resolves to a **profile** via the `radiators:` config. |
-| Radiator → Worker | `X-Radiator-Token: <secret>` header | **Shared token**; Worker rejects requests without a valid value. |
-| Worker → Radiator | HTTP body (binary BMP) | Ready-to-flush 1-bit 960×540 **frame**. |
-| Worker → Radiator | `X-Sleep-Seconds: <n>` header | **Sleep duration**; the radiator deep-sleeps for exactly this duration. |
+The authoritative wire contract — paths, headers, status codes, response shapes, value ranges — is the OpenAPI 3.1 specification at [`docs/api/openapi.yaml`](../api/openapi.yaml). The rationale behind every choice (path versioning, indistinguishable auth failures, the reserved `X-Radiator-*` namespace, idle-profile fall-through, etc.) is captured in [ADR-0003](../adr/0003-radiator-worker-contract.md). This section gives the PRD-level surface only — there are no field-level details here that are not in the OpenAPI.
+
+**Endpoint shape.** A single call: `GET /v1/frame`. The radiator identifies itself via `X-Radiator-Slug` and authenticates with the shared `X-Radiator-Token`; the Worker returns a gzipped 1-bit 960×540 BMP **frame** and the next **sleep duration** in `X-Sleep-Seconds`. All future radiator-side telemetry (battery, firmware version, Wi-Fi RSSI) reserves the `X-Radiator-*` header prefix, so firmware can add it later without a Worker change or a contract version bump.
+
+**Error model.** The Worker never errors on "no active profile phase" — server time outside every configured window falls through to the **idle profile** and returns `200`. Likewise, a Metlink outage with any cached data (even past TTL) is served as a `200` with a `stale-served` cache-status header rather than a `502`. The radiator's response to every status code is the same shape: flush the frame if `200`, ignore the body otherwise, and sleep for `X-Sleep-Seconds` (or the firmware's 300-s fallback when no response arrived).
 
 ### Profile-phase resolution flow (Worker)
 1. Validate `X-Radiator-Token`.

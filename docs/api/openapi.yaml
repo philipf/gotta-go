@@ -1,0 +1,489 @@
+# GottaGo — Radiator ↔ Worker HTTP contract
+#
+# Authoritative wire specification for the one HTTP call a **radiator** (firmware)
+# makes to the **Worker** (Cloudflare Worker backend) on every **wake cycle**.
+#
+# This file is the single source of truth for the *what* of the contract:
+# paths, headers, status codes, response shapes, value ranges. The matching
+# *why* — every rationale, trade-off and rejected alternative — lives in
+# ADR-0003 (../adr/0003-radiator-worker-contract.md). Update both together.
+#
+# Every domain term used below (radiator, frame, profile phase, sleep duration,
+# idle profile, KV cache, hardware id, …) is defined in ../glossary.md. Field
+# descriptions intentionally reach for the glossary's canonical names rather
+# than inventing local synonyms.
+
+openapi: 3.1.0
+
+info:
+  title: GottaGo Radiator–Worker Contract
+  version: 1.0.0
+  summary: HTTP contract a radiator speaks to the Worker on every wake cycle.
+  description: |
+    The wire surface the **radiator** firmware uses to fetch its next rendered
+    **frame** and its next **sleep duration** from the **Worker**.
+
+    ## Design invariant — "Dumb Radiator, Smart Edge"
+
+    Per PRD §8 the radiator performs zero data processing. This contract keeps
+    that invariant:
+
+    - The radiator parses exactly two response artefacts: the gzipped BMP body
+      (mechanical decompress + flush) and the integer `X-Sleep-Seconds` header.
+    - All status codes collapse to a single firmware decision: "got a frame to
+      flush? yes/no." Everything else is sleep.
+    - Sleep authority lives entirely on the Worker whenever the radiator
+      reaches it; the firmware's 300 s fallback is a recovery floor, not a
+      participant in normal operation.
+
+    ## Versioning
+
+    The `/v1/` segment is the contract version. A future incompatible bump
+    (binary header format, different auth model, …) ships at `/v2/frame` and
+    runs side-by-side with `/v1/frame` long enough to re-flash every radiator.
+    Cheaper than a flag-day cutover for a small fleet; intentionally expensive
+    enough to discourage frivolous bumps.
+
+    ## Reserved header namespace
+
+    The `X-Radiator-*` request-header prefix is reserved for future
+    radiator-side telemetry (battery, firmware version, Wi-Fi RSSI, …). The
+    Worker MUST ignore unknown headers in this namespace so firmware can add
+    telemetry without a Worker change or a contract version bump.
+
+    ## Cross-references
+
+    - **Rationale & rejected alternatives:** [ADR-0003](../adr/0003-radiator-worker-contract.md).
+    - **Terminology:** [glossary](../glossary.md).
+    - **Frame compression:** [ADR-0001](../adr/0001-frame-transport-compression.md).
+    - **Metlink upstream contract:** [ADR-0002](../adr/0002-metlink-stop-predictions-field-mapping.md).
+  contact:
+    name: GottaGo project
+    url: https://github.com/philipf/gotta-go
+
+servers:
+  - url: https://{worker_host}
+    description: Deployed Cloudflare Worker. `worker_host` is environment-specific.
+    variables:
+      worker_host:
+        default: gotta-go.example.workers.dev
+        description: Hostname of the deployed Worker.
+
+tags:
+  - name: frame
+    description: |
+      Frame retrieval. The single endpoint the radiator hits on every
+      **wake cycle**.
+
+# Every operation requires the shared token. Declared once here so each path
+# inherits it automatically.
+security:
+  - radiatorSharedToken: []
+
+paths:
+  /v1/frame:
+    get:
+      tags: [frame]
+      operationId: getFrame
+      summary: Fetch the next rendered frame and sleep instruction.
+      description: |
+        Called by the radiator on every wake cycle. The Worker:
+
+        1. Authenticates the request via `X-Radiator-Token` (see
+           `radiatorSharedToken`).
+        2. Resolves the **radiator slug** (`X-Radiator-Slug`) against the
+           `radiators:` block in `config.yaml`.
+        3. Resolves the active **profile phase** for the server's current
+           time; if no configured phase matches, falls through to the
+           **idle profile** — the response is still `200`.
+        4. Renders the **frame**, gzips it, returns it with the next
+           **sleep duration** in `X-Sleep-Seconds`.
+
+        ### Idle-profile behaviour
+
+        When server time falls outside every configured `start_time` /
+        `end_time` window for the slug, the response is `200 OK` with a frame
+        from the idle profile and
+        `X-Sleep-Seconds = min(seconds_until_next_configured_phase_start, 14400)`.
+        `X-Profile-Phase` is set to the literal `idle_profile`.
+
+        ### Metlink staleness fallback
+
+        If Metlink is unreachable but the **KV cache** has any entry for the
+        configured stops (even past its 30 s TTL), the Worker returns `200`
+        with the cached frame and `X-Cache-Status: stale-served`. `502` fires
+        only when no cache entry exists at all to fall back to.
+
+        ### Observability headers
+
+        On success (and on most error paths) the Worker also sets
+        `X-Server-Time`, `X-Profile-Phase`, `X-Metlink-Fetched-At`, and
+        `X-Cache-Status`. These are diagnostic data for humans running `curl`
+        — the firmware ignores them. New `X-*` response headers may be added
+        unilaterally; the radiator simply does not read response headers it
+        does not act on.
+      parameters:
+        - $ref: '#/components/parameters/RadiatorSlug'
+        - $ref: '#/components/parameters/AcceptEncodingGzip'
+        - $ref: '#/components/parameters/RadiatorHardwareId'
+      responses:
+        '200':
+          $ref: '#/components/responses/FrameOk'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/UnknownRadiator'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/UpstreamUnavailable'
+        '503':
+          $ref: '#/components/responses/Maintenance'
+
+components:
+
+  # -----------------------------------------------------------------------
+  # Security
+  # -----------------------------------------------------------------------
+
+  securitySchemes:
+    radiatorSharedToken:
+      type: apiKey
+      in: header
+      name: X-Radiator-Token
+      description: |
+        The **shared token** — a single opaque value (≥ 32 chars,
+        CSPRNG-generated) sent by every radiator. Stored on the Worker as
+        the `RADIATOR_SHARED_TOKEN` secret. Treat as a bearer credential.
+
+        **Failure modes are deliberately indistinguishable** — a missing
+        `X-Radiator-Token` and an invalid `X-Radiator-Token` both produce a
+        `401 Unauthorized` with the same body. This removes a
+        token-vs-no-token oracle and collapses two rejection paths into one
+        on the Worker.
+
+  # -----------------------------------------------------------------------
+  # Request parameters (headers only — GET, no body, no query string)
+  # -----------------------------------------------------------------------
+
+  parameters:
+
+    RadiatorSlug:
+      name: X-Radiator-Slug
+      in: header
+      required: true
+      description: |
+        The **radiator slug** identifying which radiator is calling. Must
+        match a key under `radiators:` in `config.yaml`. Hardcoded as a
+        compile-time firmware constant.
+
+        Identification, not authentication. With a closed surface area
+        (a 5-radiator household) an unknown slug returns `404` rather than
+        `401` — the readability and operational clarity win outweigh the
+        negligible information leak.
+      schema:
+        $ref: '#/components/schemas/RadiatorSlug'
+      example: bedroom-philip-tania
+
+    AcceptEncodingGzip:
+      name: Accept-Encoding
+      in: header
+      required: true
+      description: |
+        Must include `gzip`. Per ADR-0001 the Worker always returns the
+        frame body with `Content-Encoding: gzip` — an uncompressed BMP is
+        too large for the radiator's bandwidth and battery budget.
+      schema:
+        type: string
+        pattern: '(^|, *)gzip(,|$)'
+      example: gzip
+
+    RadiatorHardwareId:
+      name: X-Radiator-Hardware-Id
+      in: header
+      required: false
+      description: |
+        The **hardware id** — a stable per-board identifier (typically the
+        ESP32-S3 MAC address). Distinct from the **radiator slug**: it
+        survives slug reassignment, so the Worker can track which physical
+        board carries which slug across re-flashes.
+
+        Optional; radiators MAY omit it. It is the first entry in the
+        reserved `X-Radiator-*` namespace — future telemetry headers
+        (battery, firmware version, Wi-Fi RSSI, …) will join it without a
+        contract version bump.
+      schema:
+        type: string
+        maxLength: 64
+      example: 24:6F:28:AA:BB:CC
+
+  # -----------------------------------------------------------------------
+  # Reusable responses
+  # -----------------------------------------------------------------------
+
+  responses:
+
+    FrameOk:
+      description: |
+        Valid request — the rendered frame is in the body, the next sleep
+        duration is in `X-Sleep-Seconds`. The `200` is also used for the
+        idle-profile fall-through and the Metlink-staleness fallback (see
+        the operation description).
+      headers:
+        Content-Encoding:
+          $ref: '#/components/headers/ContentEncodingGzip'
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSeconds'
+        X-Server-Time:
+          $ref: '#/components/headers/ServerTime'
+        X-Profile-Phase:
+          $ref: '#/components/headers/ProfilePhase'
+        X-Metlink-Fetched-At:
+          $ref: '#/components/headers/MetlinkFetchedAt'
+        X-Cache-Status:
+          $ref: '#/components/headers/CacheStatus'
+      content:
+        image/bmp:
+          schema:
+            type: string
+            format: binary
+            description: |
+              1-bit 960×540 BMP per PRD §7. Uncompressed size is exactly
+              64,862 bytes. On the wire the body is gzipped — Cloudflare's
+              edge auto-compression skips `image/*`, so the explicit
+              `Content-Encoding: gzip` header is honoured end-to-end.
+
+    Unauthorized:
+      description: |
+        `X-Radiator-Token` was missing or did not match the configured
+        `RADIATOR_SHARED_TOKEN`. The two cases are indistinguishable by
+        design.
+      headers:
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSecondsAuthError'
+      content:
+        text/plain:
+          schema:
+            $ref: '#/components/schemas/PlainTextError'
+          example: unauthorized
+
+    UnknownRadiator:
+      description: |
+        `X-Radiator-Slug` did not match any key under `radiators:` in
+        `config.yaml`. See the parameter description for why this is a
+        `404`, not a `401`.
+      headers:
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSecondsAuthError'
+      content:
+        text/plain:
+          schema:
+            $ref: '#/components/schemas/PlainTextError'
+          example: unknown radiator
+
+    InternalError:
+      description: |
+        Unhandled Worker exception. The radiator backs off briefly and
+        retries on the next wake cycle.
+      headers:
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSecondsInternalError'
+      content:
+        text/plain:
+          schema:
+            $ref: '#/components/schemas/PlainTextError'
+          example: internal error
+
+    UpstreamUnavailable:
+      description: |
+        Metlink is unreachable AND the **KV cache** has no entry for the
+        configured stops. When *any* cache entry exists — even past its
+        30 s TTL — the Worker prefers `200` + `X-Cache-Status: stale-served`
+        over emitting this error.
+      headers:
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSecondsUpstream'
+      content:
+        text/plain:
+          schema:
+            $ref: '#/components/schemas/PlainTextError'
+          example: upstream unavailable
+
+    Maintenance:
+      description: |
+        Operator-triggered maintenance mode. The sleep duration is
+        operator-chosen within the standard `[30, 14400]` range.
+      headers:
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSeconds'
+      content:
+        text/plain:
+          schema:
+            $ref: '#/components/schemas/PlainTextError'
+          example: maintenance
+
+  # -----------------------------------------------------------------------
+  # Reusable headers
+  # -----------------------------------------------------------------------
+
+  headers:
+
+    ContentEncodingGzip:
+      description: |
+        Always `gzip` on the frame body. The radiator's
+        `Accept-Encoding: gzip` request header is mandatory (see ADR-0001).
+      schema:
+        type: string
+        enum: [gzip]
+
+    SleepSeconds:
+      description: |
+        The **sleep duration** — whole seconds the radiator must deep-sleep
+        before its next wake cycle. Sent on **every Worker response**,
+        including errors, so the Worker stays in control of retry cadence
+        during incidents.
+
+        **Bounds.**
+        - Floor `30` — stops a misconfigured Worker from flooding the
+          radiator.
+        - Ceiling `14400` (4 h) — matches the idle-profile cap and forces a
+          wake at least every 4 h so a config bug cannot silently park the
+          radiator forever.
+
+        **Firmware fallback.** If the radiator receives no response, or the
+        header is absent, or it parses outside `[1, 86400]`, the firmware
+        sleeps for a compile-time constant of `300` seconds (5 min).
+      schema:
+        $ref: '#/components/schemas/SleepSeconds'
+      example: 180
+
+    SleepSecondsAuthError:
+      description: |
+        On auth and slug errors, sleep is fixed at `3600` (1 h). Tokens and
+        slugs change rarely; an hour of back-off avoids a hot loop while
+        still recovering within a working day after a re-flash or config fix.
+      schema:
+        $ref: '#/components/schemas/SleepSeconds'
+      example: 3600
+
+    SleepSecondsInternalError:
+      description: |
+        On `500`, sleep is `120` (2 min). Worker deploys are short, so a
+        quick retry is fine; the `30 s` rate-limit floor already caps the
+        worst case if something pathological happens.
+      schema:
+        $ref: '#/components/schemas/SleepSeconds'
+      example: 120
+
+    SleepSecondsUpstream:
+      description: |
+        On `502`, sleep is `60` (1 min). Metlink outages are typically
+        brief; a tight retry helps a radiator recover quickly once Metlink
+        returns.
+      schema:
+        $ref: '#/components/schemas/SleepSeconds'
+      example: 60
+
+    ServerTime:
+      description: |
+        The Worker's clock at request time (ISO 8601 UTC). Set on every
+        response with a meaningful value.
+
+        **Observability data — the radiator ignores it.** Used by humans
+        running `curl` to verify there is no clock skew between Cloudflare's
+        edge and operator expectation. Profile-phase resolution is
+        server-time driven (PRD §6).
+      schema:
+        type: string
+        format: date-time
+      example: 2026-05-23T06:48:12Z
+
+    ProfilePhase:
+      description: |
+        The **profile phase** the Worker resolved for this request:
+
+        - A configured phase key (e.g. `morning_commute`, `evening_return`).
+        - The literal `idle_profile` when the fallback profile took over.
+        - The literal `none` on auth/slug errors where no profile could be
+          resolved.
+
+        Set on every response. Observability data — the radiator ignores
+        it.
+      schema:
+        type: string
+        examples:
+          - morning_commute
+          - evening_return
+          - idle_profile
+          - none
+
+    MetlinkFetchedAt:
+      description: |
+        When the cached Metlink response that backs this frame was
+        originally fetched (ISO 8601 UTC). Present only when the response
+        used Metlink data (the `priority_split` layout). Absent for
+        `minimal_clock` and `idle_profile` responses (no Metlink call).
+
+        Useful for diagnosing "the bus time has not moved in 5 minutes —
+        is the cache stuck?". Observability data — the radiator ignores it.
+      schema:
+        type: string
+        format: date-time
+      example: 2026-05-23T06:47:54Z
+
+    CacheStatus:
+      description: |
+        How the **KV cache** behaved for this request:
+
+        - `hit` — served from cache within TTL (≤ 30 s old).
+        - `miss` — cache refreshed from Metlink for this request.
+        - `stale-served` — Metlink failed but a past-TTL cache entry was
+          returned anyway (the Metlink-staleness fallback). The radiator
+          and panel behave normally; a human may notice transit times have
+          not changed.
+
+        Set on every response that touched the cache. Absent on
+        `minimal_clock` and `idle_profile` responses (no cache lookup).
+        Observability data — the radiator ignores it.
+      schema:
+        type: string
+        enum: [hit, miss, stale-served]
+
+  # -----------------------------------------------------------------------
+  # Schemas
+  # -----------------------------------------------------------------------
+
+  schemas:
+
+    RadiatorSlug:
+      type: string
+      pattern: '^[a-z0-9-]{3,64}$'
+      description: |
+        Lowercase kebab-case identifier for one radiator. Hardcoded as a
+        compile-time firmware constant; appears in the `X-Radiator-Slug`
+        header.
+      examples:
+        - bedroom-philip-tania
+        - fridge
+        - daughter-school
+
+    SleepSeconds:
+      type: integer
+      minimum: 30
+      maximum: 14400
+      description: |
+        Whole-second sleep duration. See the `X-Sleep-Seconds` header for
+        full semantics and bounds rationale.
+
+    PlainTextError:
+      type: string
+      description: |
+        A single short lowercase string (no JSON, no trailing newline). The
+        body is for human debugging via `curl`; the radiator's firmware
+        ignores it entirely — the status code drives behaviour.
+      examples:
+        - unauthorized
+        - unknown radiator
+        - internal error
+        - upstream unavailable
+        - maintenance

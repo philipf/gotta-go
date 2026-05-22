@@ -182,6 +182,11 @@ A named user/household configuration. One profile may be shared by multiple radi
 - **Appears as:** config keys under `profiles:`, e.g. `philip_and_tania`, `daughter_school`.
 - **Not to be confused with:** **user** (a person — multiple people can share one profile).
 
+### Idle profile
+A system-wide default profile that takes over when server time falls outside every configured **profile phase** of the slug's profile (e.g. overnight gaps between configured phases). Renders a low-frequency ambient layout with a long **sleep duration** (capped at 4 h). The Worker never errors on "no active phase" — it falls through to the idle profile and returns `200`.
+- **Appears as:** the literal `X-Profile-Phase: idle_profile` response header, prose ("the idle profile takes over overnight").
+- **Defined by:** [ADR-0003](adr/0003-radiator-worker-contract.md) §"Idle profile". Layout and content source are a deferred follow-up.
+
 ### Profile phase
 A named time-of-day phase inside a profile. Each phase has a `start_time`, an `end_time`, a **layout**, and (for `priority_split`) one or more **transit targets**.
 - **Appears as:** config keys e.g. `morning_commute`, `workday_focus`, `morning_school_run`, `afternoon_idle`, `evening_return`.
@@ -201,25 +206,46 @@ The transport mode of a transit target. Two values: **bus** and **train**.
 
 ## 8. Radiator ↔ Worker contract
 
+The wire contract — paths, headers, status codes, response shapes — is specified in [`docs/api/openapi.yaml`](api/openapi.yaml). The rationale behind every choice (why `GET /v1/frame`, why missing-vs-invalid token are indistinguishable, why the `X-Radiator-*` namespace, …) is in [ADR-0003](adr/0003-radiator-worker-contract.md). This section names the concepts that appear in both.
+
 ### Radiator slug
 The radiator's unique short identifier (e.g. `bedroom-philip-tania`). Hardcoded as a compile-time constant in firmware.
-- **Appears as:** config keys under `radiators:`, HTTP header `X-Radiator-Slug`.
-- **Not to be confused with:** ~~device slug~~, ~~user slug~~, ~~X-Device-User~~ — all deprecated.
+- **Format:** `^[a-z0-9-]{3,64}$`.
+- **Appears as:** config keys under `radiators:`, HTTP request header `X-Radiator-Slug`.
+- **Not to be confused with:** **hardware id** (a separate physical-board identifier), ~~device slug~~, ~~user slug~~, ~~X-Device-User~~ — all deprecated.
 
 ### Shared token
 The static secret token every radiator sends to authenticate with the Worker.
-- **Appears as:** HTTP header `X-Radiator-Token`, Worker secret `RADIATOR_SHARED_TOKEN`.
+- **Appears as:** HTTP request header `X-Radiator-Token`, Worker secret `RADIATOR_SHARED_TOKEN`.
 - **Not to be confused with:** ~~X-Device-Token~~, ~~DEVICE_SHARED_TOKEN~~ — legacy.
 
+### Hardware id
+Stable per-board identifier (typically the ESP32-S3 MAC address) — survives **radiator slug** reassignment, so it can track which physical board carries which slug across re-flashes.
+- **Appears as:** HTTP request header `X-Radiator-Hardware-Id` (optional).
+- **Not to be confused with:** **radiator slug** (the logical identifier, hardcoded at flash time).
+
 ### Sleep duration
-The number of seconds the radiator should deep-sleep before its next **wake cycle**. Set by the Worker per response.
-- **Appears as:** HTTP header `X-Sleep-Seconds`, code symbol `sleep_seconds`.
+The number of seconds the radiator should deep-sleep before its next **wake cycle**. Set by the Worker on every response (including errors). Allowed range `30 ≤ n ≤ 14400`.
+- **Appears as:** HTTP response header `X-Sleep-Seconds`, code symbol `sleep_seconds`.
 
 ### Wake cycle
 One iteration of: panel wakes → radiator fetches frame from Worker → panel flushes new frame → radiator deep-sleeps for **sleep duration**.
 
 ### KV cache
-The Cloudflare KV store of recent Metlink GTFS-Realtime responses. 30-second TTL. Bypassed entirely for the `minimal_clock` layout.
+The Cloudflare KV store of recent Metlink GTFS-Realtime responses. 30-second TTL. Bypassed entirely for the `minimal_clock` and `idle_profile` layouts.
+
+### `X-Radiator-*` request-header namespace
+Reserved prefix for any future radiator-side telemetry header (e.g. `X-Radiator-Battery-Pct`, `X-Radiator-Firmware-Version`, `X-Radiator-Wifi-Rssi`). The Worker MUST ignore unknown headers in this namespace so firmware can add telemetry without a Worker change.
+
+### Worker informational response headers
+Diagnostic headers the Worker sets on every meaningful response. The radiator's firmware ignores them; they exist for humans running `curl` and for future polling tools. Adding new ones is free — no contract bump, no firmware change.
+
+| Header | Meaning |
+|---|---|
+| `X-Server-Time` | Worker clock at request time (ISO 8601 UTC). |
+| `X-Profile-Phase` | Resolved profile phase key, or `idle_profile` for the fallback. |
+| `X-Metlink-Fetched-At` | When the cached Metlink data was originally fetched (ISO 8601 UTC). |
+| `X-Cache-Status` | `hit` / `miss` / `stale-served`. |
 
 ---
 
