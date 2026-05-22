@@ -17,7 +17,9 @@ export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
 	if (init.gzip) headers['Content-Encoding'] = 'gzip';
 
 	// encodeBody: 'manual' stops the Workers runtime from re-gzipping a body
-	// we already compressed ourselves (see #13 in the PoC).
+	// we already compressed ourselves. The runtime's 'automatic' default
+	// re-encodes any Content-Encoding: gzip response, producing double-gzipped
+	// wire bytes — see GH #13 for the discovery + verification.
 	return new Response(body, {
 		status: 200,
 		headers,

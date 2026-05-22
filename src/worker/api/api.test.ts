@@ -41,4 +41,18 @@ describe('api.response.frameOk', () => {
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T06:48:12.000Z');
 		expect(res.headers.get('X-Profile-Phase')).toBe('all_day_clock');
 	});
+
+	it('omits Content-Encoding when gzip is false (uncompressed BMP body)', () => {
+		const body = new Uint8Array([0x42, 0x4d, 0x00, 0x00]);
+		const res = frameOk(body, {
+			gzip: false,
+			sleepSeconds: 300,
+			serverTime: new Date('2026-05-23T06:48:12Z'),
+			profilePhase: 'all_day_clock',
+		});
+
+		expect(res.status).toBe(200);
+		expect(res.headers.get('Content-Type')).toBe('image/bmp');
+		expect(res.headers.get('Content-Encoding')).toBeNull();
+	});
 });

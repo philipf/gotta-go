@@ -43,3 +43,13 @@ echo "RADIATOR_SHARED_TOKEN=test-token-123" > .dev.vars
 pnpm dev
 # Worker listens on http://localhost:8787
 ```
+
+### Caveat: gzip negotiation under `wrangler dev`
+
+`wrangler dev` / miniflare normalises every inbound request's
+`Accept-Encoding` to `"br, gzip"` to emulate the Cloudflare edge — even
+when the curl client sends `Accept-Encoding: identity` or omits the
+header entirely. This means the `gzip: false` branch of `api/response.frameOk`
+is unreachable through `wrangler dev`; the shaper's no-`Content-Encoding`
+behaviour is pinned at the unit-test layer instead. End-to-end verification
+of an uncompressed BMP response is a production-only check.
