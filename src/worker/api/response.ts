@@ -21,7 +21,6 @@ export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
 	return new Response(body, {
 		status: 200,
 		headers,
-		// @ts-expect-error workers-only init key
 		encodeBody: init.gzip ? 'manual' : 'automatic',
 	});
 }

@@ -1,5 +1,7 @@
+import { route } from './api/router';
+
 export default {
-	async fetch(): Promise<Response> {
-		return new Response("not implemented", { status: 501 });
+	async fetch(request, env): Promise<Response> {
+		return route(request, env, new Date());
 	},
-} satisfies ExportedHandler;
+} satisfies ExportedHandler<Env>;
