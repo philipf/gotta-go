@@ -101,22 +101,22 @@ export const renderers = { bmp: (vm: ViewModel) => Promise<Uint8Array> };
 
 Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical slices, **one RED test → one GREEN minimal impl → optional REFACTOR → next slice**. Never bulk-write tests. Walk the rows top-to-bottom; do not skip ahead. Slice 0 (plumbing) is the only prerequisite; everything else is vertical.
 
-| # | Slice | Test | Layer |
-|---|---|---|---|
-| **0** | Repo plumbing: `package.json`, `wrangler.jsonc`, `tsconfig.json`, `vitest.config.ts`; copy TTF + `assets.d.ts`; `pnpm install` | — (no test; verified by `vitest --run` exiting 0 with no test files yet) | — |
-| **1** | Port `shared/bmp` from PoC + its existing test | All-white RGBA encodes to a 64,862-byte BMP starting with `42 4d` | vitest |
-| **2** | Port `shared/satori` from PoC verbatim (no test — sandbox blocks wasm; smoke-tested via slice 7) | — | — |
-| **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest |
-| **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest |
-| **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest |
-| **6** | `schedule/resolve` happy path | All-day phase + any `now` returns `{ phase, layoutKey: 'minimal_clock', sleepSeconds: <within [30,14400]> }` | vitest |
-| **7** | `minimal_clock/buildViewModel` happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest |
-| **8** | `api/errors` + `api/response` shapers | `unauthorized()` returns a `Response` with status 401, body "unauthorized", `X-Sleep-Seconds: 3600` | vitest |
-| **9** | **Tracer bullet end-to-end**: wire `index.ts` → `api/router` → `api/frame` → all the above; deploy + curl | Happy-path curl returns 200, valid 64,862-byte BMP after gunzip, `X-Sleep-Seconds` present, `X-Server-Time` present, `X-Profile-Phase` present | `wrangler dev` curl |
-| **10** | Missing token returns identical 401 to invalid token (no oracle) | Two curls (no token, wrong token); responses byte-identical except for `Date` header | vitest unit + curl |
-| **11** | Unknown slug returns 404 with `X-Sleep-Seconds: 3600` and body "unknown radiator" | vitest unit + curl |
-| **12** | Gzip negotiation: `Accept-Encoding: gzip` → `Content-Encoding: gzip` header + smaller body; absent → uncompressed BMP | curl |
-| **13** | Visual smoke: open the returned `frame.bmp` in an image viewer — clock reads current `HH:MM`, date is today | eyes |
+| # | Slice | Test | Layer | Status |
+|---|---|---|---|---|
+| **0** | Repo plumbing: `package.json`, `wrangler.jsonc`, `tsconfig.json`, `vitest.config.ts`; copy TTF + `assets.d.ts`; `pnpm install` | — (no test; verified by `vitest --run` exiting 0 with no test files yet) | — | ✅ done (commit `95c6384`) |
+| **1** | Port `shared/bmp` from PoC + its existing test | All-white RGBA encodes to a 64,862-byte BMP starting with `42 4d` | vitest | ⬜ todo |
+| **2** | Port `shared/satori` from PoC verbatim (no test — sandbox blocks wasm; smoke-tested via slice 7) | — | — | ⬜ todo |
+| **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest | ⬜ todo |
+| **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ⬜ todo |
+| **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ⬜ todo |
+| **6** | `schedule/resolve` happy path | All-day phase + any `now` returns `{ phase, layoutKey: 'minimal_clock', sleepSeconds: <within [30,14400]> }` | vitest | ⬜ todo |
+| **7** | `minimal_clock/buildViewModel` happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest | ⬜ todo |
+| **8** | `api/errors` + `api/response` shapers | `unauthorized()` returns a `Response` with status 401, body "unauthorized", `X-Sleep-Seconds: 3600` | vitest | ⬜ todo |
+| **9** | **Tracer bullet end-to-end**: wire `index.ts` → `api/router` → `api/frame` → all the above; deploy + curl | Happy-path curl returns 200, valid 64,862-byte BMP after gunzip, `X-Sleep-Seconds` present, `X-Server-Time` present, `X-Profile-Phase` present | `wrangler dev` curl | ⬜ todo |
+| **10** | Missing token returns identical 401 to invalid token (no oracle) | Two curls (no token, wrong token); responses byte-identical except for `Date` header | vitest unit + curl | ⬜ todo |
+| **11** | Unknown slug returns 404 with `X-Sleep-Seconds: 3600` and body "unknown radiator" | vitest unit + curl | ⬜ todo |
+| **12** | Gzip negotiation: `Accept-Encoding: gzip` → `Content-Encoding: gzip` header + smaller body; absent → uncompressed BMP | curl | ⬜ todo |
+| **13** | Visual smoke: open the returned `frame.bmp` in an image viewer — clock reads current `HH:MM`, date is today | eyes | ⬜ todo |
 
 After all slices are green, look for refactor candidates per `/tdd` refactoring guidance (duplication, shallow modules, primitive obsession). **No refactoring while RED.**
 
