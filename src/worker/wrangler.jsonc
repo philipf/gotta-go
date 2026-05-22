@@ -1,0 +1,12 @@
+{
+	"name": "gotta-go-worker",
+	"main": "index.ts",
+	"compatibility_date": "2025-07-18",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true,
+	},
+	"rules": [
+		{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true },
+	],
+}

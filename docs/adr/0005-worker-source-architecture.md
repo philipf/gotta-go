@@ -25,18 +25,21 @@ We need a directory layout that lets each of those concerns land in a foreseeabl
 
 ```
 gotta-go/
-├── package.json            # Worker deps and devDeps
-├── wrangler.jsonc          # main: "src/worker/index.ts"
-├── tsconfig.json
-├── vitest.config.ts
+├── .gitignore              # repo-wide ignores
 ├── src/
 │   ├── worker/             # Cloudflare Worker source (this ADR)
+│   │   ├── package.json    # Worker deps and devDeps
+│   │   ├── wrangler.jsonc  # main: "index.ts" (relative to this folder)
+│   │   ├── tsconfig.json
+│   │   ├── vitest.config.ts
+│   │   ├── mise.toml       # node + pnpm pin
+│   │   └── …               # source tiers (see below)
 │   └── radiator/           # ESP32 firmware (deferred until firmware work begins)
 ├── docs/
 └── poc/                    # untouched historical reference
 ```
 
-Project config files live at the repo root. The Worker is the only TypeScript project today; a flat layout beats a nested one. Firmware will bring its own toolchain (PlatformIO / ESP-IDF) under `src/radiator/` when that work begins; the two siblings under `src/` are kept symmetric so neither becomes the implicit centre of gravity.
+Each project under `src/` owns its own toolchain. The Worker keeps `package.json`, `wrangler.jsonc`, `tsconfig.json`, `vitest.config.ts`, and `mise.toml` colocated with the source they configure — `cd src/worker && pnpm test` / `pnpm dev` works without root-level glue. Firmware will bring its own toolchain (PlatformIO / ESP-IDF) under `src/radiator/` when that work begins; the two siblings under `src/` are kept symmetric so neither becomes the implicit centre of gravity and neither's toolchain leaks into the other's space.
 
 ### Worker tier layout
 
@@ -181,7 +184,7 @@ Tests are **integration-style through public interfaces**: drive a feature folde
 
 - **More folders than a single-file Worker.** Justified by the planned surface area (multiple layouts, multiple renderers, multiple upstreams). For a one-route Worker it would be overkill.
 - **The empty `gateways/` tier looks unused at first.** Reserved deliberately so the first gateway lands in the established place rather than triggering a layout debate.
-- **Two TypeScript projects later (Worker + firmware tooling).** When `src/radiator/` arrives it will have its own `tsconfig.json` and likely its own `package.json`; root-level configs will be revisited then.
+- **Each `src/<project>/` owns its own toolchain.** When `src/radiator/` arrives it will have its own `package.json` / build config alongside the Worker's — symmetric siblings under `src/`, no shared root-level toolchain to negotiate.
 - **Migration from TypeScript config to YAML/KV is a future cost.** Acceptable while the schema is still moving.
 
 ## Verification
@@ -192,8 +195,8 @@ When an implementation issue lands a new piece of Worker code, the following sho
 2. No file outside `gateways/<system>/mapper.ts` references that upstream's wire-format field names.
 3. No file outside `index.ts` constructs `new Date()` or reads from Cloudflare bindings directly; downstream code receives everything as arguments.
 4. Tests live next to the code they exercise; the only directories matching `**/test/**` are inside gateway `fixtures.ts` neighbourhoods.
-5. `pnpm test` runs vitest against the workers-pool sandbox and exits 0.
-6. The HTTP pipeline (Satori + resvg + gzip) is verified at least once via `wrangler dev` + curl per implementation issue.
+5. `pnpm test` (run from `src/worker/`) runs vitest against the workers-pool sandbox and exits 0.
+6. The HTTP pipeline (Satori + resvg + gzip) is verified at least once via `wrangler dev` (run from `src/worker/`) + curl per implementation issue.
 
 ## References
 

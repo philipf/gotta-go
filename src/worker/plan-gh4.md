@@ -94,8 +94,8 @@ export const renderers = { bmp: (vm: ViewModel) => Promise<Uint8Array> };
 | `poc/worker/src/PressStart2P-Regular.ttf` | `src/worker/assets/PressStart2P-Regular.ttf` | Copy. |
 | `poc/worker/src/assets.d.ts` | `src/worker/assets/assets.d.ts` | Copy. |
 | `poc/worker/src/layout.tsx` | **NOT ported** — that's the `priority_split` test pattern, deferred to #5/#6 | The new `features/minimal_clock/bmp.tsx` is a fresh JSX template (large `HH:MM`, small date below). |
-| `poc/worker/wrangler.jsonc` | repo root `wrangler.jsonc` | Adapt: `main: "src/worker/index.ts"`, keep `compatibility_date`, `compatibility_flags: ["nodejs_compat"]`, and the `rules` for `.ttf` bundling. |
-| `poc/worker/package.json` | repo root `package.json` | Same deps (`satori`, `@resvg/resvg-wasm`), same devDeps (wrangler, vitest, etc.). |
+| `poc/worker/wrangler.jsonc` | `src/worker/wrangler.jsonc` | Adapt: `main: "index.ts"` (relative to `src/worker/`), keep `compatibility_date`, `compatibility_flags: ["nodejs_compat"]`, and the `rules` for `.ttf` bundling. |
+| `poc/worker/package.json` | `src/worker/package.json` | Same deps (`satori`, `@resvg/resvg-wasm`), same devDeps (wrangler, vitest, etc.). |
 
 ## TDD slice order
 
@@ -133,7 +133,7 @@ All seven Worker ACs from issue #4 are curl-testable from a `wrangler dev` insta
 
 ```bash
 # Setup
-cd <repo>
+cd <repo>/src/worker
 echo "RADIATOR_SHARED_TOKEN=test-token-123" > .dev.vars
 pnpm install
 pnpm dlx wrangler dev
