@@ -105,7 +105,7 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 |---|---|---|---|---|
 | **0** | Repo plumbing: `package.json`, `wrangler.jsonc`, `tsconfig.json`, `vitest.config.ts`; copy TTF + `assets.d.ts`; `pnpm install` | — (no test; verified by `vitest --run` exiting 0 with no test files yet) | — | ✅ done (commit `95c6384`) |
 | **1** | Port `shared/bmp` from PoC + its existing test | All-white RGBA encodes to a 64,862-byte BMP starting with `42 4d` | vitest | ✅ done |
-| **2** | Port `shared/satori` from PoC verbatim (no test — sandbox blocks wasm; smoke-tested via slice 7) | — | — | ⬜ todo |
+| **2** | Port `shared/satori` from PoC verbatim (no test — sandbox blocks wasm; smoke-tested via slice 7) | — | — | ✅ done |
 | **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest | ⬜ todo |
 | **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ⬜ todo |
 | **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ⬜ todo |
