@@ -15,13 +15,15 @@ Concretely, #4 creates the following Worker tiers — each named per ADR-0005 �
 | ADR-0005 tier | What #4 creates                                        | What #4 leaves empty                             |
 |---|---|---|
 | `api/`          | `router.ts`, `frame.ts`, `negotiate.ts`, `response.ts`, `errors.ts` | — |
-| `features/`     | `minimal_clock/` with `index.ts`, `viewmodel.ts`, `bmp.tsx`, `minimal_clock.test.ts` | `json.ts` and `svg.tsx` (added by #19 / #20)     |
+| `features/`     | `minimal_clock/` with `index.ts`, `phase.ts`, `viewmodel.ts`, `bmp.tsx`, `minimal_clock.test.ts` | `json.ts` and `svg.tsx` (added by #19 / #20)     |
 | `auth/`         | `index.ts`, `auth.test.ts`                             | — |
 | `config/`       | `index.ts`, `data.ts`, `types.ts`, `config.test.ts`    | YAML/KV migration (deferred)                     |
-| `schedule/`     | `index.ts`, `schedule.test.ts` (one all-day phase)     | Multi-phase logic, DST, boundary edges (lands with #5) |
+| `schedule/`     | nothing — phase resolution lives inside `features/minimal_clock/phase.ts` while only one feature exists | The whole tier — promote to `schedule/` once a second feature forces the shared seam (#5). |
 | `gateways/`     | nothing — `minimal_clock` has no upstream              | `metlink/` (#5+), `quotes/` (#17), `clock/` (when a test needs it) |
 | `shared/`       | `satori/`, `bmp/`, `gzip/` ported from the PoC         | — |
 | `assets/`       | `PressStart2P-Regular.ttf`, `assets.d.ts` copied from PoC | — |
+
+ADR-0005 reserves a `schedule/` tier for "profile + now → phase / layout / sleep", but its own "Defaults stay light until they hurt" rule tells us not to populate that tier yet. While `minimal_clock` is the only feature in tree, the resolver is one tiny function with one caller, so it sits inside `features/minimal_clock/phase.ts`. When `priority_split` lands in #5 and a second feature needs the same lookup, lift `phase.ts` up to `schedule/` then — that promotion is the YAGNI exit gate, not the default.
 
 `api/negotiate.ts` for #4 returns `'bmp'` unconditionally — content negotiation per [ADR-0004](../../docs/adr/0004-diagnostics-view-content-negotiation.md) lights up when #19/#20 add the JSON/SVG renderers.
 
@@ -44,8 +46,8 @@ api/router.ts                   → matches GET /v1/frame → api/frame.ts
 api/frame.ts:
   1. auth.validate(headers, sharedToken)     → 401 (X-Sleep-Seconds: 3600) if token missing/invalid
   2. config.lookupRadiator(slug)             → 404 (X-Sleep-Seconds: 3600) if unknown slug
-  3. schedule.resolve(profile, now)          → { phase, layoutKey, sleepSeconds }
-  4. dispatch to features[layoutKey]         → for #4, only 'minimal_clock' exists
+  3. pick layout                             → #4 only has 'minimal_clock'; api/frame dispatches directly
+  4. feature.resolvePhase(profile, now)      → { phase, sleepSeconds }   (inside features/minimal_clock/)
   5. feature.buildViewModel(profile, now)    → { time, date, slug }
   6. api/negotiate.ts                        → Accept: image/bmp → feature.renderers.bmp
   7. feature.renderers.bmp(viewmodel)        → Uint8Array (64,862-byte BMP)
@@ -78,14 +80,14 @@ export function validate(headers: Headers, sharedToken: string): AuthResult;
 export type Profile = { slug: string; timezone: string; phases: Phase[] };
 export function lookupRadiator(slug: string): Profile | undefined;
 
-// schedule/index.ts
-export type ResolveResult = { phase: string; layoutKey: 'minimal_clock'; sleepSeconds: number };
-export function resolve(profile: Profile, now: Date): ResolveResult;
-
 // features/minimal_clock/index.ts
 export type ViewModel = { time: string; date: string; slug: string };
+export type PhaseResolution = { phase: string; sleepSeconds: number };
+export function resolvePhase(profile: Profile, now: Date): PhaseResolution;
 export function buildViewModel(profile: Profile, now: Date): ViewModel;
 export const renderers = { bmp: (vm: ViewModel) => Promise<Uint8Array> };
+// Note: resolvePhase lives here (not under a top-level schedule/) until a
+// second feature forces a shared seam — see "Scope for #4" above.
 ```
 
 ## What to port from the PoC
@@ -112,8 +114,8 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 | **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest | ✅ done |
 | **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ✅ done |
 | **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ✅ done |
-| **6** | `schedule/resolve` happy path | All-day phase + any `now` returns `{ phase, layoutKey: 'minimal_clock', sleepSeconds: <within [30,14400]> }` | vitest | ⬜ todo |
-| **7** | `minimal_clock/buildViewModel` happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest | ⬜ todo |
+| **6** | `features/minimal_clock/phase` (`resolvePhase`) happy path | All-day phase + any `now` returns `{ phase, sleepSeconds: <within [30,14400]> }` | vitest | ⬜ todo |
+| **7** | `features/minimal_clock/viewmodel` (`buildViewModel`) happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest | ⬜ todo |
 | **8** | `api/errors` + `api/response` shapers | `unauthorized()` returns a `Response` with status 401, body "unauthorized", `X-Sleep-Seconds: 3600` | vitest | ⬜ todo |
 | **9** | **Tracer bullet end-to-end**: wire `index.ts` → `api/router` → `api/frame` → all the above; deploy + curl | Happy-path curl returns 200, valid 64,862-byte BMP after gunzip, `X-Sleep-Seconds` present, `X-Server-Time` present, `X-Profile-Phase` present | `wrangler dev` curl | ⬜ todo |
 | **10** | Missing token returns identical 401 to invalid token (no oracle) | Two curls (no token, wrong token); responses byte-identical except for `Date` header | vitest unit + curl | ⬜ todo |
@@ -125,7 +127,7 @@ After all slices are green, look for refactor candidates per `/tdd` refactoring 
 
 ### Behaviors deliberately NOT tested in #4
 
-- **Schedule edge cases** (DST, phase boundary, multi-day rollover) — the seeded config has one all-day phase, so they're unreachable. Land with #5.
+- **Phase edge cases** (DST, phase boundary, multi-day rollover, idle-profile fall-through) — the seeded config has one all-day phase, so they're unreachable. Land with #5; that's also when `resolvePhase` lifts out of `features/minimal_clock/` into a shared `schedule/` tier.
 - **Multiple Accept renderers** — only `image/bmp` matters; `api/negotiate` returns `'bmp'` unconditionally. Property-test in #19/#20.
 - **Cold-start retry semantics** — known PoC issue; the firmware client handles it per ADR-0003. Worker side has nothing to test.
 - **Pixel-exact BMP correctness** — `shared/bmp` is byte-deterministic and inherited from a deployed PoC. Snapshot testing would just rehash the PoC's existing validation.
@@ -187,7 +189,7 @@ pnpm test
 - **`gateways/quotes/` or similar for idle profile content** — issue #17.
 - **`gateways/clock/` (RealClock / FixedClock)** — introduce only when a test needs a fixed clock.
 - **Migration of config from TypeScript to YAML/KV** — defer until schema stabilises.
-- **Multi-phase schedule logic** — for the tracer, one all-day phase is enough to verify the resolution code path; richer schedules land with #5.
+- **Multi-phase schedule logic** — for the tracer, one all-day phase is enough to verify the resolution code path; richer schedules land with #5, at which point `phase.ts` is promoted from `features/minimal_clock/` to a top-level `schedule/` tier (per ADR-0005's "Defaults stay light until they hurt").
 - **Real production deploy + secret management** — issue #12 covers the multi-radiator rollout. **#4's Worker work ends at `wrangler dev` validation**; deploy lands when the firmware needs it.
 
 ## References
