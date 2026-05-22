@@ -107,7 +107,7 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 | **1** | Port `shared/bmp` from PoC + its existing test | All-white RGBA encodes to a 64,862-byte BMP starting with `42 4d` | vitest | ✅ done |
 | **2** | Port `shared/satori` from PoC verbatim (no test — sandbox blocks wasm; smoke-tested via slice 7) | — | — | ✅ done |
 | **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest | ✅ done |
-| **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ⬜ todo |
+| **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ✅ done |
 | **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ⬜ todo |
 | **6** | `schedule/resolve` happy path | All-day phase + any `now` returns `{ phase, layoutKey: 'minimal_clock', sleepSeconds: <within [30,14400]> }` | vitest | ⬜ todo |
 | **7** | `minimal_clock/buildViewModel` happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest | ⬜ todo |
