@@ -114,7 +114,7 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 | **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest | ✅ done |
 | **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ✅ done |
 | **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ✅ done |
-| **6** | `features/minimal_clock/phase` (`resolvePhase`) happy path | All-day phase + any `now` returns `{ phase, sleepSeconds: <within [30,14400]> }` | vitest | ⬜ todo |
+| **6** | `features/minimal_clock/phase` (`resolvePhase`) happy path | All-day phase + any `now` returns `{ phase, sleepSeconds: <within [30,14400]> }` | vitest | ✅ done |
 | **7** | `features/minimal_clock/viewmodel` (`buildViewModel`) happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest | ⬜ todo |
 | **8** | `api/errors` + `api/response` shapers | `unauthorized()` returns a `Response` with status 401, body "unauthorized", `X-Sleep-Seconds: 3600` | vitest | ⬜ todo |
 | **9** | **Tracer bullet end-to-end**: wire `index.ts` → `api/router` → `api/frame` → all the above; deploy + curl | Happy-path curl returns 200, valid 64,862-byte BMP after gunzip, `X-Sleep-Seconds` present, `X-Server-Time` present, `X-Profile-Phase` present | `wrangler dev` curl | ⬜ todo |
