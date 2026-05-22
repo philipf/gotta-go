@@ -119,7 +119,7 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 | **8** | `api/errors` + `api/response` shapers | `unauthorized()` returns a `Response` with status 401, body "unauthorized", `X-Sleep-Seconds: 3600` | vitest | ✅ done |
 | **9** | **Tracer bullet end-to-end**: wire `index.ts` → `api/router` → `api/frame` → all the above; deploy + curl | Happy-path curl returns 200, valid 64,862-byte BMP after gunzip, `X-Sleep-Seconds` present, `X-Server-Time` present, `X-Profile-Phase` present | `wrangler dev` curl | ✅ done |
 | **10** | Missing token returns identical 401 to invalid token (no oracle) | Two curls (no token, wrong token); responses byte-identical except for `Date` header | vitest unit + curl | ✅ done |
-| **11** | Unknown slug returns 404 with `X-Sleep-Seconds: 3600` and body "unknown radiator" | vitest unit + curl | ⬜ todo |
+| **11** | Unknown slug returns 404 with `X-Sleep-Seconds: 3600` and body "unknown radiator" | vitest unit + curl | ✅ done |
 | **12** | Gzip negotiation: `Accept-Encoding: gzip` → `Content-Encoding: gzip` header + smaller body; absent → uncompressed BMP | curl | ⬜ todo |
 | **13** | Visual smoke: open the returned `frame.bmp` in an image viewer — clock reads current `HH:MM`, date is today | eyes | ⬜ todo |
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unauthorized } from './errors';
+import { unauthorized, unknownRadiator } from './errors';
 import { frameOk } from './response';
 
 describe('api.errors.unauthorized', () => {
@@ -10,6 +10,17 @@ describe('api.errors.unauthorized', () => {
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
 		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
 		expect(await res.text()).toBe('unauthorized');
+	});
+});
+
+describe('api.errors.unknownRadiator', () => {
+	it('returns a 404 with body "unknown radiator" and X-Sleep-Seconds: 3600', async () => {
+		const res = unknownRadiator();
+
+		expect(res.status).toBe(404);
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
+		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
+		expect(await res.text()).toBe('unknown radiator');
 	});
 });
 
