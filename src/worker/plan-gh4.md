@@ -68,8 +68,11 @@ Per ADR-0005 (deep modules, DI, pure returns): each helper takes everything it n
 
 ```ts
 // auth/index.ts
-export type AuthResult = { ok: true } | { ok: false; response: Response };
+export type AuthResult = { ok: true } | { ok: false };
 export function validate(headers: Headers, sharedToken: string): AuthResult;
+// Note: the failure branch carries no Response so api/errors stays the sole
+// owner of HTTP shaping. Missing vs invalid token are deliberately collapsed
+// into a single { ok: false } variant per ADR-0003 (indistinguishable 401).
 
 // config/index.ts
 export type Profile = { slug: string; timezone: string; phases: Phase[] };
@@ -108,7 +111,7 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 | **2** | Port `shared/satori` from PoC verbatim (no test — sandbox blocks wasm; smoke-tested via slice 7) | — | — | ✅ done |
 | **3** | `shared/gzip` | Round-trip: `gzip(bytes)` length < `bytes.length` for repetitive input | vitest | ✅ done |
 | **4** | `config/data` + `config/lookupRadiator` | Tracer: `lookupRadiator('bedroom-philip-tania')` returns the seeded profile | vitest | ✅ done |
-| **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ⬜ todo |
+| **5** | `auth/validate` happy path | Matching token returns `{ ok: true }` | vitest | ✅ done |
 | **6** | `schedule/resolve` happy path | All-day phase + any `now` returns `{ phase, layoutKey: 'minimal_clock', sleepSeconds: <within [30,14400]> }` | vitest | ⬜ todo |
 | **7** | `minimal_clock/buildViewModel` happy path | Returns `{ time: matches /^\d{2}:\d{2}$/, date: matches /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/, slug }` | vitest | ⬜ todo |
 | **8** | `api/errors` + `api/response` shapers | `unauthorized()` returns a `Response` with status 401, body "unauthorized", `X-Sleep-Seconds: 3600` | vitest | ⬜ todo |
