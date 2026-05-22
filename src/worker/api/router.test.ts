@@ -32,6 +32,31 @@ describe('api.router', () => {
 		expect(await res.text()).toBe('unauthorized');
 	});
 
+	it('returns byte-identical 401 responses for missing vs invalid token (no oracle)', async () => {
+		const now = new Date('2026-05-23T06:48:00Z');
+
+		const noToken = await route(
+			buildReq({ 'X-Radiator-Slug': 'bedroom-philip-tania' }),
+			env,
+			now,
+		);
+		const wrongToken = await route(
+			buildReq({
+				'X-Radiator-Slug': 'bedroom-philip-tania',
+				'X-Radiator-Token': 'wrong',
+			}),
+			env,
+			now,
+		);
+
+		expect(noToken.status).toBe(wrongToken.status);
+		expect(await noToken.text()).toBe(await wrongToken.text());
+
+		const noTokenHeaders = Object.fromEntries(noToken.headers.entries());
+		const wrongTokenHeaders = Object.fromEntries(wrongToken.headers.entries());
+		expect(noTokenHeaders).toEqual(wrongTokenHeaders);
+	});
+
 	it('returns 404 from the router for any non-/v1/frame path', async () => {
 		const req = buildReq({}, '/');
 
