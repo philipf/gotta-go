@@ -5,10 +5,10 @@ info:
 
 http:
   method: GET
-  url: https://{{base-uri}}/stop-predictions?stop_id=3275
+  url: https://{{base-uri}}/stop-predictions?stop_id=3234
   params:
     - name: stop_id
-      value: "3275"
+      value: "3234"
       type: query
     - name: service_id
       value: "1"

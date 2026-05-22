@@ -1,0 +1,771 @@
+{
+  "swagger" : "2.0",
+  "info" : {
+    "description" : "A collection of APIs that relate to Metlink",
+    "version" : "2019-07-10T23:17:09Z",
+    "title" : "Metlink Open Data API"
+  },
+  "host" : "api.opendata.metlink.org.nz",
+  "basePath" : "/v1",
+  "tags" : [ {
+    "name" : "Metlink GTFS",
+    "description" : "Static public transport data for Wellington in GTFS (General Transit Feed Specification). Download the full GTFS dataset from https://static.opendata.metlink.org.nz/v1/gtfs/full.zip",
+    "externalDocs" : {
+      "description" : "GTFS Reference",
+      "url" : "https://developers.google.com/transit/gtfs/reference"
+    }
+  }, {
+    "name" : "Metlink GTFS-RT",
+    "description" : "Realtime updates for public transport data for Wellington in GTFS-RT format including trip updates, vehicle positions and service alerts.",
+    "externalDocs" : {
+      "description" : "GTFS Realtime Reference",
+      "url" : "https://developers.google.com/transit/gtfs-realtime/reference"
+    }
+  }, {
+    "name" : "Stop Departure Predictions",
+    "description" : "Predictions for when vehicles will arrive and depart through stops."
+  }, {
+    "name" : "Trip Cancellations",
+    "description" : "Upcoming and historical data about trips that have been cancelled."
+  } ],
+  "schemes" : [ "https" ],
+  "paths" : {
+    "/gtfs-rt/servicealerts" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS-RT" ],
+        "summary" : "GTFS-RT Service Alerts",
+        "description" : "Information about unforeseen events affecting routes, stops, or the network. Use accept header 'application/x-protobuf' to receive in Protobuf format.",
+        "parameters" : [ {
+          "name" : "Accept",
+          "in" : "header",
+          "description" : "Set to application/x-protobuf to receive Protobuf",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS-RT" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs-rt/tripupdates" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS-RT" ],
+        "summary" : "GTFS-RT Trip Updates",
+        "description" : "Delays, cancellations, changed routes. Use accept header 'application/x-protobuf' to receive in Protobuf format.",
+        "parameters" : [ {
+          "name" : "Accept",
+          "in" : "header",
+          "description" : "Set to application/x-protobuf to receive Protobuf",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS-RT" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs-rt/vehiclepositions" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS-RT" ],
+        "summary" : "GTFS-RT Vehicle Positions",
+        "description" : "Information about vehicles including location. Use accept header 'application/x-protobuf' to receive in Protobuf format.",
+        "parameters" : [ {
+          "name" : "Accept",
+          "in" : "header",
+          "description" : "Set to application/x-protobuf to receive Protobuf",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS-RT" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/agency" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Agencies",
+        "description" : "Transit agencies with service represented in this dataset.",
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/calendar" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Calendars",
+        "description" : "Service dates specified using a weekly schedule with start and end dates.",
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/calendar_dates" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Calendar Dates",
+        "description" : "Exceptions for the services defined in the calendar.",
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/feed_info" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Feed info",
+        "description" : "Dataset metadata, including publisher, version, and expiration information.",
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/routes" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Routes",
+        "description" : "Transit routes. A route is a group of trips that are displayed to riders as a single service.",
+        "parameters" : [ {
+          "name" : "stop_id",
+          "in" : "query",
+          "description" : "Filter routes by stop id",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/shapes" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Shapes",
+        "description" : "Rules for mapping vehicle travel paths, sometimes referred to as route alignments.",
+        "parameters" : [ {
+          "name" : "shape_id",
+          "in" : "query",
+          "description" : "Filter shapes by shape_id",
+          "required" : true,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/stop_times" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Stop Times",
+        "description" : "Times that a vehicle arrives at and departs from stops for each trip.",
+        "parameters" : [ {
+          "name" : "trip_id",
+          "in" : "query",
+          "description" : "Filter stops by trip id",
+          "required" : true,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/stops" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Stops",
+        "description" : "Stops where vehicles pick up or drop off riders. Also defines stations and station entrances.",
+        "parameters" : [ {
+          "name" : "route_id",
+          "in" : "query",
+          "description" : "Filter stops by route id",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "trip_id",
+          "in" : "query",
+          "description" : "Filter stops by trip id",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/transfers" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Transfers",
+        "description" : "Rules for making connections at transfer points between routes.",
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gtfs/trips" : {
+      "get" : {
+        "tags" : [ "Metlink GTFS" ],
+        "summary" : "GTFS Trips",
+        "description" : "Trips for each route. A trip is a sequence of two or more stops that occur during a specific time period.",
+        "parameters" : [ {
+          "name" : "start",
+          "in" : "query",
+          "description" : "Filter trips by start date time (start of the trip). Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "extra_fields",
+          "in" : "query",
+          "description" : "Provides additional data outside of the GTFS specification. Request values as comma separated list. Valid values: first_stop, last_stop",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "route_id",
+          "in" : "query",
+          "description" : "Filter trips by route id",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "trip_id",
+          "in" : "query",
+          "description" : "Filter trips by trip_id. Request values as comma separated list.",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "end",
+          "in" : "query",
+          "description" : "Filter trips by end date time. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Metlink GTFS" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stop-predictions" : {
+      "get" : {
+        "tags" : [ "Stop Departure Predictions" ],
+        "summary" : "Stop Departure Predictions",
+        "description" : "Predictions for when vehicles will arrive and depart through stops.",
+        "parameters" : [ {
+          "name" : "stop_id",
+          "in" : "query",
+          "description" : "Stop Code (e.g. 5515) for stop predictions. Required.",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit for departures returned",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Stop Departure Predictions" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trip-cancellations" : {
+      "get" : {
+        "tags" : [ "Trip Cancellations" ],
+        "summary" : "Trip Cancellations",
+        "description" : "Historical, current, and known future data for trip cancellations.",
+        "parameters" : [ {
+          "name" : "date_updated",
+          "in" : "query",
+          "description" : "Filter cancellations by updated date. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "date_updated_max",
+          "in" : "query",
+          "description" : "Filter cancellations by max updated date. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "reinstated",
+          "in" : "query",
+          "description" : "Filter cancellations by reinstated",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "date_start",
+          "in" : "query",
+          "description" : "Filter cancellations by start date and time of the trip. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "date_end",
+          "in" : "query",
+          "description" : "Filter cancellations by max start date and time of the trip. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "part_cancellation",
+          "in" : "query",
+          "description" : "Filter cancellations by part cancelled",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "date_created",
+          "in" : "query",
+          "description" : "Filter cancellations by created date. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "route_id",
+          "in" : "query",
+          "description" : "Filter cancellations by route id (note: route_id from GTFS, not route code)",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "trip_id",
+          "in" : "query",
+          "description" : "Filter cancellations by trip id",
+          "required" : false,
+          "type" : "string"
+        }, {
+          "name" : "date_created_max",
+          "in" : "query",
+          "description" : "Filter cancellations by max created date. Should be in the format YYYY-MM-DD[T]HH:mm:ss (e.g. 2021-01-01T00:00:00)",
+          "required" : false,
+          "type" : "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Success"
+          }
+        },
+        "security" : [ {
+          "api_key" : [ ]
+        } ]
+      },
+      "options" : {
+        "tags" : [ "Trip Cancellations" ],
+        "consumes" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Credentials" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "securityDefinitions" : {
+    "api_key" : {
+      "type" : "apiKey",
+      "name" : "x-api-key",
+      "in" : "header"
+    }
+  }
+}
