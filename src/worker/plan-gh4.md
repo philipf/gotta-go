@@ -121,7 +121,7 @@ Per ADR-0005 (testing approach) and the `/tdd` skill: tracer-bullet vertical sli
 | **10** | Missing token returns identical 401 to invalid token (no oracle) | Two curls (no token, wrong token); responses byte-identical except for `Date` header | vitest unit + curl | ✅ done |
 | **11** | Unknown slug returns 404 with `X-Sleep-Seconds: 3600` and body "unknown radiator" | vitest unit + curl | ✅ done |
 | **12** | Gzip negotiation: `Accept-Encoding: gzip` → `Content-Encoding: gzip` header + single-layer gzip body (GH #13 regression guard). Absent → uncompressed BMP is pinned at the unit layer only — `wrangler dev` normalises every inbound `Accept-Encoding` to `"br, gzip"`, so the raw branch is unreachable locally. | vitest unit + curl | ✅ done |
-| **13** | Visual smoke: open the returned `frame.bmp` in an image viewer — clock reads current `HH:MM`, date is today | eyes | ⬜ todo |
+| **13** | Visual smoke: open the returned `frame.bmp` in an image viewer — clock reads current `HH:MM`, date is today | eyes | ✅ done |
 
 After all slices are green, look for refactor candidates per `/tdd` refactoring guidance (duplication, shallow modules, primitive obsession). **No refactoring while RED.**
 
