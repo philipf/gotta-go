@@ -43,12 +43,34 @@ export type FetchResult =
 	| { ok: false; error: GatewayError };
 
 export async function fetchArrivals(req: FetchArrivalsRequest): Promise<FetchResult> {
-	const response = await fetchStopPredictions({
-		fetch: req.fetch,
-		apiKey: req.apiKey,
-		stopId: req.stopId,
-		limit: req.limit ?? DEFAULT_LIMIT,
-	});
-	const json = (await response.json()) as WireResponse;
+	let response: Response;
+	try {
+		response = await fetchStopPredictions({
+			fetch: req.fetch,
+			apiKey: req.apiKey,
+			stopId: req.stopId,
+			limit: req.limit ?? DEFAULT_LIMIT,
+		});
+	} catch {
+		return { ok: false, error: { kind: 'network' } };
+	}
+
+	if (response.status === 401 || response.status === 403) {
+		return { ok: false, error: { kind: 'auth' } };
+	}
+	if (response.status === 429) {
+		return { ok: false, error: { kind: 'rate_limited' } };
+	}
+	if (!response.ok) {
+		console.error(await response.text());
+		return { ok: false, error: { kind: 'upstream', status: response.status } };
+	}
+
+	let json: WireResponse;
+	try {
+		json = (await response.json()) as WireResponse;
+	} catch {
+		return { ok: false, error: { kind: 'upstream', status: response.status } };
+	}
 	return { ok: true, data: toStopState(json, req.serviceId) };
 }

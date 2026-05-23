@@ -3,7 +3,7 @@
 // Per ADR-0005 testing posture, integration-style through the public
 // interface; no live HTTP calls.
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchArrivals } from './metlink';
 import {
 	closedStop,
@@ -12,6 +12,10 @@ import {
 	originStop,
 	scheduledTrain,
 } from './fixtures';
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe('fetchArrivals', () => {
 	it('surfaces a closed:true envelope as { kind: "closed" }', async () => {
@@ -108,6 +112,77 @@ describe('fetchArrivals', () => {
 		if (result.data.kind !== 'open') return;
 		expect(result.data.arrivals.map((a) => a.serviceId)).toEqual(['1']);
 		expect(result.data.arrivals[0].tripHeadsign).toBe('Island Bay');
+	});
+
+	it('surfaces a malformed JSON body on a 2xx as upstream with the actual status', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response('not even close to JSON', { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(result).toEqual({ ok: false, error: { kind: 'upstream', status: 200 } });
+	});
+
+	it('surfaces a thrown fetch (network failure) as { kind: "network" }', async () => {
+		const stubFetch: typeof fetch = async () => {
+			throw new TypeError('connection refused');
+		};
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(result).toEqual({ ok: false, error: { kind: 'network' } });
+	});
+
+	it('surfaces other non-2xx as upstream and logs the body for diagnostics', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const stubFetch: typeof fetch = async () =>
+			new Response('upstream exploded', { status: 500 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(result).toEqual({ ok: false, error: { kind: 'upstream', status: 500 } });
+		expect(error).toHaveBeenCalledWith('upstream exploded');
+	});
+
+	it('surfaces HTTP 429 as { kind: "rate_limited" }', async () => {
+		const stubFetch: typeof fetch = async () => new Response('Too Many Requests', { status: 429 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(result).toEqual({ ok: false, error: { kind: 'rate_limited' } });
+	});
+
+	it.each([401, 403])('surfaces HTTP %i as { kind: "auth" }', async (status) => {
+		const stubFetch: typeof fetch = async () => new Response('Unauthorized', { status });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'wrong-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(result).toEqual({ ok: false, error: { kind: 'auth' } });
 	});
 
 	it('falls back to departure.aimed when arrival.aimed is absent at origin stops', async () => {
