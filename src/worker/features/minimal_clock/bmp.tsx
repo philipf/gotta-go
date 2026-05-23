@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { jsxToSvg, svgToRgba } from '../../shared/satori/index';
-import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp/index';
+import { jsxToSvg, svgToRgba } from '../../shared/satori';
+import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import type { ViewModel } from './viewmodel';
 
 const FAMILY = 'Press Start 2P';

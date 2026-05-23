@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validate } from './index';
+import { validate } from './validate';
 
 describe('auth.validate', () => {
 	it('returns ok when X-Radiator-Token matches the shared token', () => {

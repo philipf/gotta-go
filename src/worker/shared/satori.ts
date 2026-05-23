@@ -3,8 +3,8 @@ import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 import satori, { init as initSatori } from 'satori/standalone';
 import yogaWasm from 'satori/yoga.wasm';
 import type { ReactNode } from 'react';
-import pressStartTtf from '../../assets/PressStart2P-Regular.ttf';
-import { WIDTH, HEIGHT } from '../bmp/index';
+import pressStartTtf from '../assets/PressStart2P-Regular.ttf';
+import { WIDTH, HEIGHT } from './bmp';
 
 const FAMILY = 'Press Start 2P';
 const fontBuffer = new Uint8Array(pressStartTtf);

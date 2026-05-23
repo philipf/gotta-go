@@ -1,4 +1,4 @@
-import type { Profile } from '../../config/index';
+import type { Profile } from '../../config/lookup';
 
 export type ViewModel = {
 	slug: string;

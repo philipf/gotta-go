@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rgbaTo1BitBmp, WIDTH, HEIGHT } from './index';
+import { rgbaTo1BitBmp, WIDTH, HEIGHT } from './bmp';
 
 describe('rgbaTo1BitBmp', () => {
 	it('encodes an all-white 960x540 RGBA buffer to a 64,862-byte BMP whose first two bytes are 0x42 0x4d', () => {

@@ -1,11 +1,8 @@
-import { validate } from '../auth/index';
-import { lookupRadiator } from '../config/index';
-import {
-	buildViewModel,
-	renderers,
-	resolvePhase,
-} from '../features/minimal_clock/index';
-import { gzip } from '../shared/gzip/index';
+import { validate } from '../auth/validate';
+import { lookupRadiator } from '../config/lookup';
+import { layouts } from '../features/registry';
+import { resolvePhase } from '../schedule/resolve';
+import { gzip } from '../shared/gzip';
 import { unauthorized, unknownRadiator } from './errors';
 import { resolveResponseFormat } from './format';
 import { frameOk } from './response';
@@ -22,11 +19,10 @@ export async function handleFrame(
 	const profile = lookupRadiator(slug);
 	if (!profile) return unknownRadiator();
 
-	const { phase, sleepSeconds } = resolvePhase(profile, now);
-	const vm = buildViewModel(profile, now);
+	const { phase, layout, sleepSeconds } = resolvePhase(profile, now);
 
 	const format = resolveResponseFormat(request.headers.get('Accept'));
-	const rendered = await renderers[format](vm);
+	const rendered = await layouts[layout](profile, now, format);
 
 	const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
 		'gzip',

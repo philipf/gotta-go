@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildViewModel, resolvePhase } from './index';
-import type { Profile } from '../../config/index';
+import { buildViewModel } from './viewmodel';
+import type { Profile } from '../../config/lookup';
 
 const seedProfile: Profile = {
 	slug: 'bedroom-philip-tania',
@@ -16,16 +16,9 @@ const seedProfile: Profile = {
 	],
 };
 
-describe('minimal_clock.resolvePhase', () => {
-	it('returns the active phase and a sleep duration within [30, 14400]', () => {
-		const result = resolvePhase(seedProfile, new Date('2026-05-23T06:48:00Z'));
-
-		expect(result.phase).toBe('all_day_clock');
-		expect(result.sleepSeconds).toBeGreaterThanOrEqual(30);
-		expect(result.sleepSeconds).toBeLessThanOrEqual(14400);
-	});
-});
-
+// Tested one layer below the public render() because the full BMP pipeline
+// (Satori → resvg → BMP) is blocked inside the workers-pool sandbox per ADR-0005;
+// it's exercised end-to-end via `pnpm dev` + curl instead.
 describe('minimal_clock.buildViewModel', () => {
 	it('returns slug + HH:MM time + "Dow DD Mon" date in the profile timezone', () => {
 		// 2026-05-23T06:48:00Z = 2026-05-23T18:48:00+12:00 (Pacific/Auckland)

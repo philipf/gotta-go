@@ -43,9 +43,11 @@ Each project under `src/` owns its own toolchain. The Worker keeps `package.json
 
 ### Worker tier layout
 
+Each tier folder's public-API file is named after what it does (no `index.ts`); the only `index.ts` in the tree is the top-level Worker entry that `wrangler.jsonc` points at. The naming rule keeps editor tabs informative ("validate.ts", "registry.ts") instead of a wall of identical "index.ts".
+
 ```
 src/worker/
-├── index.ts                # fetch handler — delegates to api/router
+├── index.ts                # fetch handler — delegates to api/router (wrangler main)
 │
 ├── api/                    # HTTP edge: routing, negotiation, response shaping
 │   ├── router.ts
@@ -54,22 +56,28 @@ src/worker/
 │   ├── response.ts         # response/header builders per ADR-0003
 │   └── errors.ts           # error response builders
 │
-├── features/               # vertical slices — one folder per layout
+├── features/               # vertical slices — one folder per layout, plus the registry
+│   ├── registry.ts         # `layouts` const + `LayoutKey = keyof typeof layouts`
 │   └── <layout_name>/      # folder == glossary canonical term
-│       ├── index.ts        # public API: buildViewModel + renderers map
+│       ├── service.ts      # public API: single async `render(profile, now, format)`
 │       ├── viewmodel.ts
 │       ├── bmp.tsx         # renderer per Accept variant
 │       ├── json.ts         # added when diagnostics land
 │       ├── svg.tsx
 │       └── <layout_name>.test.ts
 │
-├── auth/                   # domain helper: token validation
-├── config/                 # domain helper: slug → profile lookup
-├── schedule/               # domain helper: profile + now → phase/layout/sleep
+├── auth/
+│   └── validate.ts         # domain helper: token validation
+├── config/
+│   ├── lookup.ts           # domain helper: slug → profile lookup
+│   ├── types.ts
+│   └── data.ts
+├── schedule/
+│   └── resolve.ts          # domain helper: profile + now → phase/layout/sleep
 │
 ├── gateways/               # Fowler gateway pattern — one folder per external system
 │   └── <system_name>/      # e.g. metlink/, quotes/, weather/, clock/
-│       ├── index.ts        # public interface — domain-shaped types only
+│       ├── <system>.ts     # public interface — domain-shaped types only
 │       ├── client.ts       # HTTP / runtime call
 │       ├── mapper.ts       # wire format → domain (the only place that knows the wire)
 │       ├── cache.ts        # KV / in-flight cache policy
@@ -77,10 +85,10 @@ src/worker/
 │       ├── fixtures.ts
 │       └── *.test.ts
 │
-├── shared/                 # format-agnostic infrastructure
-│   ├── satori/             # JSX → SVG → RGBA
-│   ├── bmp/                # RGBA → 1-bit BMP
-│   └── gzip/               # CompressionStream wrapper
+├── shared/                 # format-agnostic infrastructure (flat — one file per concern)
+│   ├── satori.ts           # JSX → SVG → RGBA
+│   ├── bmp.ts              # RGBA → 1-bit BMP
+│   └── gzip.ts             # CompressionStream wrapper
 │
 └── assets/                 # fonts, wasm, ambient type declarations
 ```
@@ -102,17 +110,18 @@ The split between `auth/`/`config/`/`schedule/` and `shared/` is deliberate: the
 
 - **One folder per layout.** Adding a layout is adding a folder; no other directory needs to change.
 - **Folder name = glossary canonical term.** `minimal_clock`, `priority_split`, `idle` — never synonyms. The folder name is the same string the `config.yaml` key uses, the same string the schedule resolver returns as `layoutKey`. One name, one place.
-- **Each folder exposes one public interface.**
+- **Each folder exposes one public function: `render`.**
   ```ts
-  export type ViewModel = { /* domain shape */ };
-  export function buildViewModel(profile: Profile, now: Date, deps: …): ViewModel;
-  export const renderers: {
-    bmp: (vm: ViewModel) => Promise<Uint8Array>;
-    json?: (vm: ViewModel) => string;        // when diagnostics land
-    svg?: (vm: ViewModel) => Promise<string>;
-  };
+  // features/<layout>/service.ts
+  export async function render(
+    profile: Profile,
+    now: Date,
+    format: ResponseFormat,
+  ): Promise<Uint8Array>;
   ```
-- **Tests live next to the code they describe** (`<layout>.test.ts` in the same folder). The PoC's separate `test/` tree is not carried over.
+  Internally the file holds a `Record<ResponseFormat, (vm: ViewModel) => Promise<Uint8Array>>` map keyed on the `ResponseFormat` union, so adding a new format to the union surfaces a TypeScript error in every feature until a renderer is supplied. `viewmodel.ts` stays an internal collaborator — it isn't part of the public surface.
+- **Layouts are discovered via the registry.** `features/registry.ts` declares `layouts` (a `Record<LayoutKey, render>`) and derives `LayoutKey = keyof typeof layouts`. `config/types.ts` type-only imports `LayoutKey` from there, so adding a layout means registering it once; the type follows automatically.
+- **Tests live next to the code they describe** (`<layout>.test.ts` in the same folder). Because the BMP pipeline (Satori → resvg → BMP) is blocked inside the workers-pool sandbox (see the testing section), feature unit tests go one layer below the public `render()` and import collaborators (e.g. `./viewmodel`) directly; the full pipeline is exercised end-to-end via `wrangler dev` + curl. The PoC's separate `test/` tree is not carried over.
 
 ### Gateways — Fowler's pattern, one folder per external system
 
@@ -122,7 +131,7 @@ Every external dependency lives in its own gateway folder. The folder owns:
 - The wire-format → domain mapping (`mapper.ts`) — **the only file in the codebase that knows what the upstream's payload looks like**.
 - Cache policy (`cache.ts`) — KV reads/writes, TTLs, in-flight coalescing.
 - Test fixtures (`fixtures.ts`) — recorded payloads for replay.
-- The public interface (`index.ts`) — domain-shaped types only; callers never see the wire format.
+- The public interface (`<system>.ts`, named after the gateway) — domain-shaped types only; callers never see the wire format.
 
 This keeps wire-format quirks (Metlink field ordering, timestamp formats, partial response shapes per ADR-0002) quarantined. The rest of the Worker depends on the domain interface; the mapper is the bulkhead.
 
@@ -168,7 +177,7 @@ Use the **/tdd skill** for all Worker code: tracer-bullet vertical slices, **one
 
 Cloudflare runtime APIs (`CompressionStream`, `Response`, the `fetch` export shape) are used directly and verified in the integration layer; they are not mocked.
 
-Tests are **integration-style through public interfaces**: drive a feature folder via its `index.ts`, not by reaching into `viewmodel.ts` or `bmp.tsx`. This keeps tests resilient to internal refactors and aligns with the deep-module shape above.
+Tests are **integration-style through public interfaces** wherever the runtime allows it: prefer driving a feature folder via its `service.ts` `render()` over reaching into `viewmodel.ts` or `bmp.tsx`. The exception is the BMP pipeline itself (Satori + resvg + yoga-wasm), which is sandbox-blocked — feature unit tests there import the next layer down (`./viewmodel`) and the full pipeline is verified live via `wrangler dev` + curl.
 
 ## Consequences
 
@@ -191,9 +200,9 @@ Tests are **integration-style through public interfaces**: drive a feature folde
 
 When an implementation issue lands a new piece of Worker code, the following should hold:
 
-1. Each layout occupies exactly one folder under `features/`, named with its glossary canonical term.
+1. Each layout occupies exactly one folder under `features/`, named with its glossary canonical term, and is registered in `features/registry.ts`. `LayoutKey` is derived as `keyof typeof layouts` and is the only `LayoutKey` in the codebase.
 2. No file outside `gateways/<system>/mapper.ts` references that upstream's wire-format field names.
-3. No file outside `index.ts` constructs `new Date()` or reads from Cloudflare bindings directly; downstream code receives everything as arguments.
+3. No file outside the top-level `index.ts` constructs `new Date()` or reads from Cloudflare bindings directly; downstream code receives everything as arguments.
 4. Tests live next to the code they exercise; the only directories matching `**/test/**` are inside gateway `fixtures.ts` neighbourhoods.
 5. `pnpm test` (run from `src/worker/`) runs vitest against the workers-pool sandbox and exits 0.
 6. The HTTP pipeline (Satori + resvg + gzip) is verified at least once via `wrangler dev` (run from `src/worker/`) + curl per implementation issue.

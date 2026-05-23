@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lookupRadiator } from './index';
+import { lookupRadiator } from './lookup';
 
 describe('config.lookupRadiator', () => {
 	it('returns the seeded profile for bedroom-philip-tania', () => {

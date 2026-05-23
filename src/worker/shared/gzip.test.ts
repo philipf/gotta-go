@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gzip } from './index';
+import { gzip } from './gzip';
 
 describe('gzip', () => {
 	it('produces fewer bytes than the input for a repetitive payload', async () => {
