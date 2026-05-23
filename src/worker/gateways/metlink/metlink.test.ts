@@ -172,6 +172,29 @@ describe('fetchArrivals', () => {
 		expect(result).toEqual({ ok: false, error: { kind: 'rate_limited' } });
 	});
 
+	it('builds the request URL + x-api-key header and omits service_id from the query', async () => {
+		let capturedUrl: string | undefined;
+		let capturedHeaders: Headers | undefined;
+		const stubFetch: typeof fetch = async (input, init) => {
+			capturedUrl = typeof input === 'string' ? input : input.toString();
+			capturedHeaders = new Headers(init?.headers);
+			return new Response(JSON.stringify(closedStop), { status: 200 });
+		};
+
+		await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'secret-key-abc',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(capturedUrl).toBe(
+			'https://api.opendata.metlink.org.nz/v1/stop-predictions?stop_id=TAKA1&limit=5',
+		);
+		expect(capturedHeaders?.get('x-api-key')).toBe('secret-key-abc');
+		expect(capturedUrl).not.toContain('service_id');
+	});
+
 	it.each([401, 403])('surfaces HTTP %i as { kind: "auth" }', async (status) => {
 		const stubFetch: typeof fetch = async () => new Response('Unauthorized', { status });
 
