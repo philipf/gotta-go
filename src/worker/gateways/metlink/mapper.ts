@@ -27,8 +27,33 @@ function toArrival(d: WireDeparture): Arrival {
 		name: d.name ?? '',
 		scheduled: new Date(scheduledIso),
 		predicted: new Date(predictedIso),
-		delaySeconds: 0,
-		status: 'scheduled',
+		delaySeconds: parseDelaySeconds(d.delay),
+		status: normalizeStatus(d.status),
 		tripId: d.trip_id,
 	};
+}
+
+const DURATION_RE = /^(-)?PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/;
+
+export function parseDelaySeconds(iso: string): number {
+	const m = iso.match(DURATION_RE);
+	if (!m) {
+		console.warn(`metlink: unable to parse delay duration "${iso}"`);
+		return 0;
+	}
+	const [, sign, h, mn, s] = m;
+	const total =
+		parseInt(h ?? '0', 10) * 3600 +
+		parseInt(mn ?? '0', 10) * 60 +
+		Math.round(parseFloat(s ?? '0'));
+	return sign === '-' ? -total : total;
+}
+
+export function normalizeStatus(wire: string | null): Arrival['status'] {
+	if (wire === null) return 'scheduled';
+	const lower = wire.toLowerCase();
+	if (lower === 'delayed') return 'delayed';
+	if (lower === 'cancelled' || lower === 'canceled') return 'cancelled';
+	console.warn(`metlink: unknown status "${wire}"`);
+	return 'scheduled';
 }
