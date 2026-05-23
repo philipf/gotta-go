@@ -1,4 +1,4 @@
-import type { Profile } from '../../config/lookup';
+import type { Radiator } from '../../config/lookup';
 import type { ResponseFormat } from '../../api/format';
 import { buildViewModel, type ViewModel } from './viewmodel';
 import { renderBmp } from './bmp';
@@ -10,10 +10,11 @@ const renderers: Record<ResponseFormat, (vm: ViewModel) => Promise<Uint8Array>> 
 };
 
 export async function render(
-	profile: Profile,
+	radiator: Radiator,
+	timezone: string,
 	now: Date,
 	format: ResponseFormat,
 ): Promise<Uint8Array> {
-	const vm = buildViewModel(profile, now);
+	const vm = buildViewModel(radiator, timezone, now);
 	return renderers[format](vm);
 }

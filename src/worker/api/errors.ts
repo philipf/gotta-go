@@ -28,3 +28,14 @@ export function unknownRadiator(): Response {
 		},
 	});
 }
+
+// Router-level 404 for an unknown path. The radiator firmware only ever hits
+// /v1/frame, so this branch is a developer/curl condition — no contract
+// headers, no sleep instruction; firmware falls back to its built-in default
+// if it ever hits this.
+export function notFound(): Response {
+	return new Response('not found', {
+		status: 404,
+		headers: { 'Content-Type': PLAIN_TEXT },
+	});
+}

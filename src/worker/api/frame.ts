@@ -1,7 +1,7 @@
 import { validate } from '../auth/validate';
-import { lookupRadiator } from '../config/lookup';
+import { GLOBAL, lookupRadiator } from '../config/lookup';
 import { layouts } from '../features/registry';
-import { resolvePhase } from '../schedule/resolve';
+import { resolveProfilePhase } from '../schedule/resolve';
 import { gzip } from '../shared/gzip';
 import { unauthorized, unknownRadiator } from './errors';
 import { resolveResponseFormat } from './format';
@@ -16,13 +16,13 @@ export async function handleFrame(
 	if (!auth.ok) return unauthorized();
 
 	const slug = request.headers.get('X-Radiator-Slug') ?? '';
-	const profile = lookupRadiator(slug);
-	if (!profile) return unknownRadiator();
+	const radiator = lookupRadiator(slug);
+	if (!radiator) return unknownRadiator();
 
-	const { phase, layout, sleepSeconds } = resolvePhase(profile, now);
+	const { profilePhase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
 
 	const format = resolveResponseFormat(request.headers.get('Accept'));
-	const rendered = await layouts[layout](profile, now, format);
+	const rendered = await layouts[layout](radiator, GLOBAL.timezone, now, format);
 
 	const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
 		'gzip',
@@ -33,6 +33,6 @@ export async function handleFrame(
 		gzip: acceptsGzip,
 		sleepSeconds,
 		serverTime: now,
-		profilePhase: phase,
+		profilePhase,
 	});
 }

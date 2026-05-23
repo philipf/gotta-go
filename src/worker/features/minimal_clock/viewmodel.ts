@@ -1,4 +1,4 @@
-import type { Profile } from '../../config/lookup';
+import type { Radiator } from '../../config/lookup';
 
 export type ViewModel = {
 	slug: string;
@@ -6,7 +6,7 @@ export type ViewModel = {
 	date: string;
 };
 
-// Intl formatting in the profile's timezone gives us HH:MM and "Dow DD Mon"
+// Intl formatting in the given timezone gives us HH:MM and "Dow DD Mon"
 // without pulling in a date library. en-GB chosen for 24-hour HH:MM by default.
 const TIME = new Map<string, Intl.DateTimeFormat>();
 const DATE = new Map<string, Intl.DateTimeFormat>();
@@ -39,14 +39,14 @@ function dateFmt(tz: string): Intl.DateTimeFormat {
 	return fmt;
 }
 
-export function buildViewModel(profile: Profile, now: Date): ViewModel {
-	const time = timeFmt(profile.timezone).format(now);
-	const parts = dateFmt(profile.timezone).formatToParts(now);
+export function buildViewModel(radiator: Radiator, timezone: string, now: Date): ViewModel {
+	const time = timeFmt(timezone).format(now);
+	const parts = dateFmt(timezone).formatToParts(now);
 	const wd = parts.find((p) => p.type === 'weekday')?.value ?? '';
 	const dd = parts.find((p) => p.type === 'day')?.value ?? '';
 	const mn = parts.find((p) => p.type === 'month')?.value ?? '';
 	return {
-		slug: profile.slug,
+		slug: radiator.slug,
 		time,
 		date: `${wd} ${dd} ${mn}`,
 	};

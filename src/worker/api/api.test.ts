@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unauthorized, unknownRadiator } from './errors';
+import { notFound, unauthorized, unknownRadiator } from './errors';
 import { frameOk } from './response';
 
 describe('api.errors.unauthorized', () => {
@@ -21,6 +21,18 @@ describe('api.errors.unknownRadiator', () => {
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
 		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
 		expect(await res.text()).toBe('unknown radiator');
+	});
+});
+
+describe('api.errors.notFound', () => {
+	it('returns a bare 404 with body "not found" and no contract headers', async () => {
+		const res = notFound();
+
+		expect(res.status).toBe(404);
+		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
+		expect(res.headers.get('X-Sleep-Seconds')).toBeNull();
+		expect(res.headers.get('X-Profile-Phase')).toBeNull();
+		expect(await res.text()).toBe('not found');
 	});
 });
 

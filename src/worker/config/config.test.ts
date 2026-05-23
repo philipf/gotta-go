@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { lookupRadiator } from './lookup';
 
 describe('config.lookupRadiator', () => {
-	it('returns the seeded profile for bedroom-philip-tania', () => {
-		const profile = lookupRadiator('bedroom-philip-tania');
+	it('returns a fully populated Radiator for bedroom-philip-tania', () => {
+		const radiator = lookupRadiator('bedroom-philip-tania');
 
-		expect(profile).toBeDefined();
-		expect(profile?.slug).toBe('bedroom-philip-tania');
-		expect(profile?.timezone).toBe('Pacific/Auckland');
-		expect(profile?.phases.length).toBeGreaterThan(0);
+		expect(radiator).toBeDefined();
+		expect(radiator?.slug).toBe('bedroom-philip-tania');
+		expect(radiator?.profile.name).toBe('philip_and_tania');
+		expect(radiator?.profile.phases.length).toBeGreaterThan(0);
 	});
 
 	it('returns undefined for an unknown slug', () => {

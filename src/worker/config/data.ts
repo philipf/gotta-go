@@ -1,12 +1,20 @@
-import type { Profile } from './types';
+import type { Global, Profile } from './types';
 
-// Seed config for the #4 tracer slice. One all-day phase that selects
-// minimal_clock, so schedule resolution always finds a phase regardless of
-// server time. Multi-phase logic + the priority_split layout land with #5.
-export const RADIATORS: Record<string, Profile> = {
-	'bedroom-philip-tania': {
-		slug: 'bedroom-philip-tania',
-		timezone: 'Pacific/Auckland',
+// PRD §9 `global:` block.
+export const GLOBAL: Global = {
+	timezone: 'Pacific/Auckland',
+	defaultRefreshIntervalMinutes: 3,
+};
+
+// PRD §9 `profiles:` block — named profiles keyed by profile name. Each
+// profile owns its phases. Multiple radiators may share one profile.
+//
+// The PoC seeds one profile with one all-day `minimal_clock` phase, so
+// resolution always finds a phase regardless of server time. Multi-phase
+// content (priority_split, idle, etc.) lands in subsequent issues.
+export const PROFILES: Record<string, Profile> = {
+	philip_and_tania: {
+		name: 'philip_and_tania',
 		phases: [
 			{
 				key: 'all_day_clock',
@@ -16,5 +24,16 @@ export const RADIATORS: Record<string, Profile> = {
 				refreshIntervalMinutes: 5,
 			},
 		],
+	},
+};
+
+// PRD §9 `radiators:` block — radiator slug → profile-name reference.
+// The slug is the X-Radiator-Slug header value, hardcoded in firmware.
+// The reference is resolved at lookup time so callers see a fully
+// populated `Radiator` with its `profile` inlined.
+export const RADIATOR_REFS: Record<string, { slug: string; profileName: string }> = {
+	'bedroom-philip-tania': {
+		slug: 'bedroom-philip-tania',
+		profileName: 'philip_and_tania',
 	},
 };
