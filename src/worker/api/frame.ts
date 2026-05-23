@@ -7,7 +7,7 @@ import {
 } from '../features/minimal_clock/index';
 import { gzip } from '../shared/gzip/index';
 import { unauthorized, unknownRadiator } from './errors';
-import { negotiate } from './negotiate';
+import { resolveResponseFormat } from './format';
 import { frameOk } from './response';
 
 export async function handleFrame(
@@ -25,13 +25,13 @@ export async function handleFrame(
 	const { phase, sleepSeconds } = resolvePhase(profile, now);
 	const vm = buildViewModel(profile, now);
 
-	const rendererKey = negotiate(request.headers.get('Accept'));
-	const bmp = await renderers[rendererKey](vm);
+	const format = resolveResponseFormat(request.headers.get('Accept'));
+	const rendered = await renderers[format](vm);
 
 	const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
 		'gzip',
 	);
-	const body = acceptsGzip ? await gzip(bmp) : bmp;
+	const body = acceptsGzip ? await gzip(rendered) : rendered;
 
 	return frameOk(body, {
 		gzip: acceptsGzip,

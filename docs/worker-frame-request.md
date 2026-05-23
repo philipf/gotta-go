@@ -4,64 +4,34 @@ Sequence diagram and component map for the production worker at [`src/worker/`](
 
 ## Sequence diagram
 
+Happy path only — auth/slug failures, gzip negotiation, and the render-pipeline internals are covered in the component map below.
+
 ```mermaid
 sequenceDiagram
     autonumber
     participant R as Radiator firmware
-    participant W as index.ts → api/router
+    participant W as Worker (api/frame.handleFrame)
     participant A as auth.validate
     participant C as config.lookupRadiator
-    participant S as schedule (phase.resolvePhase)
-    participant V as minimal_clock.buildViewModel
-    participant N as api.negotiate
+    participant S as phase.resolvePhase
+    participant V as buildViewModel
+    participant N as api.resolveResponseFormat
     participant F as minimal_clock.renderBmp
-    participant SAT as shared/satori
-    participant BMP as shared/bmp.rgbaTo1BitBmp
-    participant GZ as shared/gzip
-    participant OK as api.response.frameOk
 
-    R->>W: GET /v1/frame<br/>X-Radiator-Token, X-Radiator-Slug,<br/>Accept-Encoding
-
-    W->>A: validate(headers, env.RADIATOR_SHARED_TOKEN)
-    A-->>W: { ok }
-    alt token missing or wrong
-        W-->>R: 401 "unauthorized"<br/>X-Sleep-Seconds: 3600
-    end
-
+    R->>W: GET /v1/frame
+    W->>A: validate(headers, sharedToken)
+    A-->>W: ok
     W->>C: lookupRadiator(slug)
-    C-->>W: Profile | undefined
-    alt slug unknown
-        W-->>R: 404 "unknown radiator"<br/>X-Sleep-Seconds: 3600
-    end
-
+    C-->>W: Profile
     W->>S: resolvePhase(profile, now)
     S-->>W: { phase, sleepSeconds }
-
     W->>V: buildViewModel(profile, now)
-    V-->>W: { slug, time, date }
-
-    W->>N: negotiate(Accept)
+    V-->>W: { time, date }
+    W->>N: resolveResponseFormat(Accept)
     N-->>W: 'bmp'
-
-    W->>F: renderers.bmp(vm)
-    F->>SAT: jsxToSvg(layout(vm))
-    Note over SAT: First request only:<br/>ensureWasm() inits yoga + resvg wasm<br/>in parallel, memoized per isolate<br/>(GH #14 cold-start fix)
-    SAT-->>F: SVG string
-    F->>SAT: svgToRgba(svg)
-    SAT-->>F: RGBA pixel buffer
-    F->>BMP: rgbaTo1BitBmp(rgba)
-    BMP-->>F: 64 862-byte BMP1
-    F-->>W: BMP
-
-    alt Accept-Encoding includes gzip
-        W->>GZ: gzip(bmp)
-        GZ-->>W: gzipped buffer (~1.5 KB)
-    end
-
-    W->>OK: frameOk(body, { gzip, sleepSeconds, serverTime, profilePhase })
-    Note right of OK: When gzip=true:<br/>Content-Encoding: gzip +<br/>encodeBody: 'manual'<br/>(GH #13 — stops CF runtime<br/>re-gzipping the body)
-    OK-->>W: Response (200)
-    W-->>R: 200 image/bmp<br/>(optionally Content-Encoding: gzip)<br/>X-Sleep-Seconds, X-Server-Time, X-Profile-Phase
+    W->>F: renderBmp(vm)
+    F-->>W: BMP bytes
+    W-->>R: 200 image/bmp + sleep/phase/server-time headers
 ```
 
 ## Component map
@@ -82,11 +52,11 @@ sequenceDiagram
 - **`features/minimal_clock/phase.ts` (`resolvePhase`)** — Picks the active phase and clamps `refreshIntervalMinutes × 60` into `[30, 14400]` seconds. The #4 config has a single all-day phase, so phase resolution is trivial. The file comment notes this lifts up to `schedule/index.ts` once multi-phase + DST logic lands with issue #5.
 - **`features/minimal_clock/viewmodel.ts` (`buildViewModel`)** — Pure presentation layer: formats `time` (`HH:MM`, 24h, en-GB) and `date` (`Dow DD Mon`) in the profile's timezone via `Intl.DateTimeFormat`, with a per-tz cache so we don't rebuild formatters per request. No date library.
 - **`features/minimal_clock/bmp.tsx` (`renderBmp`)** — The renderer for `image/bmp`. Builds the JSX layout (centered time + date in Press Start 2P), then walks the three-stage pipeline: JSX → SVG → RGBA → 1-bpp BMP.
-- **`features/minimal_clock/index.ts`** — Exports the `renderers` map keyed by `RendererKey`. Today: `{ bmp: renderBmp }`. When `json` / `svg` outputs land (#19 / #20), they slot in alongside `bmp`.
+- **`features/minimal_clock/index.ts`** — Exports the `renderers` map keyed by `ResponseFormat`. Today: `{ bmp: renderBmp }`. When `json` / `svg` outputs land (#19 / #20), they slot in alongside `bmp`.
 
 ### Content negotiation
 
-- **`api/negotiate.ts`** — Accept header → renderer key. For #4 it unconditionally returns `'bmp'`. Stub on purpose; ADR-0004 specifies the `json` / `svg` branches that arrive with later issues.
+- **`api/format.ts` (`resolveResponseFormat`)** — Accept header → response format. For #4 it unconditionally returns `'bmp'`. Stub on purpose; ADR-0004 specifies the `json` / `svg` branches that arrive with later issues.
 
 ### Render pipeline (shared)
 
@@ -110,5 +80,5 @@ sequenceDiagram
 ## Mental shortcut
 
 > A frame request is **gate → resolve → render → encode → shape**.
-> Gate in `auth/` + `config/`. Resolve in `features/<feature>/phase` + `viewmodel`. Render via `negotiate` + the feature's `renderers` map. Encode in `shared/gzip`. Shape in `api/response`.
+> Gate in `auth/` + `config/`. Resolve in `features/<feature>/phase` + `viewmodel`. Render via `resolveResponseFormat` + the feature's `renderers` map. Encode in `shared/gzip`. Shape in `api/response`.
 > The two non-obvious bits — `satori/standalone` + memoized `ensureWasm` ([#14](https://github.com/philipf/gotta-go/issues/14)), and `encodeBody: 'manual'` ([#13](https://github.com/philipf/gotta-go/issues/13)) — both have inline comments pointing at the GitHub issues.

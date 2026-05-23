@@ -14,7 +14,7 @@ Concretely, #4 creates the following Worker tiers — each named per ADR-0005 �
 
 | ADR-0005 tier | What #4 creates                                        | What #4 leaves empty                             |
 |---|---|---|
-| `api/`          | `router.ts`, `frame.ts`, `negotiate.ts`, `response.ts`, `errors.ts` | — |
+| `api/`          | `router.ts`, `frame.ts`, `format.ts`, `response.ts`, `errors.ts` | — |
 | `features/`     | `minimal_clock/` with `index.ts`, `phase.ts`, `viewmodel.ts`, `bmp.tsx`, `minimal_clock.test.ts` | `json.ts` and `svg.tsx` (added by #19 / #20)     |
 | `auth/`         | `index.ts`, `auth.test.ts`                             | — |
 | `config/`       | `index.ts`, `data.ts`, `types.ts`, `config.test.ts`    | YAML/KV migration (deferred)                     |
@@ -25,7 +25,7 @@ Concretely, #4 creates the following Worker tiers — each named per ADR-0005 �
 
 ADR-0005 reserves a `schedule/` tier for "profile + now → phase / layout / sleep", but its own "Defaults stay light until they hurt" rule tells us not to populate that tier yet. While `minimal_clock` is the only feature in tree, the resolver is one tiny function with one caller, so it sits inside `features/minimal_clock/phase.ts`. When `priority_split` lands in #5 and a second feature needs the same lookup, lift `phase.ts` up to `schedule/` then — that promotion is the YAGNI exit gate, not the default.
 
-`api/negotiate.ts` for #4 returns `'bmp'` unconditionally — content negotiation per [ADR-0004](../../docs/adr/0004-diagnostics-view-content-negotiation.md) lights up when #19/#20 add the JSON/SVG renderers.
+`api/format.ts` for #4 returns `'bmp'` unconditionally — content negotiation per [ADR-0004](../../docs/adr/0004-diagnostics-view-content-negotiation.md) lights up when #19/#20 add the JSON/SVG renderers.
 
 ## Request flow for #4
 
@@ -49,7 +49,7 @@ api/frame.ts:
   3. pick layout                             → #4 only has 'minimal_clock'; api/frame dispatches directly
   4. feature.resolvePhase(profile, now)      → { phase, sleepSeconds }   (inside features/minimal_clock/)
   5. feature.buildViewModel(profile, now)    → { time, date, slug }
-  6. api/negotiate.ts                        → Accept: image/bmp → feature.renderers.bmp
+  6. api/format.ts                           → Accept: image/bmp → feature.renderers.bmp
   7. feature.renderers.bmp(viewmodel)        → Uint8Array (64,862-byte BMP)
   8. shared/gzip.gzip(bmp)                   → compressed bytes
   9. api/response.ts                         → Response with all headers from ADR-0003
@@ -128,7 +128,7 @@ After all slices are green, look for refactor candidates per `/tdd` refactoring 
 ### Behaviors deliberately NOT tested in #4
 
 - **Phase edge cases** (DST, phase boundary, multi-day rollover, idle-profile fall-through) — the seeded config has one all-day phase, so they're unreachable. Land with #5; that's also when `resolvePhase` lifts out of `features/minimal_clock/` into a shared `schedule/` tier.
-- **Multiple Accept renderers** — only `image/bmp` matters; `api/negotiate` returns `'bmp'` unconditionally. Property-test in #19/#20.
+- **Multiple Accept renderers** — only `image/bmp` matters; `api/format.resolveResponseFormat` returns `'bmp'` unconditionally. Property-test in #19/#20.
 - **Cold-start retry semantics** — known PoC issue; the firmware client handles it per ADR-0003. Worker side has nothing to test.
 - **Pixel-exact BMP correctness** — `shared/bmp` is byte-deterministic and inherited from a deployed PoC. Snapshot testing would just rehash the PoC's existing validation.
 

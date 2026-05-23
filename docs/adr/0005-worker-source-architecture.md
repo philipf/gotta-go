@@ -50,7 +50,7 @@ src/worker/
 ├── api/                    # HTTP edge: routing, negotiation, response shaping
 │   ├── router.ts
 │   ├── <endpoint>.ts       # one orchestrator per route (e.g. frame.ts)
-│   ├── negotiate.ts        # Accept header → renderer key
+│   ├── format.ts           # Accept header → response format
 │   ├── response.ts         # response/header builders per ADR-0003
 │   └── errors.ts           # error response builders
 │
@@ -178,7 +178,7 @@ Tests are **integration-style through public interfaces**: drive a feature folde
 - **Glossary is enforced by structure.** Folder names == canonical terms; synonyms become syntactically impossible.
 - **Wire-format quirks are quarantined.** Gateway mappers are the only place upstream payload shapes appear; the rest of the code reads domain types.
 - **Tests scale with the code.** Co-located tests stay discoverable; integration-style tests through public interfaces survive refactors.
-- **Diagnostic renderers (ADR-0004) drop in naturally.** A feature folder gains `json.ts` and `svg.tsx` next to `bmp.tsx`; `api/negotiate.ts` already returns the right key.
+- **Diagnostic renderers (ADR-0004) drop in naturally.** A feature folder gains `json.ts` and `svg.tsx` next to `bmp.tsx`; `api/format.ts` already returns the right key.
 
 ### Negative / follow-ups
 
