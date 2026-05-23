@@ -8,7 +8,7 @@ const BLACK = '#000';
 const WHITE = '#fff';
 
 const TIME_SIZE = 160;
-const DATE_SIZE = 36;
+const DATE_SIZE = 60;
 
 function layout(vm: ViewModel): ReactNode {
 	return (
