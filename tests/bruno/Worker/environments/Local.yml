@@ -1,4 +1,4 @@
 name: Local
 variables:
-  - secret: true
-    name: Radiator-Token
+  - name: Radiator-Token
+    value: test-token-123

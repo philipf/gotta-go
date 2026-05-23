@@ -22,7 +22,7 @@ request:
     placement: header
   variables:
     - name: base-uri
-      value: localhost:8787
+      value: http://localhost:8787
     - name: radiator-slug
       value: bedroom-philip-tania
 bundled: false

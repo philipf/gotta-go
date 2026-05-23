@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://{{base-uri}}/v1/frame
+  url: "{{base-uri}}/v1/frame"
   headers:
     - name: X-Radiator-Slug
       value: "{{radiator-slug}}"
