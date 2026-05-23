@@ -1,3 +1,6 @@
+// Public surface of the config/ module: slug → fully-populated Radiator
+// resolver, plus re-exports of the domain types and GLOBAL.
+
 import { PROFILES, RADIATOR_REFS } from './data';
 import type { Radiator } from './types';
 

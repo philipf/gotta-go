@@ -1,3 +1,8 @@
+// Shared Satori + resvg rendering pipeline used by BMP renderers. Lazy-
+// initialises the Yoga + resvg WebAssembly modules once per Worker isolate
+// (deferred to first request to keep cold-start CPU budget low), loads the
+// bundled Press Start 2P TTF, and exposes jsxToSvg and svgToRgba.
+
 import { initWasm as initResvg, Resvg } from '@resvg/resvg-wasm';
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 import satori, { init as initSatori } from 'satori/standalone';

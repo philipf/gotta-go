@@ -1,3 +1,8 @@
+// Orchestrator for GET /v1/frame. Validates the shared token, resolves the
+// radiator slug → radiator and the active profile phase, dispatches to the
+// layout's renderer for the negotiated format, optionally gzips the body,
+// and returns the BMP frame with the ADR-0003 contract headers.
+
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
 import { layouts } from '../features/registry';

@@ -1,3 +1,7 @@
+// Manual 1-bit BMP encoder. Converts an RGBA pixel buffer to a 960×540
+// 1-bit monochrome BMP byte array — the wire format the LilyGO T5 EPD panel
+// flushes directly. Exports the canonical WIDTH/HEIGHT used by every renderer.
+
 export const WIDTH = 960;
 export const HEIGHT = 540;
 

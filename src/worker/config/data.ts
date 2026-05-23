@@ -1,3 +1,7 @@
+// PoC seed data for the PRD global:, profiles: and radiators: blocks. One
+// profile with one all-day minimal_clock phase and one radiator slug, so
+// resolution always finds a phase regardless of server time during the PoC.
+
 import type { Global, Profile } from './types';
 
 // PRD §9 `global:` block.

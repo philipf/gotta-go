@@ -1,3 +1,7 @@
+// Builds the format-agnostic ViewModel for the minimal_clock layout:
+// slug + 24-hour HH:MM wall-clock time + "Dow DD Mon" date in the supplied
+// timezone.
+
 import type { Radiator } from '../../config/lookup';
 
 export type ViewModel = {

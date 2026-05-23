@@ -1,3 +1,6 @@
+// Profile-phase resolver. Maps (radiator, now) → active profile phase, its
+// layout, and the clamped sleep duration (30s ≤ n ≤ 14400s per glossary §8).
+
 import type { Radiator } from '../config/lookup';
 import type { LayoutKey } from '../features/registry';
 

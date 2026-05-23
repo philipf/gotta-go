@@ -1,3 +1,6 @@
+// Public render entry for the minimal_clock layout. Builds the view model
+// then dispatches by ResponseFormat to the matching renderer.
+
 import type { Radiator } from '../../config/lookup';
 import type { ResponseFormat } from '../../api/format';
 import { buildViewModel, type ViewModel } from './viewmodel';

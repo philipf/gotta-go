@@ -1,3 +1,7 @@
+// Domain types mirroring the PRD config.yaml shape (Global, ProfilePhase,
+// Profile, Radiator). Re-exports LayoutKey from the feature registry so
+// phase layout values are constrained to what's actually implemented.
+
 import type { LayoutKey } from '../features/registry';
 
 export type { LayoutKey };

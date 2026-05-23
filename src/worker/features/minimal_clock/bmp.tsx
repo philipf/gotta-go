@@ -1,3 +1,6 @@
+// BMP renderer for the minimal_clock layout. Lays out time + date with
+// React/JSX → Satori → resvg → 1-bit BMP, using Press Start 2P throughout.
+
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';

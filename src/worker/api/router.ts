@@ -1,3 +1,6 @@
+// HTTP router. Matches GET /v1/frame to the frame handler; everything else
+// returns the bare router-level 404.
+
 import { notFound } from "./errors";
 import { handleFrame } from "./frame";
 
