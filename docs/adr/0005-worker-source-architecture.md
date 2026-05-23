@@ -128,7 +128,7 @@ The split between `auth/`/`config/`/`schedule/` and `shared/` is deliberate: the
 Every external dependency lives in its own gateway folder. The folder owns:
 
 - The HTTP / runtime call (`client.ts`).
-- The wire-format → domain mapping (`mapper.ts`) — **the only file in the codebase that knows what the upstream's payload looks like**.
+- The wire-format → domain mapping (`mapper.ts`) — **the only file that performs the wire→domain transformation**. Wire-shape type declarations live in `types.ts` and recorded payloads in `fixtures.ts` — both confined to the gateway folder so no file outside it ever references the upstream's field names.
 - Cache policy (`cache.ts`) — KV reads/writes, TTLs, in-flight coalescing.
 - Test fixtures (`fixtures.ts`) — recorded payloads for replay.
 - The public interface (`<system>.ts`, named after the gateway) — domain-shaped types only; callers never see the wire format.
@@ -201,7 +201,7 @@ Tests are **integration-style through public interfaces** wherever the runtime a
 When an implementation issue lands a new piece of Worker code, the following should hold:
 
 1. Each layout occupies exactly one folder under `features/`, named with its glossary canonical term, and is registered in `features/registry.ts`. `LayoutKey` is derived as `keyof typeof layouts` and is the only `LayoutKey` in the codebase.
-2. No file outside `gateways/<system>/mapper.ts` references that upstream's wire-format field names.
+2. No file outside `gateways/<system>/` references that upstream's wire-format field names. Inside the gateway folder, wire-shape types live in `types.ts` and recorded payloads in `fixtures.ts`; only `mapper.ts` performs the wire→domain transformation.
 3. No file outside the top-level `index.ts` constructs `new Date()` or reads from Cloudflare bindings directly; downstream code receives everything as arguments.
 4. Tests live next to the code they exercise; the only directories matching `**/test/**` are inside gateway `fixtures.ts` neighbourhoods.
 5. `pnpm test` (run from `src/worker/`) runs vitest against the workers-pool sandbox and exits 0.

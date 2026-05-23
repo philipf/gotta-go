@@ -59,14 +59,16 @@ The top horizontal strip showing **wall-clock time**. Spans the full width of th
 One vertical content pane below the global header. A `priority_split` frame has either one column (full width) or two columns (split by a hairline rule).
 
 ### Column header
-The per-column heading: a **mode icon** stacked above a **route code**.
+The per-column heading: a **mode icon** stacked above a **trip headsign**.
 
 ### Mode icon
 The custom 8-bit glyph identifying the **mode** (bus or train).
 - **Not to be confused with:** ~~vehicle icon~~, ~~service icon~~.
 
-### Route code
-The line identifier, e.g. `22` (bus) or `HVL` (train line).
+### Trip headsign
+The short destination label rendered in the **column header** beside the **mode icon** — the human-readable answer to "where is this service going". Sourced from the Metlink `trip_headsign` field and passed through as-is; no synthesis or abbreviation in the Worker.
+- **Appears as:** column-header text (e.g. `BUS Island Bay`, `TRAIN Wellington`), code symbol `tripHeadsign`.
+- **Not to be confused with:** ~~route code~~ (legacy, deprecated — the previous glossary entry mis-named this concept as "route code" when it is actually the trip headsign), the upstream `service_id` field (an internal route identifier used inside the gateway for filtering — never displayed).
 
 ### Tier 1 / Tier 2 / Tier 3
 The three weight bands within a column. Each tier must be visibly lighter than the one above.
@@ -273,6 +275,7 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 | e-ink display | panel |
 | backup service | next service |
 | dead service | cancelled service |
+| route code | trip headsign (column-header label) / service_id (gateway-internal filter) — these were conflated under "route code" |
 | progress bar, walk-window progress bar, fill bar, progress widget | track + marker |
 | diamond (bare) | marker |
 | safety margin | leave margin |
