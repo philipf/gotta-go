@@ -98,6 +98,32 @@ arduino-cli monitor -p "$PORT" -c baudrate=115200
 - Panel does one full refresh (white) then shows `Hello GottaGo` roughly mid-screen.
 - Panel holds the frame after the board is unplugged — that's the bistable EPD doing its thing.
 
+## EPD driver notes
+
+What the sketch actually does to the panel, and the quirks that surfaced during bring-up.
+
+**Call sequence** — every full-refresh write follows the same shape:
+
+```
+epd_init()       // once, in setup() — configures RMT, allocates framebuffer
+epd_poweron()    // raises the EPD power rails (TPS65185 boost converter)
+epd_clear()      // wipes the panel — required before a fresh render to avoid ghosting
+writeln(font, "...", &cursor_x, &cursor_y, NULL)   // emits glyphs into the framebuffer
+epd_poweroff()   // drops the rails — the panel keeps the frame (bistable EPD)
+```
+
+Skipping `epd_clear()` leaves residual charge on previously-set pixels and you get ghosting. Skipping `epd_poweroff()` works but burns current for nothing — the panel doesn't need power once the frame is latched.
+
+**Font** — `FiraSans` from `firasans.h` is the LilyGo-EPD47 library's bundled font. Cast it to `GFXfont *` at the `writeln` call site (`(GFXfont *)&FiraSans`); the library uses Adafruit's GFX font format but the header omits the cast so the compiler warns without it.
+
+**Cursor coordinates** — `cursor_y` is the **glyph baseline**, not the top of the character box. For FiraSans at this size, the top of the tallest glyph sits ~30 px above the cursor. To centre vertically on a 540 px panel, target `cursor_y ≈ 280`, not 270.
+
+**Orientation** — the panel is 960×540 landscape by default. The driver doesn't rotate; if you need portrait, you rotate the framebuffer yourself or accept it in landscape.
+
+**Refresh mode** — this sketch does full refresh only (`epd_clear` + draw). Partial refresh is supported by the driver but not used here; it's faster but accumulates ghosting over many updates and needs periodic full refreshes to clean up. Belongs to a later slice, not this one.
+
+**Power sequencing quirk** — calling `epd_poweron()` immediately after `epd_init()` without a small delay sometimes leaves the panel dark on the first refresh after a cold boot. The current sketch doesn't hit this because `Serial.begin(115200)` + `delay(1000)` in `setup()` give the rails plenty of settling time, but a sketch that omits that delay may need an explicit `delay(10)` between `init` and `poweron`.
+
 ## Troubleshooting
 
 - **`Please enable PSRAM` compile error** — the FQBN above sets `PSRAM=opi`. If you're using a different invocation, make sure OPI PSRAM is on.
