@@ -35,7 +35,7 @@ The progress widget is a marker travelling left→right, never a fill. A moving 
 
 ### Disruption is news, not error
 
-A delay buys time — it is shown as a positive shift, not a warning. A cancellation is shown by striking the dead service so the change is explained, never hidden.
+A delay is a schedule update — it is shown as a timing shift, not a warning. A cancellation is shown by striking the dead service so the change is explained, never hidden.
 
 ### Every number is labelled
 
@@ -85,11 +85,11 @@ This is the daughter's dedicated bus-only stream: one service, zero clutter, the
 
 ### 2.4 Delayed service
 
-*Exception · positive shift*
+*Exception · schedule update*
 
 ![Delayed service — train delayed +9 min, bus column unaffected](GottaGo_CancelAndDelayed.jpeg)
 
-**What it shows.** A delay is **good news** — it buys you time — so it is never an error state. A bordered **DELAYED +9 MIN** banner explains *why* the leave-by moved later, the leave countdown grows, and the diamond slides back toward the left to show the recovered margin at a glance.
+**What it shows.** A delay is a **schedule update** — the display reflects actual timing, not a plan. A bordered **DELAYED +9 MIN** banner explains *why* the leave-by moved later, the leave countdown updates, and the diamond slides back toward the left to show the adjusted margin at a glance.
 
 The bus column is unaffected. Reading the two columns together, the screen says: "relax about the train, but the bus still needs you now."
 
@@ -107,7 +107,7 @@ Hard-won decisions from design iteration. Treat the "don't" column as regression
 - Keep the **window fixed** so the diamond's speed is always the same — users learn the rate.
 - Label **every** time: clock glyph for now, **BY** for leave, **ARRIVES** for the service, **NEXT** for the fallback.
 - Strike through a **cancelled** service in place — show what changed, don't silently swap it.
-- Frame a **delay** as a positive shift with the explanatory banner.
+- Frame a **delay** as a schedule update with the explanatory banner.
 - Snap the pixel icons to whole device pixels at final BMP size.
 - Leave the last good frame on screen on network failure (e-ink holds with no power).
 
