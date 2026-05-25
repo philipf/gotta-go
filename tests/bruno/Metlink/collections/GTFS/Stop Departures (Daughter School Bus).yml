@@ -1,0 +1,31 @@
+info:
+  name: Stop Departures (Daughter School Bus)
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: https://{{base-uri}}/stop-predictions?stop_id=3234
+  params:
+    - name: stop_id
+      value: "3234"
+      type: query
+    - name: service_id
+      value: "634"
+      type: query
+      disabled: true
+    - name: service_id
+      value: "635"
+      type: query
+      disabled: true
+    - name: limit
+      value: "7"
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

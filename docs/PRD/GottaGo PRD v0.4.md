@@ -244,8 +244,8 @@ profiles:
       layout: "priority_split"
       transit_targets:
         bus:
-          stop_id: "TBD"          # Daughter's school bus stop — not yet validated
-          service_id: "TBD"       # Route TBD
+          stop_id: "3234"         # Westchester Drive at Waverton Terrace — validated GH #16
+          service_id: "634"       # Route 634 to Newlands College (fallback 635 tracked in GH #27/#28)
           time_to_stop_mins: 5
           comfort_buffer: 3
 
