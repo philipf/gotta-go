@@ -74,7 +74,7 @@ The **frame** is divided into a **global header** (~8% of height) and a **conten
 #### Exception states
 
 - **Cancelled service** — the cancelled service's scheduled time is rendered with **strike-through** directly above the **replacement service** in the same column. No `CANCELLED` text label — the strike-through carries the meaning.
-- **Delayed service** — a bordered `DELAYED +n MIN` banner appears above Tier 2. **Leave In** and **Leave By** are recomputed against the delayed timing, so a delay pushes Leave In *later* and moves the **marker** *left* — a positive shift (recovered **leave margin**).
+- **Delayed service** — a bordered `DELAYED +n MIN` banner appears above Tier 2. **Leave In** and **Leave By** are recomputed against the delayed timing, so a delay pushes Leave In *later* and moves the **marker** *left* — the display reflects the updated schedule.
 - **Now** — when **Leave In** reaches zero, the Tier 1 hero value renders the literal `NOW`. The column is **not** inverted; no separate banner.
 - **No-service state** — when zero **catchable services** exist within 60 minutes, Tier 1 renders `NO SERVICE` with the next available departure clock time below it.
 
