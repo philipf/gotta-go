@@ -245,7 +245,7 @@ profiles:
       transit_targets:
         bus:
           stop_id: "3234"         # Westchester Drive at Waverton Terrace — validated GH #16
-          service_id: "634"       # Route 634 to Newlands College (fallback 635 tracked in GH #27/#28)
+          service_id: ["634", "635"]  # Routes 634 and 635 to Newlands College — validated GH #16
           time_to_stop_mins: 5
           comfort_buffer: 3
 

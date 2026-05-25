@@ -11,6 +11,7 @@ import {
 	multiRouteBus,
 	originStop,
 	scheduledTrain,
+	schoolBusMultiRoute,
 } from './fixtures';
 
 afterEach(() => {
@@ -112,6 +113,24 @@ describe('fetchArrivals', () => {
 		if (result.data.kind !== 'open') return;
 		expect(result.data.arrivals.map((a) => a.serviceId)).toEqual(['1']);
 		expect(result.data.arrivals[0].tripHeadsign).toBe('Island Bay');
+	});
+
+	it('array serviceId returns departures for all matched routes and excludes others', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(schoolBusMultiRoute), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: '3234',
+			serviceId: ['634', '635'],
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		expect(result.data.arrivals.map((a) => a.serviceId)).toEqual(['634', '635']);
 	});
 
 	it('surfaces a malformed JSON body on a 2xx as upstream with the actual status', async () => {

@@ -105,6 +105,51 @@ export const multiRouteBus: WireResponse = {
 	],
 };
 
+// Stop 3234 returning routes 634, 635, and an unrelated 636. Used to test
+// the array form of serviceId — filter on ["634", "635"] should include both
+// and exclude 636.
+export const schoolBusMultiRoute: WireResponse = {
+	closed: false,
+	departures: [
+		{
+			stop_id: '3234',
+			service_id: '634',
+			trip_id: '634__1__001__TZM__634__634_20260419',
+			trip_headsign: 'Newlands College',
+			name: 'Westchester Drive at Waverton Terrace',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { aimed: '2026-05-25T07:42:00+12:00', expected: null },
+			departure: { aimed: '2026-05-25T07:42:00+12:00', expected: null },
+		},
+		{
+			stop_id: '3234',
+			service_id: '635',
+			trip_id: '635__1__001__TZM__635__635_20260419',
+			trip_headsign: 'Newlands College',
+			name: 'Westchester Drive at Waverton Terrace',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { aimed: '2026-05-25T07:50:00+12:00', expected: null },
+			departure: { aimed: '2026-05-25T07:50:00+12:00', expected: null },
+		},
+		{
+			stop_id: '3234',
+			service_id: '636',
+			trip_id: '636__1__001__TZM__636__636_20260419',
+			trip_headsign: 'Churton Park',
+			name: 'Westchester Drive at Waverton Terrace',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { aimed: '2026-05-25T07:55:00+12:00', expected: null },
+			departure: { aimed: '2026-05-25T07:55:00+12:00', expected: null },
+		},
+	],
+};
+
 // Scheduled-only train departure: status null, monitored false, no live
 // data yet (arrival.expected null). Source is ADR-0002's sample payload,
 // augmented with trip_id/trip_headsign/name/departure fields that real

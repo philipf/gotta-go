@@ -277,7 +277,7 @@ transit_targets:
 transit_targets:
   bus:
     stop_id: "3234"
-    service_id: "1"
+    service_id: "1"          # single string — Worker matches exactly this route
     time_to_stop_mins: 7
     comfort_buffer: 3
   train:
@@ -285,6 +285,17 @@ transit_targets:
     service_id: "KPL"
     time_to_stop_mins: 15
     comfort_buffer: 4
+```
+
+`service_id` accepts a `string | string[]`. When an array is provided the Worker matches any entry — useful when a stop is served by multiple route numbers for the same journey (e.g. `["634", "635"]`):
+
+```yaml
+transit_targets:
+  bus:
+    stop_id: "3234"
+    service_id: ["634", "635"]  # array form — matches either route
+    time_to_stop_mins: 5
+    comfort_buffer: 3
 ```
 
 The PRD placeholder stop IDs (`"7104"`, `"5112"`, `"WELL"`) should also be replaced with the validated real IDs from this spike.
@@ -301,7 +312,7 @@ The PRD placeholder stop IDs (`"7104"`, `"5112"`, `"WELL"`) should also be repla
 
 ### Negative / follow-ups
 
-- **`service_id` must be added to the config schema** (PRD v0.5 bump needed). Without it, the Worker cannot determine which route to display when a stop serves multiple services.
+- **`service_id` must be added to the config schema** (PRD v0.5 bump needed). Without it, the Worker cannot determine which route to display when a stop serves multiple services. `service_id` accepts a string or array; a single string is treated as a one-element array.
 - **Cancelled service payload not live-captured.** The `status: "cancelled"` path is inferred from API structure, not a live sample. A deliberate follow-up investigation found no live cancellations available (see Cancellation handling section for the reproduction methodology using stop `6001` and route 17). This must be confirmed before the cancelled-service rendering ships — confirm the exact string value (`"cancelled"` vs `"CANCELED"` vs `"canceled"`) and confirm Behaviour A vs B.
 - **Origin stop edge case.** At origin stops, `arrival.aimed` is absent; only `departure.aimed` is populated. The Worker must null-coalesce: `arrival.aimed ?? departure.aimed`. The household's current transit targets are mid-route stops and are unaffected, but this will matter for any origin stop added later.
 - **Delay ISO 8601 parsing required.** The Worker must parse `"PT6M12S"` into seconds. A regex or a lightweight ISO 8601 duration parser is needed; the string is not a plain integer.
@@ -316,7 +327,7 @@ The PRD placeholder stop IDs (`"7104"`, `"5112"`, `"WELL"`) should also be repla
 |---|---|---|---|---|---|
 | `philip_and_tania.morning_commute.train` | train | `TAKA1` | `KPL` | Takapu Rd Station (KPL line, Waikanae→Wellington) | ✓ live data 2026-05-23 |
 | `philip_and_tania.morning_commute.bus` | bus | `3234` | `1` | Westchester Dr at Waitohi Rd (route 1 to Island Bay) | ✓ live data 2026-05-23 |
-| `daughter_school.morning_school_run.bus` | bus | — | — | Not validated in this spike | ✗ |
+| `daughter_school.morning_school_run.bus` | bus | `3234` | `["634", "635"]` | Westchester Drive at Waverton Terrace (routes 634 and 635 to Newlands College) | ✓ validated GH #16 |
 | `philip_and_tania.evening_return.train` | train | — | — | Not validated in this spike | ✗ |
 
 ---

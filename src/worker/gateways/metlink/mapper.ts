@@ -7,11 +7,12 @@ import type { Arrival, StopState } from './metlink';
 
 // `closed: true` dominates regardless of the departures array. The
 // serviceId filter is intentionally not applied in that branch.
-export function toStopState(raw: WireResponse, serviceId: string): StopState {
+export function toStopState(raw: WireResponse, serviceId: string | string[]): StopState {
 	if (raw.closed) return { kind: 'closed' };
+	const ids = Array.isArray(serviceId) ? serviceId : [serviceId];
 	return {
 		kind: 'open',
-		arrivals: raw.departures.filter((d) => d.service_id === serviceId).map(toArrival),
+		arrivals: raw.departures.filter((d) => ids.includes(d.service_id)).map(toArrival),
 	};
 }
 

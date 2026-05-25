@@ -13,7 +13,7 @@ export type FetchArrivalsRequest = {
 	fetch: typeof fetch;
 	apiKey: string;
 	stopId: string;
-	serviceId: string;
+	serviceId: string | string[];
 	limit?: number;
 };
 
