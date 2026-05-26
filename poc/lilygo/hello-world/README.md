@@ -79,6 +79,29 @@ Add your user to the `uucp` group (Arch's serial group) so you can talk to `/dev
 sudo usermod -aG uucp $USER
 ```
 
+## Editor IntelliSense — Neovim (arduino-language-server)
+
+Completion, diagnostics, and go-to-definition for `.ino` files. Independent of which toolchain path you picked above, but it leans on Path A's `arduino-cli` + installed core/libs: the server builds a `compile_commands.json` for `clangd` by shelling out to `arduino-cli compile`.
+
+Prereqs (all on `PATH`):
+
+- `arduino-cli` with the esp32 core + libraries installed — Path A above.
+- `clangd` — `sudo pacman -S clang`, or install via Mason.
+- `arduino-language-server` — install via Mason (`:Mason`, search `arduino-language-server`) **or** `go install github.com/arduino/arduino-language-server@latest`. Pick one; two copies on `PATH` just shadow each other.
+
+The one thing that actually matters: **the sketch needs a `sketch.yaml` with `default_fqbn`.** This sketch already has one:
+
+```yaml
+default_fqbn: esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,FlashMode=qio,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc
+default_port: /dev/ttyACM0
+```
+
+Why it's mandatory: the language server always invokes `arduino-cli compile` with an **empty** `--fqbn`. With no board the compile fails, `clangd` never starts, and the server quits with `exit code 2`. `arduino-language-server` 0.7.7 does **not** read `default_fqbn` itself — but `arduino-cli` does, and it treats the empty `--fqbn` as "unset" and falls back to `sketch.yaml`. So that file is what supplies the board. (Bonus: once it exists you can drop `--fqbn`/`-p` from the `arduino-cli` commands in the next section too.)
+
+No LazyVim/lspconfig config is required. On Neovim 0.11+ the `arduino_language_server` config ships in nvim-lspconfig's `lsp/` directory and LazyVim auto-enables it; the server auto-detects `arduino-cli`, `clangd`, and the `arduino-cli.yaml` config. So: install the binaries, drop a `sketch.yaml` in the sketch dir, reopen the `.ino` (or `:LspRestart`), and confirm it attached with `:checkhealth vim.lsp`.
+
+`sketch.yaml` is **per sketch** — every other `.ino` folder needs its own, or the server exit-code-2s there the same way.
+
 ## Build, flash, watch (Path A — arduino-cli)
 
 The board's serial port is usually `/dev/ttyACM0` on Arch — confirm with `ls /dev/ttyACM*` after plugging in.
@@ -130,6 +153,7 @@ Skipping `epd_clear()` leaves residual charge on previously-set pixels and you g
 - **`ModuleNotFoundError: No module named 'serial'` during compile** — esptool's `#!/usr/bin/env python` is resolving to a Python that doesn't have `pyserial`. Common when you use mise/pyenv: `pacman -S python-pyserial` installs into the system Python, which isn't first on `PATH`. Fix with `pip install pyserial` against whatever `which python` reports.
 - **`unknown type name 'rmt_channel_handle_t'` during compile** — you're on the ESP32 3.x core. Downgrade to 2.0.15: `arduino-cli core install esp32:esp32@2.0.15` (this replaces the 3.x core).
 - **Panel renders correctly but serial monitor shows nothing** — `CDCOnBoot=cdc` is missing from the FQBN. Without it, `Serial` is routed to UART0 pins instead of the USB CDC interface on `/dev/ttyACM0`. The boot `println` also fires before the host can re-attach after upload — press the RESET button with the monitor already open to see it.
+- **Neovim: `Client arduino_language_server quit with exit code 2`** — the sketch is missing `sketch.yaml`, or its `default_fqbn` is wrong. The LSP runs `arduino-cli compile` with an empty `--fqbn` and relies on `sketch.yaml` to supply the board; without it `clangd` never starts. See the **Editor IntelliSense** section above.
 - **Upload fails / port busy** — close any open `arduino-cli monitor`; the port can't be shared.
 - **Panel stays blank** — try a slow double-press of RESET after upload. Some T5 variants need a manual reset to start the new sketch.
 - **Text in the wrong place** — `cursor_y` in the LilyGo-EPD47 library is the *baseline* of the glyph, not the top. Nudge it if needed.
