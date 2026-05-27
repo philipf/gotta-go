@@ -4,6 +4,9 @@ node_modules/
 !.dev.vars.example
 .env*
 !.env.example
+
+# Arduino sketch secrets (Wi-Fi creds etc.) — keep the .example.h template
+secrets.h
 *.tsbuildinfo
 .DS_Store
 dist/
