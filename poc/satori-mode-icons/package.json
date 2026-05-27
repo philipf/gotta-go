@@ -1,0 +1,16 @@
+{
+	"type": "module",
+	"scripts": {
+		"spike": "tsx index.tsx"
+	},
+	"dependencies": {
+		"@resvg/resvg-wasm": "^2.6.2",
+		"react": "^19.2.6",
+		"satori": "^0.26.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"@types/react": "^19.2.6",
+		"tsx": "^4.22.1"
+	}
+}

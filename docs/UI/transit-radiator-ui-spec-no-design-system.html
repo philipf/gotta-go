@@ -506,7 +506,7 @@
           <li>Label <b>every</b> time: clock glyph for now, <b>BY</b> for leave, <b>ARRIVES</b> for the service, <b>NEXT</b> for the fallback.</li>
           <li>Strike through a <b>cancelled</b> service in place — show what changed, don’t silently swap it.</li>
           <li>Frame a <b>delay</b> as a positive shift with the explanatory banner.</li>
-          <li>Snap the pixel icons to whole device pixels at final BMP size.</li>
+          <li>Snap the pixel icons to whole device pixels at final BMP size. Mode-icon cells are <b>non-square (5:8 w:h)</b> to narrow the silhouette — square cells read too wide — but both dimensions stay whole device pixels.</li>
           <li>Leave the last good frame on screen on network failure (e-ink holds with no power).</li>
         </ul>
       </div>
@@ -541,14 +541,17 @@
   var BUS = ['.############.','.############.','.#...#..#...#.','.#...#..#...#.',
     '.#...#..#...#.','.############.','.############.','##############',
     '..##......##..','..##......##..'];
-  var TRAIN = ['.############.','.############.','.##...##....#.','.##...##....#.',
-    '.##...##....#.','.############.','.#####..#####.','.#####..#####.',
+  var TRAIN = ['.############.','.############.','.##...##...##.','.##...##...##.',
+    '.##...##...##.','.############.','.#####..#####.','.#####..#####.',
     '.############.','##############','..###....###..','.....####.....'];
 
   function pixelMap(rows, unit){
     var R=rows.length, C=rows[0].length;
-    var s='<svg width="'+(C*unit)+'" height="'+(R*unit)+'" viewBox="0 0 '+C+' '+R+
-      '" shape-rendering="crispEdges" style="display:block">';
+    // Mode-icon cells render non-square at a 5:8 (w:h) ratio to narrow the
+    // silhouette; still whole device pixels at BMP size. See poc/satori-mode-icons.
+    var W=C*unit*5/8, H=R*unit;
+    var s='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+C+' '+R+
+      '" preserveAspectRatio="none" shape-rendering="crispEdges" style="display:block">';
     for(var y=0;y<R;y++)for(var x=0;x<C;x++)
       if(rows[y][x]==='#')s+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#1a1a1a"/>';
     return s+'</svg>';
