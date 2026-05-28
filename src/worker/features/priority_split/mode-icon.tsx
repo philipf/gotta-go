@@ -1,7 +1,7 @@
-// Reusable "mode icon" — the custom 8-bit glyph identifying a transit target's
-// mode (glossary: bus or train), stacked above the route code in a column
-// header. Lives in shared/ because any layout can place it; it carries only the
-// two-value `mode` vocabulary, no other domain logic.
+// "Mode icon" — the custom 8-bit glyph identifying a transit target's mode
+// (glossary: bus or train), stacked above the route code in a column header.
+// Lives with priority_split — its sole consumer. Lift back to shared/ when a
+// second transit feature needs it.
 //
 // Cells render NON-SQUARE at a fixed 5:8 (w:h) ratio: square pixels at the
 // 14-wide grids read too wide (~1.4:1). It stays crisp on the 1-bit panel as
