@@ -17,6 +17,7 @@ export async function handleFrame(
 	env: Env,
 	now: Date,
 ): Promise<Response> {
+	// 1. Request — authenticate & parse
 	const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
 	if (!auth.ok) return unauthorized();
 
@@ -24,16 +25,17 @@ export async function handleFrame(
 	const radiator = lookupRadiator(slug);
 	if (!radiator) return unknownRadiator();
 
-	const { profilePhase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
-
 	const format = resolveResponseFormat(request.headers.get('Accept'));
-	const rendered = await layouts[layout](radiator, GLOBAL.timezone, now, format);
-
 	const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
 		'gzip',
 	);
-	const body = acceptsGzip ? await gzip(rendered) : rendered;
 
+	// 2. Endpoint — resolve domain inputs & render
+	const { profilePhase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
+	const rendered = await layouts[layout](radiator, GLOBAL.timezone, now, format);
+
+	// 3. Response — encode & shape
+	const body = acceptsGzip ? await gzip(rendered) : rendered;
 	return frameOk(body, {
 		gzip: acceptsGzip,
 		sleepSeconds,
