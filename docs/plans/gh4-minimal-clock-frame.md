@@ -2,11 +2,11 @@
 
 ## Context
 
-Issue #4 (the "tracer" slice) is the first real implementation of the radiator ↔ Worker contract defined in [ADR-0003](../../docs/adr/0003-radiator-worker-contract.md) and [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml). The user is waiting on a LilyGO panel before firmware work (#1 blocker), but issue #4's body now splits cleanly: **Worker ACs are curl-testable today; firmware ACs stay blocked on #1.** This plan covers the Worker ACs only.
+Issue #4 (the "tracer" slice) is the first real implementation of the radiator ↔ Worker contract defined in [ADR-0003](../adr/0003-radiator-worker-contract.md) and [`docs/api/openapi.yaml`](../api/openapi.yaml). The user is waiting on a LilyGO panel before firmware work (#1 blocker), but issue #4's body now splits cleanly: **Worker ACs are curl-testable today; firmware ACs stay blocked on #1.** This plan covers the Worker ACs only.
 
 The existing PoC at `poc/worker/` proves the rendering pipeline (JSX → Satori SVG → resvg RGBA → 1-bit BMP → gzip) on Cloudflare Workers in production. It has zero auth, config, profile-phase resolution, or routing structure — it's a single `fetch` handler that always renders the same hardcoded `priority_split` test pattern. The PoC stays as historical reference; we don't evolve it.
 
-This plan creates a fresh production Worker at `src/worker/` following the layout and conventions in [ADR-0005](../../docs/adr/0005-worker-source-architecture.md). The ADR fixes the directory shape, naming rules, gateway tier, deep-module/DI posture, and testing approach (TDD via the `/tdd` skill). This plan is the **#4-specific instantiation** of that architecture: which folders #4 actually creates, what to port from the PoC, and the slice-by-slice walk that delivers the Worker ACs.
+This plan creates a fresh production Worker at `src/worker/` following the layout and conventions in [ADR-0005](../adr/0005-worker-source-architecture.md). The ADR fixes the directory shape, naming rules, gateway tier, deep-module/DI posture, and testing approach (TDD via the `/tdd` skill). This plan is the **#4-specific instantiation** of that architecture: which folders #4 actually creates, what to port from the PoC, and the slice-by-slice walk that delivers the Worker ACs.
 
 ## Scope for #4
 
@@ -25,7 +25,7 @@ Concretely, #4 creates the following Worker tiers — each named per ADR-0005 �
 
 ADR-0005 reserves a `schedule/` tier for "profile + now → phase / layout / sleep", but its own "Defaults stay light until they hurt" rule tells us not to populate that tier yet. While `minimal_clock` is the only feature in tree, the resolver is one tiny function with one caller, so it sits inside `features/minimal_clock/phase.ts`. When `priority_split` lands in #5 and a second feature needs the same lookup, lift `phase.ts` up to `schedule/` then — that promotion is the YAGNI exit gate, not the default.
 
-`api/format.ts` for #4 returns `'bmp'` unconditionally — content negotiation per [ADR-0004](../../docs/adr/0004-diagnostics-view-content-negotiation.md) lights up when #19/#20 add the JSON/SVG renderers.
+`api/format.ts` for #4 returns `'bmp'` unconditionally — content negotiation per [ADR-0004](../adr/0004-diagnostics-view-content-negotiation.md) lights up when #19/#20 add the JSON/SVG renderers.
 
 ## Request flow for #4
 
@@ -194,8 +194,8 @@ pnpm test
 
 ## References
 
-- [ADR-0003](../../docs/adr/0003-radiator-worker-contract.md) — radiator ↔ Worker contract (endpoint, headers, status codes, sleep-seconds range)
-- [ADR-0004](../../docs/adr/0004-diagnostics-view-content-negotiation.md) — `Accept`-based content negotiation; #4 only handles `image/bmp`
-- [ADR-0005](../../docs/adr/0005-worker-source-architecture.md) — directory layout, gateway tier, deep-modules + DI, TDD posture
-- [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml) — wire spec the Worker implements
+- [ADR-0003](../adr/0003-radiator-worker-contract.md) — radiator ↔ Worker contract (endpoint, headers, status codes, sleep-seconds range)
+- [ADR-0004](../adr/0004-diagnostics-view-content-negotiation.md) — `Accept`-based content negotiation; #4 only handles `image/bmp`
+- [ADR-0005](../adr/0005-worker-source-architecture.md) — directory layout, gateway tier, deep-modules + DI, TDD posture
+- [`docs/api/openapi.yaml`](../api/openapi.yaml) — wire spec the Worker implements
 - `/tdd` skill — testing rhythm for every slice
