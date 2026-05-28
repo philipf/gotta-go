@@ -16,7 +16,10 @@
 /* Perform extra checks on the input stream, even if they aren't proven
    to be strictly required (== lack of them wasn't proven to lead to
    crashes). */
-#define UZLIB_CONF_PARANOID_CHECKS 0
+/* GottaGo: upstream default is 0; flipped to 1 because the firmware runs
+   TLS with setInsecure(), so the gzip body is attacker-influenceable.
+   See src/radiator/src/uzlib/VENDORED.md §Security review. */
+#define UZLIB_CONF_PARANOID_CHECKS 1
 #endif
 
 #ifndef UZLIB_CONF_USE_MEMCPY
