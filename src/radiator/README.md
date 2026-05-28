@@ -13,13 +13,13 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `radiator.ino` | The sketch: Wi-Fi, HTTP fetch, inflate, BMP decode, panel flush, deep sleep. |
+| File                | Purpose                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `radiator.ino`      | The sketch: Wi-Fi, HTTP fetch, inflate, BMP decode, panel flush, deep sleep.            |
 | `secrets.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `secrets.h` (gitignored). |
-| `sketch.yaml` | FQBN + serial port (same shape as the PoCs). |
-| `mise.toml` | Tool pin (python for esptool). |
-| `.gitignore` | Excludes `secrets.h` and build artefacts. |
+| `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
+| `mise.toml`         | Tool pin (python for esptool).                                                          |
+| `.gitignore`        | Excludes `secrets.h` and build artefacts.                                               |
 
 ## Configure secrets
 
@@ -32,7 +32,7 @@ $EDITOR secrets.h    # WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADI
 
 If you already filled in `poc/lilygo/wake-cycle-32/secrets.h` for PoC #32, the `WIFI_SSID` and `WIFI_PASSWORD` values can be copied straight from it — it's the same network.
 
-- `FRAME_URL` is the Worker's `/v1/frame` endpoint — for local dev, this is the cloudflared quick-tunnel URL (see *Reach the Worker* below).
+- `FRAME_URL` is the Worker's `/v1/frame` endpoint — for local dev, this is the cloudflared quick-tunnel URL (see _Reach the Worker_ below).
 - `RADIATOR_TOKEN` must equal the Worker's `RADIATOR_SHARED_TOKEN` (otherwise the Worker returns `401`).
 - `RADIATOR_SLUG` must resolve to an entry in the Worker's `radiators:` config (otherwise `404`).
 
@@ -50,7 +50,7 @@ Verify all four show up:
 arduino-cli lib list | grep -E "LilyGo-EPD47|SensorLib|Button2|uzlib"
 ```
 
-If `arduino-cli lib search uzlib` returns nothing, the registry name may have shifted — see the *Troubleshooting* section below.
+If `arduino-cli lib search uzlib` returns nothing, the registry name may have shifted — see the _Troubleshooting_ section below.
 
 ## Build, flash, watch
 
@@ -60,6 +60,9 @@ Same toolchain as `poc/lilygo/wake-cycle-32` (arduino-cli + esp32 core 2.0.15 + 
 arduino-cli compile .
 arduino-cli upload -p /dev/ttyACM0 .          # see hello-world README if "No serial data received"
 arduino-cli monitor -p /dev/ttyACM0 -c baudrate=115200
+
+# or alternative monitoring that automatically reconnects
+tio -b 115200 /dev/ttyACM0
 ```
 
 **Watching across sleep — the USB CDC drops.** `USBMode=hwcdc` + `CDCOnBoot=cdc` route `Serial` over the native USB CDC; the peripheral powers down during deep sleep and `/dev/ttyACM0` de-enumerates / re-enumerates on wake. `arduino-cli monitor` will not auto-reconnect; use `tio -m INLCRNL /dev/ttyACM0` (reconnects automatically) or `picocom -b 115200 /dev/ttyACM0` and re-run after each wake.
@@ -114,27 +117,27 @@ The `wake-to-sleep` window (logged on the `Cycle #N:` line) is the per-cycle act
 
 ADR-0003's table tells the radiator how to react to every Worker response. The sketch encodes that table as the `CycleResult` enum + `sleepFor()` dispatch:
 
-| ADR-0003 row | `CycleResult` | Panel touched? | Sleep source |
-| --- | --- | --- | --- |
-| 200 OK with valid gzipped BMP + `X-Sleep-Seconds` | `Ok` | Yes — frame flushed | `X-Sleep-Seconds` |
-| 200 OK but inflate/parse fails | `InflateFailed` / `BmpInvalid` | No | `X-Sleep-Seconds` if present, else firmware fallback |
-| Non-2xx with `X-Sleep-Seconds` | `HttpError` | No | `X-Sleep-Seconds` |
-| Non-2xx without `X-Sleep-Seconds` | `HttpError` | No | Firmware fallback (300 s) |
-| No response (Wi-Fi fail, DNS fail, TCP/TLS timeout) | `HttpError` (early exit from `setup()`) | No | Firmware fallback (300 s) |
+| ADR-0003 row                                        | `CycleResult`                           | Panel touched?      | Sleep source                                         |
+| --------------------------------------------------- | --------------------------------------- | ------------------- | ---------------------------------------------------- |
+| 200 OK with valid gzipped BMP + `X-Sleep-Seconds`   | `Ok`                                    | Yes — frame flushed | `X-Sleep-Seconds`                                    |
+| 200 OK but inflate/parse fails                      | `InflateFailed` / `BmpInvalid`          | No                  | `X-Sleep-Seconds` if present, else firmware fallback |
+| Non-2xx with `X-Sleep-Seconds`                      | `HttpError`                             | No                  | `X-Sleep-Seconds`                                    |
+| Non-2xx without `X-Sleep-Seconds`                   | `HttpError`                             | No                  | Firmware fallback (300 s)                            |
+| No response (Wi-Fi fail, DNS fail, TCP/TLS timeout) | `HttpError` (early exit from `setup()`) | No                  | Firmware fallback (300 s)                            |
 
 `BodyTooLarge` is an extra row not in ADR-0003 itself: if the compressed body exceeds `MAX_COMPRESSED_BYTES` (8 KiB, ~16× the observed minimal_clock body) the radiator treats it as a parse failure. The bound surfaces a future content-profile shift early — see ADR-0008's reversal trigger about switching to streaming inflate.
 
 ## Acceptance criteria (GH #4 firmware)
 
-| AC | Where in the sketch |
-| --- | --- |
-| **F1** — Sends `X-Radiator-Token`, `X-Radiator-Slug`, `Accept-Encoding: gzip` every wake; `X-Radiator-Hardware-Id` (MAC) where supported | `fetchAndInflate()` — `https.addHeader()` block |
-| **F2** — Wi-Fi → headers → flush BMP to panel without artefacts → deep sleep for exactly `X-Sleep-Seconds` | Full `setup()` flow, gated on `CycleResult::Ok` |
-| **F3** — One full wake cycle against the deployed Worker; panel shows correct local time within 1 minute of wake | Verified manually against a cloudflared quick tunnel, per the runbook above |
+| AC                                                                                                                                       | Where in the sketch                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **F1** — Sends `X-Radiator-Token`, `X-Radiator-Slug`, `Accept-Encoding: gzip` every wake; `X-Radiator-Hardware-Id` (MAC) where supported | `fetchAndInflate()` — `https.addHeader()` block                             |
+| **F2** — Wi-Fi → headers → flush BMP to panel without artefacts → deep sleep for exactly `X-Sleep-Seconds`                               | Full `setup()` flow, gated on `CycleResult::Ok`                             |
+| **F3** — One full wake cycle against the deployed Worker; panel shows correct local time within 1 minute of wake                         | Verified manually against a cloudflared quick tunnel, per the runbook above |
 
 Verify F3 by:
 
-1. Start the Worker + tunnel per *Reach the Worker*.
+1. Start the Worker + tunnel per _Reach the Worker_.
 2. Flash + watch serial.
 3. Read the wall-clock on the panel; confirm it's within 1 minute of the host clock at the moment the `panel: frame latched` line printed.
 
