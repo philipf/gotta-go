@@ -39,6 +39,7 @@ The *reasoning* is the load-bearing part — when an edge case arises, judge it 
 - **Type-only cross-tier imports are allowed when they prevent invalid states.** `config/types.ts` imports `LayoutKey` from `features/registry.ts`. *Why:* config can never reference a layout that isn't implemented. The dependency is type-only and one-directional.
 - **Failure variants stay narrow at the type layer.** `validate()` returns `{ ok: true } | { ok: false }` — no `reason` field. *Why:* the OpenAPI contract deliberately collapses missing-vs-invalid; the type makes the leak structurally impossible (`auth/validate.ts`).
 - **Use the glossary's vocabulary** in code symbols, folder names, commit messages, ADRs, and prose. The rejected-synonym list in [`../glossary.md`](../glossary.md) is a contract.
+- **`lookup<X>(key)` vs `resolve<X>(inputs)`.** `lookup` = key → record (static config/registry access; could be a `Map.get()`). `resolve` = inputs → derived value via rules (time, content negotiation, profile phases). *Why:* the verb encodes the operation. `lookupRadiator(slug)` and `resolveProfilePhase(radiator, now)` carry different mental models at the callsite; collapsing to one verb hides whether rules are running.
 
 ## Anti-patterns we've rejected
 
