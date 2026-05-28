@@ -9,6 +9,9 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 Single-context layout. The canonical vocabulary lives in `docs/glossary.md`. See `docs/agents/domain.md`.
 
+### Worker architecture
+Pillars (Deep Modules, Feature Folders, REPR), heuristics, anti-patterns. See `docs/agents/worker-architecture.md`; underlying decisions in ADR-0005 and ADR-0007.
+
 ## Worker tech stack to use
 - TypeScript
 - pnpm not npm
