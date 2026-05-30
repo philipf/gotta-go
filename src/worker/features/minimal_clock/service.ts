@@ -7,7 +7,7 @@
 
 import type { RenderContext, RenderResult } from '../registry';
 import { buildViewModel, toJsonView } from './viewmodel';
-import { renderBmp, renderSvg } from './bmp';
+import { renderBmp, renderSvg } from './view';
 
 export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const vm = buildViewModel(ctx.radiator, ctx.timezone, ctx.now);

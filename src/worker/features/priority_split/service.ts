@@ -8,7 +8,7 @@
 import type { RenderContext, RenderResult } from '../registry';
 import { fetchArrivals, type StopState } from '../../gateways/metlink/metlink';
 import { buildViewModel, toJsonView } from './viewmodel';
-import { renderBmp, renderSvg } from './bmp';
+import { renderBmp, renderSvg } from './view';
 
 export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const targets = ctx.phase.transitTargets ?? [];

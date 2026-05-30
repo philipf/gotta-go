@@ -1,5 +1,6 @@
-// BMP renderer for the minimal_clock layout. Lays out time + date with
-// React/JSX → Satori → resvg → 1-bit BMP, using DejaVu Sans Bold (ADR-0009).
+// View renderer for the minimal_clock layout. Lays out time + date as React/JSX
+// and renders it via Satori → resvg, exposing both the intermediate SVG (ADR-0004
+// diagnostics) and the rasterised 1-bit BMP, using DejaVu Sans Bold (ADR-0009).
 
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';

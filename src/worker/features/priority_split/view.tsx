@@ -1,10 +1,11 @@
-// BMP renderer for the priority_split layout. Lays out the global header
+// View renderer for the priority_split layout. Lays out the global header
 // (wall-clock) above one or two columns, each with five stacked sections —
 // column header (mode icon + service name), Tier 1 hero (LEAVE IN), Tier 2
 // (BY + ARRIVES), the track + marker, and Tier 3 (NEXT) — per PRD §5.1. Two
 // transit targets render as equal-width columns split by a vertical hairline
 // rule (#6); the type scales down so the hero + track fit the half-width pane.
-// React/JSX → Satori → resvg → 1-bit BMP, DejaVu Sans Bold throughout (ADR-0009).
+// React/JSX → Satori → resvg, exposing the intermediate SVG (ADR-0004) and the
+// rasterised 1-bit BMP, DejaVu Sans Bold throughout (ADR-0009).
 
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
