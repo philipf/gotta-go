@@ -102,12 +102,12 @@ The absolute clock time at which the user must leave home. The Tier 2 anchor.
 
 ### Arrives In
 Minutes until the catchable service arrives at the stop. Tier 2 detail, paired with **arrival time**.
-- **Appears as:** UI label `ARRIVES n MIN`, code symbol `arrives_in_mins`.
+- **Appears as:** UI label `ARRIVES IN n MIN`, code symbol `arrives_in_mins`.
 - **Not to be confused with:** **Leave In** (when *you* must leave home).
 
 ### Arrival time
 The absolute clock time at which the service arrives at the stop. Tier 2 detail.
-- **Appears as:** UI label `· hh:mm` (paired with **Arrives In**, e.g. `ARRIVES 4 MIN · 07:14`), code symbol `arrival_time`.
+- **Appears as:** UI label `· hh:mm` (paired with **Arrives In**, e.g. `ARRIVES IN 4 MIN · 07:14`), code symbol `arrival_time`.
 
 ### Now
 The hero state when **Leave In** reaches zero. The hero value renders the literal string `NOW` under the unchanged `LEAVE IN` label. No column inversion, no separate banner.

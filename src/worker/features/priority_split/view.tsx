@@ -167,7 +167,7 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				</div>
 			</div>
 
-			{/* Tier 2 — ARRIVES n MIN · hh:mm. Extra top margin sets it apart
+			{/* Tier 2 — ARRIVES IN n MIN · hh:mm. Extra top margin sets it apart
 			    from the hero group (whose last line is BY), reinforcing that
 			    ARRIVES is supporting detail, not part of the hero. */}
 			<div

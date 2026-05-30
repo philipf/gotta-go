@@ -19,7 +19,7 @@ export type ServiceColumn = {
 	tripHeadsign: string; // destination headsign, e.g. "Island Bay"; '' when unknown
 	leaveIn: string; // "7 MIN" | "NOW"
 	leaveBy: string; // "BY 07:08"
-	arrives: string; // "ARRIVES 4 MIN · 07:14"
+	arrives: string; // "ARRIVES IN 4 MIN · 07:14"
 	next: string; // "NEXT 07:22" | "—"
 	markerRatio: number; // 0 = hard-left, 1 = Now
 };
@@ -194,7 +194,7 @@ export function buildColumn(
 		tripHeadsign: service.tripHeadsign,
 		leaveIn: leaveInMins === 0 ? 'NOW' : `${leaveInMins} MIN`,
 		leaveBy: `BY ${hhmm(leaveBy, tz)}`,
-		arrives: `ARRIVES ${arrivesInMins} MIN · ${hhmm(service.predicted, tz)}`,
+		arrives: `ARRIVES IN ${arrivesInMins} MIN · ${hhmm(service.predicted, tz)}`,
 		next: nextService ? `NEXT ${hhmm(nextService.predicted, tz)}` : DASH,
 		markerRatio,
 	};

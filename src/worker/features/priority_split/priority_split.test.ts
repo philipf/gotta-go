@@ -77,10 +77,10 @@ describe('priority_split.buildColumn - Leave By', () => {
 });
 
 describe('priority_split.buildColumn - Arrives', () => {
-	it('renders Arrives In + arrival time as "ARRIVES n MIN - hh:mm"', () => {
+	it('renders Arrives In + arrival time as "ARRIVES IN n MIN - hh:mm"', () => {
 		// predicted 19:42Z = now + 12 min, 07:42 NZ
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:42:00Z')), TZ, NOW);
-		expect(col.arrives).toBe('ARRIVES 12 MIN · 07:42');
+		expect(col.arrives).toBe('ARRIVES IN 12 MIN · 07:42');
 	});
 });
 
@@ -263,7 +263,7 @@ describe('priority_split.toJsonView - serialisation', () => {
 					trip_headsign: 'Newlands',
 					leave_in: '7 MIN',
 					leave_by: 'BY 07:37',
-					arrives: 'ARRIVES 12 MIN · 07:42',
+					arrives: 'ARRIVES IN 12 MIN · 07:42',
 					next: 'NEXT 07:54',
 					marker_ratio: (vm.columns[0] as ServiceColumn).markerRatio,
 				},

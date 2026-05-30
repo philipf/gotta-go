@@ -67,7 +67,7 @@ The **frame** is divided into a **global header** (~8% of height) and a **conten
 | --- | --- | --- | --- |
 | 1 | **Column header** | ~20% | **Mode icon** stacked above **route code** (e.g. bus icon over `22`, train icon over `HVL`). |
 | 2 | **Tier 1 — Leave In** | ~40% | Hero pixel-font value under the `LEAVE IN` label. Renders minutes (e.g. `7 MIN`) or the literal **`NOW`** when Leave In reaches zero. |
-| 3 | **Tier 2 — Leave By + Arrives** | ~15% | `BY hh:mm` (the leave deadline) above `ARRIVES n MIN · hh:mm` (the paired **Arrives In** and **arrival time**). |
+| 3 | **Tier 2 — Leave By + Arrives** | ~15% | `BY hh:mm` (the leave deadline) above `ARRIVES IN n MIN · hh:mm` (the paired **Arrives In** and **arrival time**). |
 | 4 | **Track + marker** | ~10% | Horizontal **track** representing a fixed **window**. The **marker** sits at a position computed from **leave margin** (§5.3). Marker hard-right = **Now**. |
 | 5 | **Tier 3 — Next service** | ~15% | `NEXT hh:mm` — the fallback service. Renders `—` if no next service is available. |
 

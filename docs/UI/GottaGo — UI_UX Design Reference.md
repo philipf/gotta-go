@@ -56,7 +56,7 @@ Four canonical **screens**. Each uses the same column system; the differences ar
 
 - **Column header** — custom 8-bit **mode icon** stacked above the **route code**.
 - **Tier 1 (LEAVE IN)** — the hero countdown. Bus reads **`NOW`** (go); train reads **`7 MIN`**.
-- **Tier 2 (BY 07:08)** — with **`ARRIVES 4 MIN · 07:14`** beneath: the leave deadline above the paired **Arrives In** and **arrival time**.
+- **Tier 2 (BY 07:08)** — with **`ARRIVES IN 4 MIN · 07:14`** beneath: the leave deadline above the paired **Arrives In** and **arrival time**.
 - **Track + marker** — the fixed-**window** track. The marker travels left→right; hard-right means **Now**.
 - **Tier 3 (NEXT 07:24)** — the quietest element, below the separator.
 
