@@ -54,7 +54,12 @@ const SPLIT: Sizing = {
 	routeLabel: 22,
 	labelMaxW: 380, // half-width pane: truncate long headsigns rather than overflow the rule
 	leaveInLabel: 18,
-	hero: 76,
+	// Press Start 2P advances exactly 1em/glyph, so the widest valid hero
+	// ("NN MIN" = 6 glyphs) is 6×hero px. The half-pane is (960−RULE_W)/2 ≈ 479px
+	// with no horizontal padding; 64 keeps 6 glyphs at ~80% pane fill — the same
+	// breathing room the FULL hero (128) gives "NN MIN" at 960px — so a 2-digit
+	// leave_in no longer touches the centre rule or clips at the frame edge (#42).
+	hero: 64,
 	leaveBy: 16,
 	arrives: 13,
 	next: 15,
