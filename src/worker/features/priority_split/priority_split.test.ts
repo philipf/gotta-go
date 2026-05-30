@@ -204,8 +204,8 @@ describe('priority_split.toJsonView - serialisation', () => {
 });
 
 describe('priority_split.serviceName - column-header label', () => {
-	it('joins service id and headsign with a tight middot separator', () => {
-		expect(serviceName('1', 'Island Bay')).toBe('1·Island Bay');
+	it('joins service id and headsign with a padded middot separator', () => {
+		expect(serviceName('1', 'Island Bay')).toBe('1 · Island Bay');
 	});
 
 	it('shows the service id alone (no dangling separator) when the headsign is empty', () => {

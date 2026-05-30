@@ -274,7 +274,7 @@ The remaining terms below come from third-party libraries or industry standards.
 - **Satori** — the SVG layout engine used inside the Worker.
 - **GTFS-Realtime** — the Metlink API standard.
 - **BMP** — the 1-bit bitmap format flushed to the panel.
-- **Press Start 2P** — the bitmap typeface used for all text and custom icons.
+- **DejaVu Sans Bold** — the display typeface used for all text (see [ADR-0009](adr/0009-display-typeface-dejavu-sans-bold.md)). Replaced Press Start 2P, whose monospace metric caused recurring fit problems. The custom 8-bit **mode icons** are kept as a deliberate mix — pixel icons (symbols) beside smooth text (data).
 - **EPD** — Electronic Paper Display (the panel hardware standard).
 - **deep sleep** — the ESP32-S3 power state during the gap between wake cycles.
 

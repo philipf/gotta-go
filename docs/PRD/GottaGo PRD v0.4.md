@@ -106,7 +106,7 @@ The window length is constant within a profile phase, so the marker's apparent s
 
 ### 5.4 Typography
 
-All text and the **mode icons** render in **Press Start 2P** (bundled as a static Worker asset). Recommended sizes:
+All text renders in **DejaVu Sans Bold** (bundled as a static Worker asset); the **mode icons** are custom 8-bit pixel art — a deliberate mix, see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md). Recommended sizes (re-tuned for the proportional metric; small tiers honour a minimum-legible-1-bit floor):
 - Tier 1 hero (Leave In value): ~120 px
 - Mode icon / route code: ~24 px
 - Tier 2 (BY + ARRIVES + arrival time): ~16 px
@@ -137,7 +137,7 @@ See [GottaGo — UI/UX Reference](../UI/GottaGo%20%E2%80%94%20UI_UX%20Design%20R
 * **When** a radiator requests a frame, the Worker **shall** query the **KV cache** first.
 * **When** the KV cache entry is older than 30 seconds, the Worker **shall** issue a single request to the Metlink GTFS-Realtime API, update the cache, and return the frame to protect API rate limits.
 * **When** the active layout is `minimal_clock`, the Worker **shall** bypass the KV cache and Metlink API entirely and return a clock frame immediately.
-* **When** the rendering pipeline executes, the Worker **shall** render layout elements using **Satori** (for Press Start 2P font rendering and CSS-based layout) and encode the final output as a flattened 1-bit monochrome BMP byte array at 960×540 via manual BMP byte construction, optimised for direct native flushing by the LilyGO T5 panel.
+* **When** the rendering pipeline executes, the Worker **shall** render layout elements using **Satori** (for DejaVu Sans Bold font rendering and CSS-based layout) and encode the final output as a flattened 1-bit monochrome BMP byte array at 960×540 via manual BMP byte construction, optimised for direct native flushing by the LilyGO T5 panel.
 
 ### Power management & lifecycle
 * **While** operating in an active commute profile phase, the radiator **shall** wake from deep sleep, flush the frame, and return to sleep per the **sleep duration** in `X-Sleep-Seconds` (typically 2–3 minutes).
@@ -157,7 +157,7 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 ### Technology stack
 * **Edge compute:** Cloudflare Workers (TypeScript).
 * **Caching layer:** Cloudflare KV Storage (30-second TTL for Metlink API responses).
-* **Graphics engine:** **Satori** for CSS-driven layout and Press Start 2P font rendering (TTF bundled as a static Worker asset), producing an intermediate SVG. The SVG pixel data is encoded into a 1-bit monochrome BMP byte array via manual BMP byte construction — zero native dependencies, sub-millisecond encode time.
+* **Graphics engine:** **Satori** for CSS-driven layout and DejaVu Sans Bold font rendering (TTF bundled as a static Worker asset; see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)), producing an intermediate SVG. The SVG pixel data is encoded into a 1-bit monochrome BMP byte array via manual BMP byte construction — zero native dependencies, sub-millisecond encode time.
 * **Firmware:** C++/Arduino ESP-IDF framework running on the LilyGO T5 (handles Wi-Fi connection, HTTP fetching, deep sleep management, and raw E-paper EPD buffer flushing).
 * **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions). API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/adr/0002-metlink-stop-predictions-field-mapping.md`](../adr/0002-metlink-stop-predictions-field-mapping.md).
 

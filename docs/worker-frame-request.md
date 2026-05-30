@@ -64,7 +64,7 @@ sequenceDiagram
 
 - **`features/minimal_clock/service.ts` (`render`)** — Single public entry point: `async render(radiator, timezone, now, format) → Promise<Uint8Array>`. Internally holds a `Record<ResponseFormat, …>` renderer map keyed on the `ResponseFormat` union, so adding a new format surfaces a TypeScript error here until a renderer is supplied. When `json` / `svg` outputs land (#19 / #20) they slot in alongside `bmp`.
 - **`features/minimal_clock/viewmodel.ts` (`buildViewModel`)** — Pure presentation: formats `time` (`HH:MM`, 24h, en-GB) and `date` (`Dow DD Mon`) in the supplied timezone via `Intl.DateTimeFormat`, with a per-tz formatter cache so we don't rebuild per request. No date library.
-- **`features/minimal_clock/bmp.tsx` (`renderBmp`)** — The renderer for `image/bmp`. Builds the JSX layout (centered time + date in Press Start 2P), then walks the three-stage pipeline: JSX → SVG → RGBA → 1-bpp BMP.
+- **`features/minimal_clock/bmp.tsx` (`renderBmp`)** — The renderer for `image/bmp`. Builds the JSX layout (centered time + date in DejaVu Sans Bold), then walks the three-stage pipeline: JSX → SVG → RGBA → 1-bpp BMP.
 
 ### Content negotiation
 

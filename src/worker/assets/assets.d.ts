@@ -1,5 +1,5 @@
 // Ambient module declarations for non-TS assets bundled at build time:
-// *.wasm (Yoga, resvg) and *.ttf (Press Start 2P).
+// *.wasm (Yoga, resvg) and *.ttf (DejaVu Sans Bold — see ADR-0009).
 
 declare module '*.wasm' {
 	const wasm: WebAssembly.Module;

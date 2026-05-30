@@ -1,17 +1,20 @@
 // BMP renderer for the minimal_clock layout. Lays out time + date with
-// React/JSX → Satori → resvg → 1-bit BMP, using Press Start 2P throughout.
+// React/JSX → Satori → resvg → 1-bit BMP, using DejaVu Sans Bold (ADR-0009).
 
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import type { ViewModel } from './viewmodel';
 
-const FAMILY = 'Press Start 2P';
+const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
 const WHITE = '#fff';
 
-const TIME_SIZE = 160;
-const DATE_SIZE = 60;
+// DejaVu's proportional "HH:MM" is far narrower than the old mono glyphs, so the
+// time can grow into the reclaimed width (ADR-0009); both still clear the floor
+// and fit vertically. Verify live per ADR-0009.
+const TIME_SIZE = 200;
+const DATE_SIZE = 64;
 
 function layout(vm: ViewModel): ReactNode {
 	return (
@@ -26,6 +29,7 @@ function layout(vm: ViewModel): ReactNode {
 				justifyContent: 'center',
 				alignItems: 'center',
 				fontFamily: FAMILY,
+				fontWeight: 700,
 			}}
 		>
 			<div style={{ fontSize: TIME_SIZE, lineHeight: 1 }}>{vm.time}</div>

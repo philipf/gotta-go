@@ -9,7 +9,7 @@ The canonical visual and interaction reference for the e-ink display. This docum
 | Status | For UI build |
 | Panel | LilyGO T5 4.7" |
 | Resolution | 960×540 · 1-bit |
-| Typeface | Press Start 2P |
+| Typeface | DejaVu Sans Bold ([ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)) |
 
 ---
 
@@ -41,9 +41,9 @@ A delay is a schedule update — it is shown as a timing shift, not a warning. A
 
 Four times can appear at once (clock, leave-by, arrival, next). Each carries a glyph or prefix so none can be mistaken for another.
 
-### Retro, on purpose
+### Mixed by design
 
-The Press Start 2P pixel aesthetic is intentional and cohesive — including custom-drawn 8-bit mode icons — not a placeholder.
+Text renders in **DejaVu Sans Bold** (a smooth proportional face), while the **mode icons** stay custom-drawn 8-bit pixel art. The mix is intentional, not a placeholder: icons read as *symbols*, text reads as *data*. This reverses the earlier all-Press-Start-2P aesthetic — see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md) for why (the mono pixel font's fixed advance caused headsign and hero fit failures).
 
 ---
 
@@ -122,7 +122,7 @@ Hard-won decisions from design iteration. Treat the "don't" column as regression
 - Don't introduce **greys, gradients or anti-aliasing** — the panel is 1-bit; they render as dither mud.
 - Don't let **NEXT** compete with the detail block — it is a footnote, not a third headline.
 - Don't animate or expect smooth motion — frames are 2–3 min apart; the diamond *jumps*, like a clock hand.
-- Don't introduce a second typeface — Press Start 2P only, including icons.
+- Don't introduce a second *text* typeface — DejaVu Sans Bold only. The 8-bit mode icons are the one deliberate exception ([ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)).
 
 ---
 

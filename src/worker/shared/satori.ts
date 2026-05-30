@@ -1,18 +1,22 @@
 // Shared Satori + resvg rendering pipeline used by BMP renderers. Lazy-
 // initialises the Yoga + resvg WebAssembly modules once per Worker isolate
 // (deferred to first request to keep cold-start CPU budget low), loads the
-// bundled Press Start 2P TTF, and exposes jsxToSvg and svgToRgba.
+// bundled DejaVu Sans Bold TTF, and exposes jsxToSvg and svgToRgba.
+// Typeface decision: ADR-0009 (replaces the prior Press Start 2P pixel font).
 
 import { initWasm as initResvg, Resvg } from '@resvg/resvg-wasm';
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 import satori, { init as initSatori } from 'satori/standalone';
 import yogaWasm from 'satori/yoga.wasm';
 import type { ReactNode } from 'react';
-import pressStartTtf from '../assets/PressStart2P-Regular.ttf';
+import dejaVuTtf from '../assets/DejaVuSans-Bold.ttf';
 import { WIDTH, HEIGHT } from './bmp';
 
-const FAMILY = 'Press Start 2P';
-const fontBuffer = new Uint8Array(pressStartTtf);
+// The bundled face is the Bold weight; layouts set fontWeight: 700 so Satori
+// matches it. resvg picks the face from the buffer, so defaultFontFamily only
+// needs the family name.
+const FAMILY = 'DejaVu Sans';
+const fontBuffer = new Uint8Array(dejaVuTtf);
 
 // Cold-start defence: both wasm modules are imported as pre-compiled
 // `WebAssembly.Module`s (wrangler/esbuild compile them at deploy time). We
@@ -29,7 +33,7 @@ export async function jsxToSvg(tree: ReactNode): Promise<string> {
 	return satori(tree, {
 		width: WIDTH,
 		height: HEIGHT,
-		fonts: [{ name: FAMILY, data: fontBuffer, weight: 400, style: 'normal' }],
+		fonts: [{ name: FAMILY, data: fontBuffer, weight: 700, style: 'normal' }],
 	});
 }
 

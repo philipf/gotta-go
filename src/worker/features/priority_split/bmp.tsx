@@ -4,7 +4,7 @@
 // (BY + ARRIVES), the track + marker, and Tier 3 (NEXT) — per PRD §5.1. Two
 // transit targets render as equal-width columns split by a vertical hairline
 // rule (#6); the type scales down so the hero + track fit the half-width pane.
-// React/JSX → Satori → resvg → 1-bit BMP, Press Start 2P throughout.
+// React/JSX → Satori → resvg → 1-bit BMP, DejaVu Sans Bold throughout (ADR-0009).
 
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
@@ -13,7 +13,7 @@ import { modeIcon } from './mode-icon';
 import { serviceName } from './service-name';
 import type { ColumnViewModel, PrioritySplitViewModel } from './viewmodel';
 
-const FAMILY = 'Press Start 2P';
+const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
 const WHITE = '#fff';
 
@@ -25,9 +25,17 @@ const RULE_W = 2; // hairline rule between two columns — matches the header bo
 // and a wide fixed track; a half-width column (~480px) scales both down so the
 // content fits without overflow. `trackW` is a percentage in the split case so
 // it tracks whatever width the flex pane resolves to.
+//
+// Sizes are tuned for DejaVu Sans Bold's proportional metric (ADR-0009), which
+// reclaimed ~40% horizontal width over the old mono font. Small-tier sizes
+// honour the minimum-legible-1-bit floor (FLOOR_PX): below it, DejaVu's
+// anti-aliasing thresholds to a ragged glyph on the panel. The floor is
+// provisional pending the live `wrangler dev` read called for in ADR-0009.
+const FLOOR_PX = 15;
+
 type Sizing = {
 	modeIconH: number;
-	routeLabel: number; // service-name label (service_id·trip_headsign) font size
+	routeLabel: number; // service-name label (service_id · trip_headsign) font size
 	labelMaxW: number; // cap so a long headsign truncates with an ellipsis, not overflow
 	leaveInLabel: number;
 	hero: number;
@@ -39,30 +47,29 @@ type Sizing = {
 
 const FULL: Sizing = {
 	modeIconH: 5,
-	routeLabel: 28,
+	routeLabel: 26, // matched to `arrives` (live-tuned)
 	labelMaxW: 820, // wide enough that a full-width column never truncates in practice
-	leaveInLabel: 22,
-	hero: 128,
-	leaveBy: 20,
-	arrives: 16,
-	next: 18,
+	leaveInLabel: 26, // matched to `arrives` (live-tuned)
+	hero: 128, // full pane never had the #42 overflow; the proportional metric only adds headroom
+	leaveBy: 32, // Tier 2/3 grown into the ample vertical whitespace (live-tuned)
+	arrives: 26,
+	next: 29,
 	trackW: 620,
 };
 
 const SPLIT: Sizing = {
 	modeIconH: 4,
-	routeLabel: 22,
-	labelMaxW: 380, // half-width pane: truncate long headsigns rather than overflow the rule
-	leaveInLabel: 18,
-	// Press Start 2P advances exactly 1em/glyph, so the widest valid hero
-	// ("NN MIN" = 6 glyphs) is 6×hero px. The half-pane is (960−RULE_W)/2 ≈ 479px
-	// with no horizontal padding; 64 keeps 6 glyphs at ~80% pane fill — the same
-	// breathing room the FULL hero (128) gives "NN MIN" at 960px — so a 2-digit
-	// leave_in no longer touches the centre rule or clips at the frame edge (#42).
-	hero: 64,
-	leaveBy: 16,
-	arrives: 13,
-	next: 15,
+	routeLabel: 24, // matched to `arrives` (live-tuned)
+	labelMaxW: 400, // half-width pane: proportional text fits "KPL · Wellington Station"; longer names ellipsize
+	leaveInLabel: 24, // matched to `arrives` (live-tuned)
+	// Proportional digits/caps make the widest valid hero ("NN MIN") ~60% of its
+	// old mono width, so the #42 emergency shrink to 64 is no longer needed: 96
+	// refills the half-pane (~479px wide) without touching the centre rule, while
+	// staying under the vertically-proven FULL hero (128). Verify live per ADR-0009.
+	hero: 96,
+	leaveBy: 27, // Tier 2/3 grown into the ample vertical whitespace (live-tuned)
+	arrives: 24,
+	next: 24,
 	trackW: '88%',
 };
 
@@ -106,7 +113,10 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				</div>
 			</div>
 
-			{/* Tier 1 — LEAVE IN hero */}
+			{/* Tier 1 — the LEAVE IN hero group: the LEAVE IN label, the hero
+			    value, and the BY hh:mm that qualifies it. BY belongs to the hero
+			    (it answers "leave by when?"), not to the ARRIVES detail, so it
+			    sits below the hero with the same gap LEAVE IN has above it. */}
 			<div
 				style={{
 					display: 'flex',
@@ -118,9 +128,10 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				<div style={{ fontSize: s.hero, lineHeight: 1, marginTop: 18 }}>
 					{col.leaveIn}
 				</div>
+				<div style={{ fontSize: s.leaveBy, marginTop: 18 }}>{col.leaveBy}</div>
 			</div>
 
-			{/* Tier 2 — BY hh:mm over ARRIVES n MIN · hh:mm */}
+			{/* Tier 2 — ARRIVES n MIN · hh:mm */}
 			<div
 				style={{
 					display: 'flex',
@@ -128,8 +139,7 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 					alignItems: 'center',
 				}}
 			>
-				<div style={{ fontSize: s.leaveBy }}>{col.leaveBy}</div>
-				<div style={{ fontSize: s.arrives, marginTop: 10 }}>{col.arrives}</div>
+				<div style={{ fontSize: s.arrives }}>{col.arrives}</div>
 			</div>
 
 			{/* Track + marker */}
@@ -192,6 +202,7 @@ function layout(vm: PrioritySplitViewModel): ReactNode {
 				display: 'flex',
 				flexDirection: 'column',
 				fontFamily: FAMILY,
+				fontWeight: 700,
 			}}
 		>
 			{/* Global header — wall-clock across the full width */}
