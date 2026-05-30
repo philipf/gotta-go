@@ -10,7 +10,7 @@
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
-import { modeIcon } from './mode-icon';
+import { modeIcon, MODE_GRIDS } from './mode-icon';
 import { serviceName } from './service-name';
 import type {
 	ColumnViewModel,
@@ -91,6 +91,8 @@ const SPLIT: Sizing = {
 // (service_id·trip_headsign). A long headsign truncates with an ellipsis inside
 // the narrow split pane so every column keeps the same single-line header
 // height (#40). Shared by the service and no-service column bodies.
+const MAX_ICON_ROWS = Math.max(...Object.values(MODE_GRIDS).map((g) => g.length));
+
 function header(col: ColumnViewModel, s: Sizing): ReactNode {
 	return (
 		<div
@@ -100,6 +102,7 @@ function header(col: ColumnViewModel, s: Sizing): ReactNode {
 				alignItems: 'center',
 				justifyContent: 'center',
 				gap: 12,
+				height: MAX_ICON_ROWS * s.modeIconH,
 			}}
 		>
 			{modeIcon({ mode: col.mode, height: s.modeIconH })}
@@ -178,27 +181,30 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				<div style={{ fontSize: s.arrives }}>{col.arrives}</div>
 			</div>
 
-			{/* Track + marker */}
+			{/* Track + marker — three flex siblings so align-items:center handles
+				    vertical centering without relying on absolute positioning,
+				    which Satori/yoga mis-places within flex containers. */}
 			<div
 				style={{
-					position: 'relative',
-					width: s.trackW,
-					height: MARKER + 8,
 					display: 'flex',
 					alignItems: 'center',
+					width: s.trackW,
+					height: MARKER + 8,
 				}}
 			>
-				<div style={{ width: '100%', height: 4, backgroundColor: BLACK }} />
+				<div style={{ flex: col.markerRatio, height: 4, backgroundColor: BLACK }} />
 				<div
 					style={{
-						position: 'absolute',
-						left: `${col.markerRatio * 100}%`,
+						flexShrink: 0,
+						alignSelf: 'flex-start',
+						marginTop: 2,
 						width: MARKER,
 						height: MARKER,
 						backgroundColor: BLACK,
-						transform: 'translateX(-50%) rotate(45deg)',
+						transform: 'rotate(45deg)',
 					}}
 				/>
+				<div style={{ flex: 1 - col.markerRatio, height: 4, backgroundColor: BLACK }} />
 			</div>
 
 			{/* Tier 3 — NEXT. Wrapped in a flex-grow box that centres it in the
