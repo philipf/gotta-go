@@ -31,8 +31,16 @@ export async function handleFrame(
 	);
 
 	// 2. Endpoint — resolve domain inputs & render
-	const { profilePhase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
-	const rendered = await layouts[layout](radiator, GLOBAL.timezone, now, format);
+	const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
+	const rendered = await layouts[layout]({
+		radiator,
+		phase,
+		timezone: GLOBAL.timezone,
+		now,
+		format,
+		env,
+		fetchFn: fetch,
+	});
 
 	// 3. Response — encode & shape
 	const body = acceptsGzip ? await gzip(rendered) : rendered;

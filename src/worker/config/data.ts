@@ -29,6 +29,37 @@ export const PROFILES: Record<string, Profile> = {
 			},
 		],
 	},
+	// Daughter's school-run profile (PRD §9): a priority_split morning phase
+	// over one bus transit target, then a minimal_clock idle phase. Stop 3234
+	// + routes 634/635 validated in GH #16 / ADR-0002.
+	daughter_school: {
+		name: 'daughter_school',
+		phases: [
+			{
+				key: 'morning_school_run',
+				startTime: '07:15',
+				endTime: '08:30',
+				layout: 'priority_split',
+				refreshIntervalMinutes: 2,
+				transitTargets: [
+					{
+						mode: 'bus',
+						stopId: '3234',
+						serviceId: ['634', '635'],
+						timeToStopMins: 5,
+						comfortBuffer: 3,
+					},
+				],
+			},
+			{
+				key: 'afternoon_idle',
+				startTime: '08:30',
+				endTime: '21:00',
+				layout: 'minimal_clock',
+				refreshIntervalMinutes: 30,
+			},
+		],
+	},
 };
 
 // PRD §9 `radiators:` block — radiator slug → profile-name reference.
@@ -39,5 +70,9 @@ export const RADIATOR_REFS: Record<string, { slug: string; profileName: string }
 	'bedroom-philip-tania': {
 		slug: 'bedroom-philip-tania',
 		profileName: 'philip_and_tania',
+	},
+	'bedroom-daughter': {
+		slug: 'bedroom-daughter',
+		profileName: 'daughter_school',
 	},
 };
