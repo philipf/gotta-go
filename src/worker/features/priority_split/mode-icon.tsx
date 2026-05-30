@@ -1,5 +1,6 @@
 // "Mode icon" — the custom 8-bit glyph identifying a transit target's mode
-// (glossary: bus or train), stacked above the route code in a column header.
+// (glossary: bus or train), shown to the left of the service name in a column
+// header.
 // Lives with priority_split — its sole consumer. Lift back to shared/ when a
 // second transit feature needs it.
 //

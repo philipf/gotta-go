@@ -9,7 +9,8 @@ import type { Mode } from './mode-icon';
 
 export type ColumnViewModel = {
 	mode: Mode;
-	routeCode: string; // selected service's id, e.g. "634"
+	serviceId: string; // selected service's id, e.g. "634"
+	tripHeadsign: string; // destination headsign, e.g. "Island Bay"; '' when unknown
 	leaveIn: string; // "7 MIN" | "NOW"
 	leaveBy: string; // "BY 07:08"
 	arrives: string; // "ARRIVES 4 MIN · 07:14"
@@ -69,7 +70,8 @@ function degraded(target: TransitTarget): ColumnViewModel {
 		: target.serviceId;
 	return {
 		mode: target.mode,
-		routeCode: fallbackRoute,
+		serviceId: fallbackRoute,
+		tripHeadsign: '', // no catchable service — destination unknown
 		leaveIn: DASH,
 		leaveBy: DASH,
 		arrives: DASH,
@@ -102,7 +104,8 @@ export function toJsonView(vm: PrioritySplitViewModel): Record<string, unknown> 
 		wall_clock: vm.wallClock,
 		columns: vm.columns.map((c) => ({
 			mode: c.mode,
-			route_code: c.routeCode,
+			service_id: c.serviceId,
+			trip_headsign: c.tripHeadsign,
 			leave_in: c.leaveIn,
 			leave_by: c.leaveBy,
 			arrives: c.arrives,
@@ -142,7 +145,8 @@ export function buildColumn(
 
 	return {
 		mode: target.mode,
-		routeCode: service.serviceId,
+		serviceId: service.serviceId,
+		tripHeadsign: service.tripHeadsign,
 		leaveIn: leaveInMins === 0 ? 'NOW' : `${leaveInMins} MIN`,
 		leaveBy: `BY ${hhmm(leaveBy, tz)}`,
 		arrives: `ARRIVES ${arrivesInMins} MIN · ${hhmm(service.predicted, tz)}`,

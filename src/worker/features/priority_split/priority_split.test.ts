@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildColumn, buildViewModel, toJsonView } from './viewmodel';
+import { serviceName } from './service-name';
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
 
@@ -121,15 +122,16 @@ describe('priority_split.buildViewModel - two transit targets', () => {
 		expect(vm.wallClock).toBe('07:30');
 		expect(vm.columns).toHaveLength(2);
 
-		// Bus column: leave_in = (12 − 5) = 7, mode bus, route from selected service.
+		// Bus column: leave_in = (12 − 5) = 7, mode bus, service id from selected service.
 		expect(vm.columns[0].mode).toBe('bus');
-		expect(vm.columns[0].routeCode).toBe('1');
+		expect(vm.columns[0].serviceId).toBe('1');
+		expect(vm.columns[0].tripHeadsign).toBe('Newlands');
 		expect(vm.columns[0].leaveIn).toBe('7 MIN');
 
 		// Train column computes from *its own* time_to_stop (15): predicted 20:00Z =
 		// now + 30 min, leave_in = 30 − 15 = 15. Independent of the bus column.
 		expect(vm.columns[1].mode).toBe('train');
-		expect(vm.columns[1].routeCode).toBe('KPL');
+		expect(vm.columns[1].serviceId).toBe('KPL');
 		expect(vm.columns[1].leaveIn).toBe('15 MIN');
 	});
 
@@ -162,8 +164,15 @@ describe('priority_split.buildColumn - Catchable selection', () => {
 		);
 		// leave_in for the catchable one = (18 − 5) = 13
 		expect(col.leaveIn).toBe('13 MIN');
-		// route code comes from the *selected* service, resolving the any-of array
-		expect(col.routeCode).toBe('635');
+		// service id comes from the *selected* service, resolving the any-of array
+		expect(col.serviceId).toBe('635');
+	});
+
+	it('degrades to an empty headsign when there is no catchable service', () => {
+		// All services missed (leave_by already passed) → degraded column.
+		const col = buildColumn(busTarget, open(arrival('2026-05-22T19:32:00Z')), TZ, NOW);
+		expect(col.serviceId).toBe('634'); // fallback to the target's first service id
+		expect(col.tripHeadsign).toBe('');
 	});
 });
 
@@ -181,7 +190,8 @@ describe('priority_split.toJsonView - serialisation', () => {
 			columns: [
 				{
 					mode: 'bus',
-					route_code: '634',
+					service_id: '634',
+					trip_headsign: 'Newlands',
 					leave_in: '7 MIN',
 					leave_by: 'BY 07:37',
 					arrives: 'ARRIVES 12 MIN · 07:42',
@@ -190,6 +200,16 @@ describe('priority_split.toJsonView - serialisation', () => {
 				},
 			],
 		});
+	});
+});
+
+describe('priority_split.serviceName - column-header label', () => {
+	it('joins service id and headsign with a tight middot separator', () => {
+		expect(serviceName('1', 'Island Bay')).toBe('1·Island Bay');
+	});
+
+	it('shows the service id alone (no dangling separator) when the headsign is empty', () => {
+		expect(serviceName('634', '')).toBe('634');
 	});
 });
 

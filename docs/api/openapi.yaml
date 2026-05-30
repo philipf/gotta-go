@@ -643,10 +643,19 @@ components:
           type: string
           enum: [bus, train]
           description: The transit target's **mode**.
-        route_code:
+        service_id:
           type: string
-          description: The selected service's identifier shown in the column header.
-          example: '634'
+          description: |
+            The selected service's upstream `service_id`, shown as the leading
+            part of the **service name** in the column header.
+          example: '1'
+        trip_headsign:
+          type: string
+          description: |
+            The destination **trip headsign**, shown after the `service_id` in
+            the column header (`service_id · trip_headsign`). Empty string when
+            unknown or in a degraded/no-service column.
+          example: Island Bay
         leave_in:
           type: string
           description: The Tier 1 **Leave In** hero value — `n MIN` or `NOW`.

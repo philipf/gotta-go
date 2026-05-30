@@ -59,16 +59,25 @@ The top horizontal strip showing **wall-clock time**. Spans the full width of th
 One vertical content pane below the global header. A `priority_split` frame has either one column (full width) or two columns (split by a hairline rule).
 
 ### Column header
-The per-column heading: a **mode icon** stacked above a **trip headsign**.
+The per-column heading: a **mode icon** on the left, followed by the **service name** (`service_id · trip_headsign`).
 
 ### Mode icon
 The custom 8-bit glyph identifying the **mode** (bus or train).
 - **Not to be confused with:** ~~vehicle icon~~, ~~service icon~~.
 
+### Service name
+The full **column header** label answering "which service is this": the **service id** and the **trip headsign** joined as `service_id · trip_headsign` (e.g. `1·Island Bay`). Composed in the renderer only — it is *not* a wire field; the diagnostics JSON (ADR-0004) carries `service_id` and `trip_headsign` separately. When the headsign is unknown (empty, or a degraded/no-service column) the separator is dropped and the service id shows alone.
+- **Appears as:** column-header text (e.g. `1·Island Bay`), to the right of the **mode icon**.
+- **Not to be confused with:** ~~route code~~ (legacy, deprecated — an earlier glossary mis-named the header label "route code").
+
 ### Trip headsign
-The short destination label rendered in the **column header** beside the **mode icon** — the human-readable answer to "where is this service going". Sourced from the Metlink `trip_headsign` field and passed through as-is; no synthesis or abbreviation in the Worker.
-- **Appears as:** column-header text (e.g. `BUS Island Bay`, `TRAIN Wellington`), code symbol `tripHeadsign`.
-- **Not to be confused with:** ~~route code~~ (legacy, deprecated — the previous glossary entry mis-named this concept as "route code" when it is actually the trip headsign), the upstream `service_id` field (an internal route identifier used inside the gateway for filtering — never displayed).
+The short destination label forming the second part of the **service name** — the human-readable answer to "where is this service going". Sourced from the Metlink `trip_headsign` field and passed through as-is; no synthesis or abbreviation in the Worker.
+- **Appears as:** the destination part of the column-header **service name** (e.g. `Island Bay` in `1·Island Bay`), wire field `trip_headsign`, code symbol `tripHeadsign`.
+
+### Service id
+The upstream Metlink `service_id` — a route identifier used inside the gateway to filter departures. Also shown to the user as the leading part of the **service name** (the number before the headsign).
+- **Appears as:** the leading part of the column-header **service name** (e.g. `1` in `1·Island Bay`), wire field `service_id`, code symbol `serviceId`.
+- **Not to be confused with:** ~~route code~~ (legacy, deprecated).
 
 ### Tier 1 / Tier 2 / Tier 3
 The three weight bands within a column. Each tier must be visibly lighter than the one above.
@@ -282,7 +291,7 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 | e-ink display | panel |
 | backup service | next service |
 | dead service | cancelled service |
-| route code | trip headsign (column-header label) / service_id (gateway-internal filter) — these were conflated under "route code" |
+| route code | service name (column-header label = `service_id · trip_headsign`) — the parts are service id + trip headsign; the legacy "route code" conflated them |
 | progress bar, walk-window progress bar, fill bar, progress widget | track + marker |
 | diamond (bare) | marker |
 | safety margin | leave margin |

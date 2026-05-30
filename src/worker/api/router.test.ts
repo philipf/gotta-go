@@ -143,7 +143,8 @@ describe('api.router — JSON view-model variant', () => {
 		expect(body.columns).toHaveLength(1);
 		expect(body.columns[0]).toEqual({
 			mode: 'bus',
-			route_code: '634',
+			service_id: '634',
+			trip_headsign: '',
 			leave_in: '—',
 			leave_by: '—',
 			arrives: '—',

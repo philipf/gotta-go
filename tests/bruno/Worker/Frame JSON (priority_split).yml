@@ -30,7 +30,7 @@ docs: |
     profile_phase: morning_school_run
     layout: priority_split
     wall_clock: 07:30
-    columns[0]: { mode, route_code, leave_in, leave_by, arrives, next, marker_ratio }
+    columns[0]: { mode, service_id, trip_headsign, leave_in, leave_by, arrives, next, marker_ratio }
 
   The column fields hold the exact display strings Satori is fed (e.g. "7 MIN",
   "ARRIVES 12 MIN · 07:42"); they degrade to "—" with marker_ratio 1 when there

@@ -1,6 +1,6 @@
 // BMP renderer for the priority_split layout. Lays out the global header
 // (wall-clock) above one or two columns, each with five stacked sections —
-// column header (mode icon + route code), Tier 1 hero (LEAVE IN), Tier 2
+// column header (mode icon + service name), Tier 1 hero (LEAVE IN), Tier 2
 // (BY + ARRIVES), the track + marker, and Tier 3 (NEXT) — per PRD §5.1. Two
 // transit targets render as equal-width columns split by a vertical hairline
 // rule (#6); the type scales down so the hero + track fit the half-width pane.
@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import { modeIcon } from './mode-icon';
+import { serviceName } from './service-name';
 import type { ColumnViewModel, PrioritySplitViewModel } from './viewmodel';
 
 const FAMILY = 'Press Start 2P';
@@ -26,7 +27,8 @@ const RULE_W = 2; // hairline rule between two columns — matches the header bo
 // it tracks whatever width the flex pane resolves to.
 type Sizing = {
 	modeIconH: number;
-	routeCode: number;
+	routeLabel: number; // service-name label (service_id·trip_headsign) font size
+	labelMaxW: number; // cap so a long headsign truncates with an ellipsis, not overflow
 	leaveInLabel: number;
 	hero: number;
 	leaveBy: number;
@@ -37,7 +39,8 @@ type Sizing = {
 
 const FULL: Sizing = {
 	modeIconH: 5,
-	routeCode: 28,
+	routeLabel: 28,
+	labelMaxW: 820, // wide enough that a full-width column never truncates in practice
 	leaveInLabel: 22,
 	hero: 128,
 	leaveBy: 20,
@@ -48,7 +51,8 @@ const FULL: Sizing = {
 
 const SPLIT: Sizing = {
 	modeIconH: 4,
-	routeCode: 22,
+	routeLabel: 22,
+	labelMaxW: 380, // half-width pane: truncate long headsigns rather than overflow the rule
 	leaveInLabel: 18,
 	hero: 76,
 	leaveBy: 16,
@@ -70,16 +74,31 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				padding: '24px 0 28px',
 			}}
 		>
-			{/* Column header — mode icon stacked above route code */}
+			{/* Column header — mode icon on the left, service name to its right
+			    (service_id·trip_headsign). A long headsign truncates with an
+			    ellipsis inside the narrow split pane so every column keeps the
+			    same single-line header height (#40). */}
 			<div
 				style={{
 					display: 'flex',
-					flexDirection: 'column',
+					flexDirection: 'row',
 					alignItems: 'center',
+					justifyContent: 'center',
+					gap: 12,
 				}}
 			>
 				{modeIcon({ mode: col.mode, height: s.modeIconH })}
-				<div style={{ fontSize: s.routeCode, marginTop: 10 }}>{col.routeCode}</div>
+				<div
+					style={{
+						fontSize: s.routeLabel,
+						maxWidth: s.labelMaxW,
+						whiteSpace: 'nowrap',
+						overflow: 'hidden',
+						textOverflow: 'ellipsis',
+					}}
+				>
+					{serviceName(col.serviceId, col.tripHeadsign)}
+				</div>
 			</div>
 
 			{/* Tier 1 — LEAVE IN hero */}
