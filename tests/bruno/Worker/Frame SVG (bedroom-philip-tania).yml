@@ -14,8 +14,7 @@ http:
     - name: Accept-Encoding
       value: gzip
     - name: X-Debug-Now
-      value: 2026-05-23T06:48:00Z
-      disabled: true
+      value: 2026-05-30T19:30:00Z
   auth: inherit
 
 settings:
