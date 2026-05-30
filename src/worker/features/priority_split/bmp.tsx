@@ -1,7 +1,9 @@
 // BMP renderer for the priority_split layout. Lays out the global header
-// (wall-clock) above a single full-width column with five stacked sections —
+// (wall-clock) above one or two columns, each with five stacked sections —
 // column header (mode icon + route code), Tier 1 hero (LEAVE IN), Tier 2
-// (BY + ARRIVES), the track + marker, and Tier 3 (NEXT) — per PRD §5.1.
+// (BY + ARRIVES), the track + marker, and Tier 3 (NEXT) — per PRD §5.1. Two
+// transit targets render as equal-width columns split by a vertical hairline
+// rule (#6); the type scales down so the hero + track fit the half-width pane.
 // React/JSX → Satori → resvg → 1-bit BMP, Press Start 2P throughout.
 
 import type { ReactNode } from 'react';
@@ -15,10 +17,47 @@ const BLACK = '#000';
 const WHITE = '#fff';
 
 const HEADER_H = 44; // ~8% global header
-const TRACK_W = 620;
 const MARKER = 26;
+const RULE_W = 2; // hairline rule between two columns — matches the header border
 
-function column(col: ColumnViewModel, key: number): ReactNode {
+// Per-pane sizing. A single full-width column (960px) carries the large hero
+// and a wide fixed track; a half-width column (~480px) scales both down so the
+// content fits without overflow. `trackW` is a percentage in the split case so
+// it tracks whatever width the flex pane resolves to.
+type Sizing = {
+	modeIconH: number;
+	routeCode: number;
+	leaveInLabel: number;
+	hero: number;
+	leaveBy: number;
+	arrives: number;
+	next: number;
+	trackW: number | string;
+};
+
+const FULL: Sizing = {
+	modeIconH: 5,
+	routeCode: 28,
+	leaveInLabel: 22,
+	hero: 128,
+	leaveBy: 20,
+	arrives: 16,
+	next: 18,
+	trackW: 620,
+};
+
+const SPLIT: Sizing = {
+	modeIconH: 4,
+	routeCode: 22,
+	leaveInLabel: 18,
+	hero: 76,
+	leaveBy: 16,
+	arrives: 13,
+	next: 15,
+	trackW: '88%',
+};
+
+function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 	return (
 		<div
 			key={key}
@@ -39,8 +78,8 @@ function column(col: ColumnViewModel, key: number): ReactNode {
 					alignItems: 'center',
 				}}
 			>
-				{modeIcon({ mode: col.mode, height: 5 })}
-				<div style={{ fontSize: 28, marginTop: 10 }}>{col.routeCode}</div>
+				{modeIcon({ mode: col.mode, height: s.modeIconH })}
+				<div style={{ fontSize: s.routeCode, marginTop: 10 }}>{col.routeCode}</div>
 			</div>
 
 			{/* Tier 1 — LEAVE IN hero */}
@@ -51,8 +90,8 @@ function column(col: ColumnViewModel, key: number): ReactNode {
 					alignItems: 'center',
 				}}
 			>
-				<div style={{ fontSize: 22 }}>LEAVE IN</div>
-				<div style={{ fontSize: 128, lineHeight: 1, marginTop: 18 }}>
+				<div style={{ fontSize: s.leaveInLabel }}>LEAVE IN</div>
+				<div style={{ fontSize: s.hero, lineHeight: 1, marginTop: 18 }}>
 					{col.leaveIn}
 				</div>
 			</div>
@@ -65,15 +104,15 @@ function column(col: ColumnViewModel, key: number): ReactNode {
 					alignItems: 'center',
 				}}
 			>
-				<div style={{ fontSize: 20 }}>{col.leaveBy}</div>
-				<div style={{ fontSize: 16, marginTop: 10 }}>{col.arrives}</div>
+				<div style={{ fontSize: s.leaveBy }}>{col.leaveBy}</div>
+				<div style={{ fontSize: s.arrives, marginTop: 10 }}>{col.arrives}</div>
 			</div>
 
 			{/* Track + marker */}
 			<div
 				style={{
 					position: 'relative',
-					width: TRACK_W,
+					width: s.trackW,
 					height: MARKER + 8,
 					display: 'flex',
 					alignItems: 'center',
@@ -93,12 +132,32 @@ function column(col: ColumnViewModel, key: number): ReactNode {
 			</div>
 
 			{/* Tier 3 — NEXT */}
-			<div style={{ fontSize: 18 }}>{col.next}</div>
+			<div style={{ fontSize: s.next }}>{col.next}</div>
 		</div>
 	);
 }
 
+// A full-height vertical hairline rule separating two columns (PRD §5.1).
+function rule(key: number): ReactNode {
+	return (
+		<div
+			key={key}
+			style={{ width: RULE_W, alignSelf: 'stretch', backgroundColor: BLACK }}
+		/>
+	);
+}
+
 function layout(vm: PrioritySplitViewModel): ReactNode {
+	const sizing = vm.columns.length > 1 ? SPLIT : FULL;
+
+	// Interleave the columns with hairline rules: [col, rule, col, …]. A single
+	// column yields no rule and auto-scales to the full content width.
+	const panes: ReactNode[] = [];
+	vm.columns.forEach((col, i) => {
+		if (i > 0) panes.push(rule(-i));
+		panes.push(column(col, i, sizing));
+	});
+
 	return (
 		<div
 			style={{
@@ -125,10 +184,8 @@ function layout(vm: PrioritySplitViewModel): ReactNode {
 				{vm.wallClock}
 			</div>
 
-			{/* Content area — one column per transit target (single → full width) */}
-			<div style={{ flex: 1, display: 'flex', flexDirection: 'row' }}>
-				{vm.columns.map((col, i) => column(col, i))}
-			</div>
+			{/* Content area — one or two columns split by a hairline rule (#6) */}
+			<div style={{ flex: 1, display: 'flex', flexDirection: 'row' }}>{panes}</div>
 		</div>
 	);
 }

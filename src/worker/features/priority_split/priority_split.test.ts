@@ -98,6 +98,59 @@ describe('priority_split.buildViewModel - assembly', () => {
 	});
 });
 
+const trainTarget: TransitTarget = {
+	mode: 'train',
+	stopId: 'TAKA1',
+	serviceId: 'KPL',
+	timeToStopMins: 15,
+	comfortBuffer: 4,
+};
+
+describe('priority_split.buildViewModel - two transit targets', () => {
+	it('renders two independent columns under one shared wall-clock header', () => {
+		const vm = buildViewModel(
+			[busTarget, trainTarget],
+			[
+				open(arrival('2026-05-22T19:42:00Z', '1')),
+				open(arrival('2026-05-22T20:00:00Z', 'KPL')),
+			],
+			TZ,
+			NOW,
+		);
+
+		expect(vm.wallClock).toBe('07:30');
+		expect(vm.columns).toHaveLength(2);
+
+		// Bus column: leave_in = (12 − 5) = 7, mode bus, route from selected service.
+		expect(vm.columns[0].mode).toBe('bus');
+		expect(vm.columns[0].routeCode).toBe('1');
+		expect(vm.columns[0].leaveIn).toBe('7 MIN');
+
+		// Train column computes from *its own* time_to_stop (15): predicted 20:00Z =
+		// now + 30 min, leave_in = 30 − 15 = 15. Independent of the bus column.
+		expect(vm.columns[1].mode).toBe('train');
+		expect(vm.columns[1].routeCode).toBe('KPL');
+		expect(vm.columns[1].leaveIn).toBe('15 MIN');
+	});
+
+	it('serialises both columns in order via toJsonView', () => {
+		const vm = buildViewModel(
+			[busTarget, trainTarget],
+			[
+				open(arrival('2026-05-22T19:42:00Z', '1')),
+				open(arrival('2026-05-22T20:00:00Z', 'KPL')),
+			],
+			TZ,
+			NOW,
+		);
+
+		const json = toJsonView(vm) as { columns: { mode: string }[] };
+		expect(json.columns).toHaveLength(2);
+		expect(json.columns[0].mode).toBe('bus');
+		expect(json.columns[1].mode).toBe('train');
+	});
+});
+
 describe('priority_split.buildColumn - Catchable selection', () => {
 	it('skips a missed service (leave_by already passed) and selects the earliest catchable one', () => {
 		// 19:32Z: leave_by 19:27Z < now → missed. 19:48Z: leave_by 19:43Z ≥ now → catchable.

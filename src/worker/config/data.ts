@@ -20,6 +20,35 @@ export const PROFILES: Record<string, Profile> = {
 	philip_and_tania: {
 		name: 'philip_and_tania',
 		phases: [
+			// Morning commute (PRD §9): a two-target priority_split phase rendering
+			// the bus stop and train station side by side. Stop 3234 + route 1 and
+			// station TAKA1 + line KPL are the live-validated IDs from ADR-0002 (the
+			// PRD's 7104/WELL/5112 are placeholders the spike replaced). Listed first
+			// so its window wins over the all-day fallback during 06:30–09:00.
+			{
+				key: 'morning_commute',
+				startTime: '06:30',
+				endTime: '09:00',
+				layout: 'priority_split',
+				refreshIntervalMinutes: 2,
+				transitTargets: [
+					{
+						mode: 'bus',
+						stopId: '3234',
+						serviceId: '1',
+						timeToStopMins: 7,
+						comfortBuffer: 3,
+					},
+					{
+						mode: 'train',
+						stopId: 'TAKA1',
+						serviceId: 'KPL',
+						timeToStopMins: 15,
+						comfortBuffer: 4,
+					},
+				],
+			},
+			// Catch-all idle phase outside the commute window.
 			{
 				key: 'all_day_clock',
 				startTime: '00:00',

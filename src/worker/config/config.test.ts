@@ -15,6 +15,23 @@ describe('config.lookupRadiator', () => {
 		expect(lookupRadiator('ghost')).toBeUndefined();
 	});
 
+	it('seeds philip_and_tania with a morning_commute priority_split phase carrying two transit targets (bus + train)', () => {
+		const radiator = lookupRadiator('bedroom-philip-tania');
+
+		const phase = radiator?.profile.phases.find((p) => p.key === 'morning_commute');
+		expect(phase?.layout).toBe('priority_split');
+		expect(phase?.transitTargets).toHaveLength(2);
+
+		const [bus, train] = phase?.transitTargets ?? [];
+		expect(bus?.mode).toBe('bus');
+		expect(bus?.stopId).toBe('3234');
+		expect(bus?.serviceId).toBe('1');
+
+		expect(train?.mode).toBe('train');
+		expect(train?.stopId).toBe('TAKA1');
+		expect(train?.serviceId).toBe('KPL');
+	});
+
 	it('seeds bedroom-daughter with a morning_school_run priority_split phase carrying one bus transit target', () => {
 		const radiator = lookupRadiator('bedroom-daughter');
 
