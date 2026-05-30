@@ -12,5 +12,7 @@ collections:
     path: "Metlink/collections/GTFS-RT (realtime)"
 
 specs:
+  - name: "metlink-api-swagger"
+    path: "../../docs/metlink-api-swagger.json"
 
 docs: ''
