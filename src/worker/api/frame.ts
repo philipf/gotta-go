@@ -12,6 +12,7 @@ import type { Radiator } from '../config/lookup';
 import { layouts } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
 import { gzip } from '../shared/gzip';
+import { log } from '../shared/log';
 import { buildFrameEnvelope } from './envelope';
 import { unauthorized, unknownRadiator } from './errors';
 import { resolveResponseFormat } from './format';
@@ -43,73 +44,116 @@ export async function renderFrame(
 	now: Date,
 	resolve: RadiatorResolver,
 ): Promise<Response> {
-	// 1. Request — authenticate & parse
-	const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
-	if (!auth.ok) return unauthorized();
-
+	// Observability context (GH #25). hardwareId (the firmware-sent MAC) and the
+	// optional client-supplied requestId give per-device / cross-system
+	// correlation; CF's per-invocation grouping ties the rest together. Undefined
+	// values are dropped by JSON.stringify, so they need no conditional spread.
+	const start = Date.now();
 	const slug = request.headers.get('X-Radiator-Slug') ?? '';
-	const radiator = resolve(slug);
-	if (!radiator) return unknownRadiator();
+	const hardwareId = request.headers.get('X-Radiator-Hardware-Id') ?? undefined;
+	const requestId = request.headers.get('X-Request-Id') ?? undefined;
 
-	const format = resolveResponseFormat(request.headers.get('Accept'));
-	const includeBmp =
-		format === 'json' &&
-		new URL(request.url).searchParams.get('include_bmp') === '1';
-	const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
-		'gzip',
-	);
+	try {
+		// 1. Request — authenticate & parse
+		const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
+		if (!auth.ok) {
+			log.warn('frame.unauthorized', { hardwareId, requestId, slug });
+			return unauthorized();
+		}
 
-	// 2. Endpoint — resolve domain inputs & render
-	const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
-	const rendered = await layouts[layout]({
-		radiator,
-		phase,
-		timezone: GLOBAL.timezone,
-		stopPredictionLimit: GLOBAL.stopPredictionLimit,
-		now,
-		format,
-		includeBmp,
-		env,
-		// Bind to globalThis: workerd's `fetch` throws "Illegal invocation" if
-		// invoked with a `this` other than the global scope, which happens once
-		// it is passed around and called as a method (e.g. `req.fetch(...)` in
-		// the Metlink client). Tests inject a plain mock fn so never hit this.
-		fetchFn: fetch.bind(globalThis),
-	});
+		const radiator = resolve(slug);
+		if (!radiator) {
+			log.warn('frame.unknown_radiator', { hardwareId, requestId, slug });
+			return unknownRadiator();
+		}
 
-	// 3. Response — encode & shape. The observability inputs are identical
-	// across every format; only the body shape and Content-Type differ.
-	if (format === 'json') {
-		const envelope = buildFrameEnvelope({
-			profilePhase,
-			layout,
-			serverTime: now,
-			viewModel: rendered.viewModel,
-			bmp: rendered.frame,
+		const format = resolveResponseFormat(request.headers.get('Accept'));
+		const includeBmp =
+			format === 'json' &&
+			new URL(request.url).searchParams.get('include_bmp') === '1';
+		const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
+			'gzip',
+		);
+
+		// 2. Endpoint — resolve domain inputs & render
+		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
+		const rendered = await layouts[layout]({
+			radiator,
+			phase,
+			timezone: GLOBAL.timezone,
+			stopPredictionLimit: GLOBAL.stopPredictionLimit,
+			now,
+			format,
+			includeBmp,
+			env,
+			// Bind to globalThis: workerd's `fetch` throws "Illegal invocation" if
+			// invoked with a `this` other than the global scope, which happens once
+			// it is passed around and called as a method (e.g. `req.fetch(...)` in
+			// the Metlink client). Tests inject a plain mock fn so never hit this.
+			fetchFn: fetch.bind(globalThis),
 		});
-		return frameJson(envelope, { sleepSeconds, serverTime: now, profilePhase });
-	}
 
-	if (format === 'svg') {
-		// The renderer always produces the SVG for `format: 'svg'`. Gzipped per
-		// ADR-0001 like the BMP body, honouring Accept-Encoding the same way.
-		const svgBytes = new TextEncoder().encode(rendered.svg as string);
-		const body = acceptsGzip ? await gzip(svgBytes) : svgBytes;
-		return frameSvg(body, {
-			gzip: acceptsGzip,
-			sleepSeconds,
-			serverTime: now,
+		// 3. Response — encode & shape. The observability inputs are identical
+		// across every format; only the body shape and Content-Type differ.
+		let response: Response;
+		if (format === 'json') {
+			const envelope = buildFrameEnvelope({
+				profilePhase,
+				layout,
+				serverTime: now,
+				viewModel: rendered.viewModel,
+				bmp: rendered.frame,
+			});
+			response = frameJson(envelope, { sleepSeconds, serverTime: now, profilePhase });
+		} else if (format === 'svg') {
+			// The renderer always produces the SVG for `format: 'svg'`. Gzipped per
+			// ADR-0001 like the BMP body, honouring Accept-Encoding the same way.
+			const svgBytes = new TextEncoder().encode(rendered.svg as string);
+			const body = acceptsGzip ? await gzip(svgBytes) : svgBytes;
+			response = frameSvg(body, {
+				gzip: acceptsGzip,
+				sleepSeconds,
+				serverTime: now,
+				profilePhase,
+			});
+		} else {
+			// BMP path — the renderer always rasterises a frame for `format: 'bmp'`.
+			const frame = rendered.frame as Uint8Array;
+			const body = acceptsGzip ? await gzip(frame) : frame;
+			response = frameOk(body, {
+				gzip: acceptsGzip,
+				sleepSeconds,
+				serverTime: now,
+				profilePhase,
+			});
+		}
+
+		// Single completion log covering the full critical path (auth → render →
+		// encode); durationMs is wall-clock, not the injected domain `now`.
+		log.info('frame.completed', {
+			hardwareId,
+			requestId,
+			slug,
+			layoutKey: layout,
 			profilePhase,
+			format,
+			durationMs: Date.now() - start,
 		});
+		return response;
+	} catch (err) {
+		// Log structured context, then re-throw so CF also captures the uncaught
+		// exception. Response shaping / back-off on failure is GH #47 (firmware).
+		const error =
+			err instanceof Error
+				? { name: err.name, message: err.message, stack: err.stack }
+				: { message: String(err) };
+		log.error('frame.error', {
+			hardwareId,
+			requestId,
+			slug,
+			durationMs: Date.now() - start,
+			error,
+		});
+		throw err;
 	}
-
-	// BMP path — the renderer always rasterises a frame for `format: 'bmp'`.
-	const frame = rendered.frame as Uint8Array;
-	const body = acceptsGzip ? await gzip(frame) : frame;
-	return frameOk(body, {
-		gzip: acceptsGzip,
-		sleepSeconds,
-		serverTime: now,
-		profilePhase,
-	});
 }

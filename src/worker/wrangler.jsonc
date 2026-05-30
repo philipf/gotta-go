@@ -5,6 +5,9 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true,
+		"traces": {
+			"enabled": true,
+		},
 	},
 	"rules": [
 		{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true },
