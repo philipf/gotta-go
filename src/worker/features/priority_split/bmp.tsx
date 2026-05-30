@@ -15,7 +15,6 @@ import type {
 	ColumnViewModel,
 	NoServiceColumn,
 	PrioritySplitViewModel,
-	ServiceColumn,
 } from './viewmodel';
 
 const FAMILY = 'DejaVu Sans';
@@ -140,56 +139,7 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 			}}
 		>
 			{header(col, s)}
-			{serviceBody(col, s)}
-		</div>
-	);
-}
 
-// The no-service column (#10): NO SERVICE truly centred in the column's full
-// height, with the optional next-departure clock beneath it. The route header
-// is pinned out of flow (absolute, top) so it doesn't bias the centring toward
-// the bottom — a normal-flow header would push the hero below the frame's
-// midline. No track or marker: there is nothing to leave for.
-function noServiceColumn(col: NoServiceColumn, key: number, s: Sizing): ReactNode {
-	return (
-		<div
-			key={key}
-			style={{
-				flex: 1,
-				position: 'relative',
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
-				justifyContent: 'center',
-			}}
-		>
-			<div
-				style={{
-					position: 'absolute',
-					top: 24,
-					left: 0,
-					width: '100%',
-					display: 'flex',
-					justifyContent: 'center',
-				}}
-			>
-				{header(col, s)}
-			</div>
-			<div style={{ fontSize: s.noServiceHero, lineHeight: 1 }}>NO SERVICE</div>
-			{/* Next departure clock only when one is actually known — a lone dash
-			    here reads as a leftover artifact, not information. */}
-			{col.nextDeparture ? (
-				<div style={{ fontSize: s.leaveBy, marginTop: s.heroGap * 2 }}>
-					{col.nextDeparture}
-				</div>
-			) : null}
-		</div>
-	);
-}
-
-function serviceBody(col: ServiceColumn, s: Sizing): ReactNode {
-	return (
-		<>
 			{/* Tier 1 — the LEAVE IN hero group: the LEAVE IN label, the hero
 			    value, and the BY hh:mm that qualifies it. BY belongs to the hero
 			    (it answers "leave by when?"), not to the ARRIVES detail, so it
@@ -263,7 +213,49 @@ function serviceBody(col: ServiceColumn, s: Sizing): ReactNode {
 			>
 				<div style={{ fontSize: s.next }}>{col.next}</div>
 			</div>
-		</>
+		</div>
+	);
+}
+
+// The no-service column (#10): NO SERVICE truly centred in the column's full
+// height, with the optional next-departure clock beneath it. The route header
+// is pinned out of flow (absolute, top) so it doesn't bias the centring toward
+// the bottom — a normal-flow header would push the hero below the frame's
+// midline. No track or marker: there is nothing to leave for.
+function noServiceColumn(col: NoServiceColumn, key: number, s: Sizing): ReactNode {
+	return (
+		<div
+			key={key}
+			style={{
+				flex: 1,
+				position: 'relative',
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+			}}
+		>
+			<div
+				style={{
+					position: 'absolute',
+					top: 24,
+					left: 0,
+					width: '100%',
+					display: 'flex',
+					justifyContent: 'center',
+				}}
+			>
+				{header(col, s)}
+			</div>
+			<div style={{ fontSize: s.noServiceHero, lineHeight: 1 }}>NO SERVICE</div>
+			{/* Next departure clock only when one is actually known — a lone dash
+			    here reads as a leftover artifact, not information. */}
+			{col.nextDeparture ? (
+				<div style={{ fontSize: s.leaveBy, marginTop: s.heroGap * 2 }}>
+					{col.nextDeparture}
+				</div>
+			) : null}
+		</div>
 	);
 }
 
