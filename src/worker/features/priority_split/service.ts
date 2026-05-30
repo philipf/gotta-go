@@ -1,13 +1,14 @@
 // Public render entry for the priority_split layout. Fetches each transit
 // target's arrivals from the Metlink gateway (uncached for now — #24 wraps the
 // same public entry with KV transparently), builds the view model, then
-// rasterises the BMP only when the negotiated format needs it (ADR-0004) and
-// returns it alongside the serialisable view model for the JSON envelope.
+// produces only the rendered artefact the negotiated format needs (ADR-0004) —
+// the rasterised BMP, the intermediate Satori SVG, or neither — and returns it
+// alongside the serialisable view model for the JSON envelope.
 
 import type { RenderContext, RenderResult } from '../registry';
 import { fetchArrivals, type StopState } from '../../gateways/metlink/metlink';
 import { buildViewModel, toJsonView } from './viewmodel';
-import { renderBmp } from './bmp';
+import { renderBmp, renderSvg } from './bmp';
 
 export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const targets = ctx.phase.transitTargets ?? [];
@@ -31,6 +32,7 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const needsBmp = ctx.format === 'bmp' || ctx.includeBmp;
 	return {
 		frame: needsBmp ? await renderBmp(vm) : null,
+		svg: ctx.format === 'svg' ? await renderSvg(vm) : null,
 		viewModel: toJsonView(vm),
 	};
 }

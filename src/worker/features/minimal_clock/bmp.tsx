@@ -36,8 +36,16 @@ function layout(vm: ViewModel): ReactNode {
 	);
 }
 
+// The intermediate Satori SVG for this view model. The diagnostics SVG variant
+// (#20 / ADR-0004) returns it verbatim, and renderBmp rasterises this exact
+// string — one render path, so the SVG a human inspects is byte-for-byte the
+// input the BMP encoder saw.
+export function renderSvg(vm: ViewModel): Promise<string> {
+	return jsxToSvg(layout(vm));
+}
+
 export async function renderBmp(vm: ViewModel): Promise<Uint8Array> {
-	const svg = await jsxToSvg(layout(vm));
+	const svg = await renderSvg(vm);
 	const rgba = await svgToRgba(svg);
 	return rgbaTo1BitBmp(rgba);
 }

@@ -17,4 +17,12 @@ describe('api.format.resolveResponseFormat', () => {
 	it('resolves a json-bearing multi-type Accept to json', () => {
 		expect(resolveResponseFormat('application/json, text/plain')).toBe('json');
 	});
+
+	it('resolves Accept: image/svg+xml to svg', () => {
+		expect(resolveResponseFormat('image/svg+xml')).toBe('svg');
+	});
+
+	it('resolves a svg-bearing multi-type Accept to svg', () => {
+		expect(resolveResponseFormat('image/svg+xml, image/bmp')).toBe('svg');
+	});
 });

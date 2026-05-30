@@ -7,9 +7,16 @@ export type FrameOkInit = {
 	profilePhase: string;
 };
 
-export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
+// Shared shaper for the byte-body frame variants — the BMP (ADR-0003) and the
+// diagnostics SVG (ADR-0004). Both carry the identical observability headers and
+// follow the same ADR-0001 gzip transport rule; only the Content-Type differs.
+function frameBody(
+	contentType: string,
+	body: Uint8Array,
+	init: FrameOkInit,
+): Response {
 	const headers: Record<string, string> = {
-		'Content-Type': 'image/bmp',
+		'Content-Type': contentType,
 		'X-Sleep-Seconds': String(init.sleepSeconds),
 		'X-Server-Time': init.serverTime.toISOString(),
 		'X-Profile-Phase': init.profilePhase,
@@ -25,6 +32,19 @@ export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
 		headers,
 		encodeBody: init.gzip ? 'manual' : 'automatic',
 	});
+}
+
+export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
+	return frameBody('image/bmp', body, init);
+}
+
+// 200-OK SVG diagnostics response for the `Accept: image/svg+xml` variant
+// (ADR-0004). Returns the intermediate Satori SVG that the BMP encoder
+// rasterises, gzipped per ADR-0001 like the BMP body. Carries the identical
+// observability headers to frameOk so the variants are indistinguishable to a
+// human comparing them; only the body and Content-Type differ.
+export function frameSvg(body: Uint8Array, init: FrameOkInit): Response {
+	return frameBody('image/svg+xml', body, init);
 }
 
 // 200-OK JSON diagnostics response for the `Accept: application/json` variant

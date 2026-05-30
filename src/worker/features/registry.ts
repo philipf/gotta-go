@@ -28,10 +28,13 @@ export type RenderContext = {
 
 // Every renderer returns its format-agnostic view model (the structured input
 // Satori receives, ready to serialise for the JSON variant — ADR-0004) plus the
-// rasterised BMP when one was needed. `frame` is null on the JSON path that
-// opted out of the BMP.
+// optional rendered artefacts: the rasterised BMP and the intermediate Satori
+// SVG, each produced only when the negotiated format needs it. `frame` is null
+// on the JSON path that opted out of the BMP; `svg` is null unless the SVG
+// variant (#20) was negotiated.
 export type RenderResult = {
 	frame: Uint8Array | null;
+	svg: string | null;
 	viewModel: Record<string, unknown>;
 };
 

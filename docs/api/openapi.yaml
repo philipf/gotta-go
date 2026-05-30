@@ -125,14 +125,18 @@ paths:
 
         ### Diagnostics view — content negotiation (ADR-0004)
 
-        The same endpoint serves a JSON **view model** for diagnostics when the
-        request carries `Accept: application/json`: the structured data fed to
-        the renderer for *this exact* render (active profile phase, layout, the
-        per-column **transit target** fields, plus the observability values that
-        also ride the response headers). The radiator's path — `Accept:
+        The same endpoint serves two diagnostics variants via the request's
+        `Accept` header. `Accept: application/json` returns a JSON **view model**:
+        the structured data fed to the renderer for *this exact* render (active
+        profile phase, layout, the per-column **transit target** fields, plus the
+        observability values that also ride the response headers).
+        `Accept: image/svg+xml` returns the intermediate Satori SVG — the exact
+        document the BMP encoder rasterises for this render — gzipped per
+        ADR-0001, so a human can open it in a browser to inspect typography and
+        layout without flashing firmware. The radiator's path — `Accept:
         image/bmp` or no `Accept` — is byte-identical to before. Auth, slug
         resolution, sleep-duration logic, and the observability headers are
-        unchanged across both variants; only the response body and
+        unchanged across every variant; only the response body and
         `Content-Type` differ. With `Accept: application/json`, adding
         `?include_bmp=1` appends a `frame_bmp_base64` field decoding to the
         exact BMP an `Accept: image/bmp` sibling call would have returned.
@@ -226,6 +230,9 @@ components:
           `Accept` at all.
         - `application/json` — the JSON **view model** envelope describing the
           render fed to Satori for this request (see `FrameViewModelEnvelope`).
+        - `image/svg+xml` — the intermediate Satori SVG the BMP encoder
+          rasterises for this render, gzipped per ADR-0001. Open it in a browser
+          to inspect typography and layout without flashing firmware.
 
         The radiator never sends this header; it is a diagnostics affordance for
         humans and tests running `curl`.
@@ -279,12 +286,15 @@ components:
         Valid request. By default — `Accept: image/bmp` or no `Accept` — the
         rendered frame is in the body and the next sleep duration is in
         `X-Sleep-Seconds`. With `Accept: application/json` the body is instead
-        the JSON **view model** for this render (ADR-0004); the headers are
-        identical. The `200` is also used for the idle-profile fall-through and
-        the Metlink-staleness fallback (see the operation description).
+        the JSON **view model** for this render (ADR-0004); with
+        `Accept: image/svg+xml` it is the intermediate Satori SVG. The headers
+        are identical across all variants. The `200` is also used for the
+        idle-profile fall-through and the Metlink-staleness fallback (see the
+        operation description).
 
-        `Content-Encoding: gzip` applies only to the `image/bmp` body; the JSON
-        variant is returned uncompressed.
+        `Content-Encoding: gzip` applies to the `image/bmp` and `image/svg+xml`
+        bodies (per ADR-0001, honouring `Accept-Encoding`); the JSON variant is
+        returned uncompressed.
       headers:
         Content-Encoding:
           $ref: '#/components/headers/ContentEncodingGzip'
@@ -311,6 +321,16 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/FrameViewModelEnvelope'
+        image/svg+xml:
+          schema:
+            type: string
+            format: binary
+            description: |
+              The intermediate Satori SVG fed to the BMP encoder for this
+              render (ADR-0004) — a well-formed SVG document at the panel's
+              960×540 geometry. Returned only for `Accept: image/svg+xml`. On
+              the wire the body is gzipped like the BMP (`Content-Encoding:
+              gzip` per ADR-0001); gunzip it to a browser-openable `.svg`.
 
     Unauthorized:
       description: |
