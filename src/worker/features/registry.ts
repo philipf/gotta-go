@@ -18,13 +18,26 @@ export type RenderContext = {
 	timezone: string;
 	now: Date;
 	format: ResponseFormat;
+	// Whether the rasterised BMP is needed: always for `format: 'bmp'`, and for
+	// `format: 'json'` only when `?include_bmp=1` was requested. Lets the JSON
+	// path skip the Satori/resvg pipeline entirely for the common case.
+	includeBmp: boolean;
 	env: Env;
 	fetchFn: typeof fetch;
+};
+
+// Every renderer returns its format-agnostic view model (the structured input
+// Satori receives, ready to serialise for the JSON variant — ADR-0004) plus the
+// rasterised BMP when one was needed. `frame` is null on the JSON path that
+// opted out of the BMP.
+export type RenderResult = {
+	frame: Uint8Array | null;
+	viewModel: Record<string, unknown>;
 };
 
 export const layouts = {
 	minimal_clock: minimalClockRender,
 	priority_split: prioritySplitRender,
-} satisfies Record<string, (ctx: RenderContext) => Promise<Uint8Array>>;
+} satisfies Record<string, (ctx: RenderContext) => Promise<RenderResult>>;
 
 export type LayoutKey = keyof typeof layouts;

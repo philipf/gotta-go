@@ -55,3 +55,11 @@ export function buildViewModel(radiator: Radiator, timezone: string, now: Date):
 		date: `${wd} ${dd} ${mn}`,
 	};
 }
+
+// Serialises the view model verbatim for the JSON diagnostics envelope
+// (ADR-0004). Single-word fields already match the glossary's wire vocabulary,
+// so this is a straight projection — the JSON view is a serialiser of the type
+// Satori receives, never a parallel definition.
+export function toJsonView(vm: ViewModel): Record<string, unknown> {
+	return { slug: vm.slug, time: vm.time, date: vm.date };
+}

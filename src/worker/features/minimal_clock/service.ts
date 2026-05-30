@@ -1,19 +1,18 @@
-// Public render entry for the minimal_clock layout. Builds the view model
-// from the RenderContext then dispatches by ResponseFormat to the matching
-// renderer. Ignores the transit-only context fields (env, fetch, phase).
+// Public render entry for the minimal_clock layout. Builds the view model from
+// the RenderContext, rasterises the BMP only when the negotiated format needs
+// it (ADR-0004), and returns both the BMP and the serialisable view model so
+// the orchestrator can shape either the image or the JSON envelope. Ignores the
+// transit-only context fields (env, fetch, phase).
 
-import type { RenderContext } from '../registry';
-import type { ResponseFormat } from '../../api/format';
-import { buildViewModel, type ViewModel } from './viewmodel';
+import type { RenderContext, RenderResult } from '../registry';
+import { buildViewModel, toJsonView } from './viewmodel';
 import { renderBmp } from './bmp';
 
-// Indexed by ResponseFormat so adding a new format to the union surfaces a
-// TypeScript error here until a renderer is supplied.
-const renderers: Record<ResponseFormat, (vm: ViewModel) => Promise<Uint8Array>> = {
-	bmp: renderBmp,
-};
-
-export async function render(ctx: RenderContext): Promise<Uint8Array> {
+export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const vm = buildViewModel(ctx.radiator, ctx.timezone, ctx.now);
-	return renderers[ctx.format](vm);
+	const needsBmp = ctx.format === 'bmp' || ctx.includeBmp;
+	return {
+		frame: needsBmp ? await renderBmp(vm) : null,
+		viewModel: toJsonView(vm),
+	};
 }

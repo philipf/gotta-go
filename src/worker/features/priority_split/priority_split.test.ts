@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildColumn, buildViewModel } from './viewmodel';
+import { buildColumn, buildViewModel, toJsonView } from './viewmodel';
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
 
@@ -111,6 +111,32 @@ describe('priority_split.buildColumn - Catchable selection', () => {
 		expect(col.leaveIn).toBe('13 MIN');
 		// route code comes from the *selected* service, resolving the any-of array
 		expect(col.routeCode).toBe('635');
+	});
+});
+
+describe('priority_split.toJsonView - serialisation', () => {
+	it('maps the rendered view model to snake_case wire fields verbatim', () => {
+		const vm = buildViewModel(
+			[busTarget],
+			[open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z', '635'))],
+			TZ,
+			NOW,
+		);
+
+		expect(toJsonView(vm)).toEqual({
+			wall_clock: '07:30',
+			columns: [
+				{
+					mode: 'bus',
+					route_code: '634',
+					leave_in: '7 MIN',
+					leave_by: 'BY 07:37',
+					arrives: 'ARRIVES 12 MIN · 07:42',
+					next: 'NEXT 07:54',
+					marker_ratio: vm.columns[0].markerRatio,
+				},
+			],
+		});
 	});
 });
 
