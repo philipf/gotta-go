@@ -3,4 +3,5 @@
 
 interface __BaseEnv_Env {
 	RADIATOR_SHARED_TOKEN: string;
+	METLINK_API_KEY: string;
 }

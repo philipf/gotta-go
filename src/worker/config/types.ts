@@ -3,8 +3,21 @@
 // phase layout values are constrained to what's actually implemented.
 
 import type { LayoutKey } from '../features/registry';
+import type { Mode } from '../features/priority_split/mode-icon';
 
 export type { LayoutKey };
+
+// One configured stop/station a radiator watches inside a profile phase
+// (glossary §7 "transit target"). `serviceId` accepts a single route or an
+// any-of array per ADR-0002; `time_to_stop_mins` and `comfort_buffer` size
+// the marker window (glossary §5/§6).
+export type TransitTarget = {
+	mode: Mode;
+	stopId: string;
+	serviceId: string | string[];
+	timeToStopMins: number;
+	comfortBuffer: number;
+};
 
 // Mirrors PRD §9 `global:` — household-level settings shared by every
 // radiator. The PoC seeds one record; future config gains more keys.
@@ -21,6 +34,8 @@ export type ProfilePhase = {
 	endTime: string;
 	layout: LayoutKey;
 	refreshIntervalMinutes: number;
+	// Present for priority_split phases; absent for minimal_clock.
+	transitTargets?: TransitTarget[];
 };
 
 // Mirrors PRD §9 `profiles:` entry — a named user/household configuration.
