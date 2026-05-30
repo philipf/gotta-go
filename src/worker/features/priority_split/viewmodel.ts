@@ -6,6 +6,7 @@
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
 import { hhmm } from '../../shared/hhmm';
+import { shortDate } from '../../shared/shortDate';
 import type { Mode } from './mode-icon';
 
 // A column carrying a catchable service — the full Tier 1–3 + marker layout.
@@ -40,6 +41,7 @@ export type ColumnViewModel = ServiceColumn | NoServiceColumn;
 
 export type PrioritySplitViewModel = {
 	wallClock: string; // global header — "07:30"
+	date: string; // global header — "Sat 31 May" (confirms the frame is fresh, #46)
 	columns: ColumnViewModel[]; // one per transit target; single → full width
 };
 
@@ -122,6 +124,7 @@ export function buildViewModel(
 ): PrioritySplitViewModel {
 	return {
 		wallClock: hhmm(now, tz),
+		date: shortDate(now, tz),
 		columns: targets.map((target, i) => buildColumn(target, states[i], tz, now)),
 	};
 }
@@ -133,6 +136,7 @@ export function buildViewModel(
 export function toJsonView(vm: PrioritySplitViewModel): Record<string, unknown> {
 	return {
 		wall_clock: vm.wallClock,
+		date: vm.date,
 		columns: vm.columns.map((c) =>
 			c.kind === 'no_service'
 				? {

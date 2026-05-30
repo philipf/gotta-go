@@ -300,7 +300,9 @@ function layout(vm: PrioritySplitViewModel): ReactNode {
 				fontWeight: 700,
 			}}
 		>
-			{/* Global header — wall-clock across the full width */}
+			{/* Global header — wall-clock + date across the full width. The date
+			    confirms the frame refreshed rather than holding a stale overnight
+			    frame (#46); it sits to the right so the time keeps its centre. */}
 			<div
 				style={{
 					height: HEADER_H,
@@ -311,7 +313,8 @@ function layout(vm: PrioritySplitViewModel): ReactNode {
 					fontSize: 26,
 				}}
 			>
-				{vm.wallClock}
+				<span>{vm.wallClock}</span>
+				<span style={{ marginLeft: 16 }}>{vm.date}</span>
 			</div>
 
 			{/* Content area — one or two columns split by a hairline rule (#6) */}

@@ -4,6 +4,7 @@
 
 import type { Radiator } from '../../config/lookup';
 import { hhmm } from '../../shared/hhmm';
+import { shortDate } from '../../shared/shortDate';
 
 export type ViewModel = {
 	slug: string;
@@ -11,35 +12,11 @@ export type ViewModel = {
 	date: string;
 };
 
-// "Dow DD Mon" date formatting in the given timezone, without a date library.
-// The HH:MM wall-clock comes from shared/hhmm; this DATE formatter has a single
-// consumer, so it stays local (no speculative promotion). en-GB for short forms.
-const DATE = new Map<string, Intl.DateTimeFormat>();
-
-function dateFmt(tz: string): Intl.DateTimeFormat {
-	let fmt = DATE.get(tz);
-	if (!fmt) {
-		fmt = new Intl.DateTimeFormat('en-GB', {
-			timeZone: tz,
-			weekday: 'short',
-			day: 'numeric',
-			month: 'short',
-		});
-		DATE.set(tz, fmt);
-	}
-	return fmt;
-}
-
 export function buildViewModel(radiator: Radiator, timezone: string, now: Date): ViewModel {
-	const time = hhmm(now, timezone);
-	const parts = dateFmt(timezone).formatToParts(now);
-	const wd = parts.find((p) => p.type === 'weekday')?.value ?? '';
-	const dd = parts.find((p) => p.type === 'day')?.value ?? '';
-	const mn = parts.find((p) => p.type === 'month')?.value ?? '';
 	return {
 		slug: radiator.slug,
-		time,
-		date: `${wd} ${dd} ${mn}`,
+		time: hhmm(now, timezone),
+		date: shortDate(now, timezone),
 	};
 }
 
