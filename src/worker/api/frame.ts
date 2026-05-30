@@ -8,6 +8,7 @@
 
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
+import type { Radiator } from '../config/lookup';
 import { layouts } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
 import { gzip } from '../shared/gzip';
@@ -16,17 +17,38 @@ import { unauthorized, unknownRadiator } from './errors';
 import { resolveResponseFormat } from './format';
 import { frameJson, frameOk, frameSvg } from './response';
 
-export async function handleFrame(
+// Maps a radiator slug to a fully-populated radiator, or undefined when the
+// slug is unknown (fail closed → 404). handleFrame injects the production
+// lookupRadiator; handleTestFrame (test-frame.ts) injects resolveTestRadiator.
+export type RadiatorResolver = (slug: string) => Radiator | undefined;
+
+// Production frame handler: the GET /v1/frame entry point for real radiator
+// slugs. Just renderFrame with the production resolver injected.
+export function handleFrame(
 	request: Request,
 	env: Env,
 	now: Date,
+): Promise<Response> {
+	return renderFrame(request, env, now, lookupRadiator);
+}
+
+// Branch-free frame core. Authenticates, resolves the slug via the injected
+// resolver, renders the active profile phase, and shapes the response for the
+// negotiated format. Knows nothing about test- slugs or any other
+// resolver-specific concern — auth and response shaping live here once, and
+// every caller (handleFrame, handleTestFrame) flows through them.
+export async function renderFrame(
+	request: Request,
+	env: Env,
+	now: Date,
+	resolve: RadiatorResolver,
 ): Promise<Response> {
 	// 1. Request — authenticate & parse
 	const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
 	if (!auth.ok) return unauthorized();
 
 	const slug = request.headers.get('X-Radiator-Slug') ?? '';
-	const radiator = lookupRadiator(slug);
+	const radiator = resolve(slug);
 	if (!radiator) return unknownRadiator();
 
 	const format = resolveResponseFormat(request.headers.get('Accept'));

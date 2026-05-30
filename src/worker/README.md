@@ -44,6 +44,43 @@ pnpm dev
 # Worker listens on http://localhost:8787
 ```
 
+### Test scenario slugs
+
+For one-click visual smoke, request `X-Radiator-Slug: test-<phaseKey>`. The
+Worker resolves a synthetic radiator carrying exactly that profile phase,
+widened to all-day, and renders it — so you get a named phase's frame without
+knowing the schedule or computing a timestamp. Unlike a production slug (whose
+frame depends on wall-clock time, via `resolveProfilePhase`), a `test-` slug is
+decoupled from the clock and never breaks when schedule windows are re-tuned.
+
+`<phaseKey>` is any phase `key` configured in `config/data.ts`. The convention
+auto-extends: every phase anyone adds is instantly testable as `test-<itsKey>`,
+nothing to register. With today's seed data:
+
+| Slug | Renders | Network |
+|---|---|---|
+| `test-morning_commute` | philip's two-target (bus + train) `priority_split` | live Metlink |
+| `test-morning_school_run` | daughter's one-target `priority_split` | live Metlink |
+| `test-all_day_clock` | `minimal_clock` | offline |
+| `test-afternoon_idle` | the idle `minimal_clock` phase | offline |
+
+These resolve in **every environment** by design — there is no env gate, and no
+security concern in serving them. An unknown phase key 404s, fail-closed like an
+unknown radiator. The complementary [`X-Debug-Now`](#dev-time-override) header
+takes the other half: it drives *real* phase selection at a chosen time.
+
+```bash
+curl -H "X-Radiator-Token: test-token-123" -H "X-Radiator-Slug: test-all_day_clock" \
+     -H "Accept: image/svg+xml" --compressed http://localhost:8787/v1/frame -o frame.svg
+```
+
+### Dev time override
+
+`X-Debug-Now: <ISO timestamp>` pins server time so phase selection for a *real*
+slug is deterministic. It only takes effect when `DEV_TIME_OVERRIDE=true` (set in
+`.dev.vars` for `wrangler dev`) and is ignored in production. See
+[`dev-time.ts`](./dev-time.ts).
+
 ### Caveat: gzip negotiation under `wrangler dev`
 
 `wrangler dev` / miniflare normalises every inbound request's
