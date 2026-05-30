@@ -278,15 +278,26 @@ METLINK_API_URL = "https://api.opendata.metlink.org.nz/v1"
 
 ## 10. Deployment checklist
 
-Before first deployment, complete in order:
+Rollout is split into two production deploys so the already-useful core can ship
+early. The **first deploy** ships the current feature set against the live
+Metlink API with a single radiator; the **second deploy** layers on the KV cache
+and the remaining service-state layouts once they land.
 
-- [ ] Run BMP rendering spike: validate Satori + Press Start 2P TTF output and manual 1-bit BMP encoder against the LilyGO T5 EPD panel (see §7).
+### First deploy — minimal viable production
+
 - [x] Validate Metlink API endpoints for `stop_id` (bus and train) — confirmed field names, response shapes, and rate-limit behaviour. See ADR-0002.
-- [ ] Create the Cloudflare KV namespace and replace `prod_metlink_cache_kv_id_here` in `wrangler.toml` with the real ID.
+- [x] BMP rendering validated: Satori + bundled TTF + manual 1-bit BMP encoder confirmed against the LilyGO T5 EPD panel. Typeface is **DejaVu Sans Bold** per [ADR-0009](adr/0009-display-typeface-dejavu-sans-bold.md) (replaces the earlier Press Start 2P pixel font); already bundled as a static Worker asset (`src/worker/assets/`) and wired via the `.ttf` data rule in `wrangler.jsonc`.
+- [ ] Populate the `radiators:` registry and `profiles:` in `src/worker/config/data.ts` (config is TypeScript, not `config.yaml`) for the slug(s) being deployed.
 - [ ] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
-- [ ] Bundle Press Start 2P TTF as a static Worker asset.
-- [ ] Flash each radiator's firmware with its assigned **radiator slug** (matching an entry in `radiators:`) and the `RADIATOR_SHARED_TOKEN` value as compile-time constants.
-- [ ] Deploy Worker: `wrangler deploy`.
+- [ ] Flash the radiator's firmware (`src/radiator/secrets.h`, gitignored) with its **radiator slug**, the `RADIATOR_SHARED_TOKEN` value, the production `FRAME_URL`, and Wi-Fi creds as compile-time constants.
+- [ ] Deploy Worker: `wrangler deploy`. (Metlink runs uncached for this deploy — acceptable at household scale per ADR-0002 rate-limit headroom.)
+- [ ] One **wake cycle** from the deployed radiator returns the expected **layout** and a valid `X-Sleep-Seconds`.
+
+### Second deploy — cache + remaining service states
+
+- [ ] Create the Cloudflare **KV cache** namespace, wire the binding in `wrangler.jsonc`, and ship the gateway cache layer (GH #24).
+- [ ] Re-deploy once cancelled-service (GH #8), delayed-service (GH #9), and the stale/failed-fetch indicator (GH #47) layouts land.
+- [ ] Flash / add any additional radiators (e.g. `bedroom-daughter`) to bring the full network online.
 
 ## 11. Deferred / future work
 
