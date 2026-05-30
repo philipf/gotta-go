@@ -1,0 +1,9 @@
+# Test tooling env. Loads the production smoke-test secrets from a local,
+# gitignored .env (see .env.example for the required keys). Kept separate from
+# the worker's dev .dev.vars because prod uses a distinct RADIATOR_SHARED_TOKEN.
+[env]
+_.file = ".env"
+
+[tasks.smoke]
+description = "Production smoke test: confirm the deployed Worker answers a real wake cycle"
+run = "./smoke-prod-test.sh"
