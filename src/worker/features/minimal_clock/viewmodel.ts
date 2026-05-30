@@ -3,6 +3,7 @@
 // timezone.
 
 import type { Radiator } from '../../config/lookup';
+import { hhmm } from '../../shared/hhmm';
 
 export type ViewModel = {
 	slug: string;
@@ -10,24 +11,10 @@ export type ViewModel = {
 	date: string;
 };
 
-// Intl formatting in the given timezone gives us HH:MM and "Dow DD Mon"
-// without pulling in a date library. en-GB chosen for 24-hour HH:MM by default.
-const TIME = new Map<string, Intl.DateTimeFormat>();
+// "Dow DD Mon" date formatting in the given timezone, without a date library.
+// The HH:MM wall-clock comes from shared/hhmm; this DATE formatter has a single
+// consumer, so it stays local (no speculative promotion). en-GB for short forms.
 const DATE = new Map<string, Intl.DateTimeFormat>();
-
-function timeFmt(tz: string): Intl.DateTimeFormat {
-	let fmt = TIME.get(tz);
-	if (!fmt) {
-		fmt = new Intl.DateTimeFormat('en-GB', {
-			timeZone: tz,
-			hour: '2-digit',
-			minute: '2-digit',
-			hour12: false,
-		});
-		TIME.set(tz, fmt);
-	}
-	return fmt;
-}
 
 function dateFmt(tz: string): Intl.DateTimeFormat {
 	let fmt = DATE.get(tz);
@@ -44,7 +31,7 @@ function dateFmt(tz: string): Intl.DateTimeFormat {
 }
 
 export function buildViewModel(radiator: Radiator, timezone: string, now: Date): ViewModel {
-	const time = timeFmt(timezone).format(now);
+	const time = hhmm(now, timezone);
 	const parts = dateFmt(timezone).formatToParts(now);
 	const wd = parts.find((p) => p.type === 'weekday')?.value ?? '';
 	const dd = parts.find((p) => p.type === 'day')?.value ?? '';

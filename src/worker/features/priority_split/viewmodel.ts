@@ -5,6 +5,7 @@
 
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
+import { hhmm } from '../../shared/hhmm';
 import type { Mode } from './mode-icon';
 
 // A column carrying a catchable service — the full Tier 1–3 + marker layout.
@@ -44,23 +45,6 @@ export type PrioritySplitViewModel = {
 
 const MS_PER_MIN = 60_000;
 const DASH = '—';
-
-// Cached 24-hour HH:MM formatter per timezone (same pattern as
-// minimal_clock/viewmodel and schedule/resolve).
-const HHMM = new Map<string, Intl.DateTimeFormat>();
-function hhmm(d: Date, tz: string): string {
-	let fmt = HHMM.get(tz);
-	if (!fmt) {
-		fmt = new Intl.DateTimeFormat('en-GB', {
-			timeZone: tz,
-			hour: '2-digit',
-			minute: '2-digit',
-			hour12: false,
-		});
-		HHMM.set(tz, fmt);
-	}
-	return fmt.format(d);
-}
 
 function minutesUntil(target: Date, now: Date): number {
 	return (target.getTime() - now.getTime()) / MS_PER_MIN;
