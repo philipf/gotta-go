@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { lookupRadiator } from './lookup';
+import { PROFILES } from './data';
 
 describe('config.lookupRadiator', () => {
 	it('returns a fully populated Radiator for bedroom-philip-tania', () => {
@@ -46,5 +47,18 @@ describe('config.lookupRadiator', () => {
 		expect(target?.serviceId).toEqual(['634', '635']);
 		expect(target?.timeToStopMins).toBe(5);
 		expect(target?.comfortBuffer).toBe(3);
+	});
+});
+
+describe('phase keys', () => {
+	// The test-<phaseKey> scenario slugs (GH #21) resolve a phase by its key
+	// across every profile, first-match wins. Globally-unique keys keep that
+	// resolution unambiguous; this guard fails the moment a duplicate is
+	// introduced — before it can ship — so no runtime throw path is needed.
+	it('are globally unique across all profiles', () => {
+		const keys = Object.values(PROFILES).flatMap((profile) =>
+			profile.phases.map((phase) => phase.key),
+		);
+		expect(new Set(keys).size).toBe(keys.length);
 	});
 });
