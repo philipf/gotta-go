@@ -93,6 +93,25 @@ export function buildViewModel(
 	};
 }
 
+// Serialises the view model verbatim for the JSON diagnostics envelope
+// (ADR-0004). Maps the renderer's camelCase fields to their snake_case wire
+// names; the values are exactly the strings/ratio Satori is fed, so the JSON
+// view is a serialiser of the rendered type, never a parallel definition.
+export function toJsonView(vm: PrioritySplitViewModel): Record<string, unknown> {
+	return {
+		wall_clock: vm.wallClock,
+		columns: vm.columns.map((c) => ({
+			mode: c.mode,
+			route_code: c.routeCode,
+			leave_in: c.leaveIn,
+			leave_by: c.leaveBy,
+			arrives: c.arrives,
+			next: c.next,
+			marker_ratio: c.markerRatio,
+		})),
+	};
+}
+
 export function buildColumn(
 	target: TransitTarget,
 	state: StopState,

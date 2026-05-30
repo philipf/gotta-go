@@ -26,3 +26,26 @@ export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
 		encodeBody: init.gzip ? 'manual' : 'automatic',
 	});
 }
+
+// 200-OK JSON diagnostics response for the `Accept: application/json` variant
+// (ADR-0004). Carries the identical observability headers to frameOk so the two
+// variants are indistinguishable to a human comparing them; only the body shape
+// and Content-Type differ. Never gzipped — the diagnostics path is curl-facing
+// and small, and the radiator never negotiates JSON.
+export type FrameJsonInit = {
+	sleepSeconds: number;
+	serverTime: Date;
+	profilePhase: string;
+};
+
+export function frameJson(envelope: unknown, init: FrameJsonInit): Response {
+	return new Response(JSON.stringify(envelope), {
+		status: 200,
+		headers: {
+			'Content-Type': 'application/json',
+			'X-Sleep-Seconds': String(init.sleepSeconds),
+			'X-Server-Time': init.serverTime.toISOString(),
+			'X-Profile-Phase': init.profilePhase,
+		},
+	});
+}

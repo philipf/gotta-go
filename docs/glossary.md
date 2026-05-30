@@ -249,11 +249,18 @@ Diagnostic headers the Worker sets on every meaningful response. The radiator's 
 | `X-Metlink-Fetched-At` | When the cached Metlink data was originally fetched (ISO 8601 UTC). |
 | `X-Cache-Status` | `hit` / `miss` / `stale-served`. |
 
+### Diagnostics view
+The JSON **view model** the Worker returns from `/v1/frame` when the request carries `Accept: application/json`, instead of the rendered BMP (ADR-0004). Same auth, slug resolution, sleep duration, and informational headers as the BMP path — only the body and `Content-Type` differ. The radiator never negotiates it; it is a surface for humans and tests running `curl`.
+- **`?include_bmp`** — a query param on the diagnostics view only. `?include_bmp=1` adds a `frame_bmp_base64` field decoding to the exact BMP an `Accept: image/bmp` sibling call would have returned at the same instant. Default off, so the common diagnostics response stays small.
+
 ---
 
 ## 9. Rendering pipeline (terms held verbatim from libraries / standards)
 
-These terms come from third-party libraries or industry standards. Used as-is, not redefined.
+### View model
+The structured input the renderer (Satori) receives for a given render: the active **profile phase**, the **layout**, and the per-column **transit target** data. The **diagnostics view** serialises it verbatim — one source of truth, rasterised to BMP for the radiator and serialised to JSON for diagnostics (ADR-0004).
+
+The remaining terms below come from third-party libraries or industry standards. Used as-is, not redefined.
 
 - **Satori** — the SVG layout engine used inside the Worker.
 - **GTFS-Realtime** — the Metlink API standard.

@@ -1,19 +1,15 @@
 // Public render entry for the priority_split layout. Fetches each transit
 // target's arrivals from the Metlink gateway (uncached for now — #24 wraps the
 // same public entry with KV transparently), builds the view model, then
-// dispatches by ResponseFormat.
+// rasterises the BMP only when the negotiated format needs it (ADR-0004) and
+// returns it alongside the serialisable view model for the JSON envelope.
 
-import type { RenderContext } from '../registry';
-import type { ResponseFormat } from '../../api/format';
+import type { RenderContext, RenderResult } from '../registry';
 import { fetchArrivals, type StopState } from '../../gateways/metlink/metlink';
-import { buildViewModel, type PrioritySplitViewModel } from './viewmodel';
+import { buildViewModel, toJsonView } from './viewmodel';
 import { renderBmp } from './bmp';
 
-const renderers: Record<ResponseFormat, (vm: PrioritySplitViewModel) => Promise<Uint8Array>> = {
-	bmp: renderBmp,
-};
-
-export async function render(ctx: RenderContext): Promise<Uint8Array> {
+export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const targets = ctx.phase.transitTargets ?? [];
 
 	// One gateway call per target. A failed fetch degrades to a closed stop so
@@ -32,5 +28,9 @@ export async function render(ctx: RenderContext): Promise<Uint8Array> {
 	);
 
 	const vm = buildViewModel(targets, states, ctx.timezone, ctx.now);
-	return renderers[ctx.format](vm);
+	const needsBmp = ctx.format === 'bmp' || ctx.includeBmp;
+	return {
+		frame: needsBmp ? await renderBmp(vm) : null,
+		viewModel: toJsonView(vm),
+	};
 }

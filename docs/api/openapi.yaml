@@ -122,9 +122,25 @@ paths:
         — the firmware ignores them. New `X-*` response headers may be added
         unilaterally; the radiator simply does not read response headers it
         does not act on.
+
+        ### Diagnostics view — content negotiation (ADR-0004)
+
+        The same endpoint serves a JSON **view model** for diagnostics when the
+        request carries `Accept: application/json`: the structured data fed to
+        the renderer for *this exact* render (active profile phase, layout, the
+        per-column **transit target** fields, plus the observability values that
+        also ride the response headers). The radiator's path — `Accept:
+        image/bmp` or no `Accept` — is byte-identical to before. Auth, slug
+        resolution, sleep-duration logic, and the observability headers are
+        unchanged across both variants; only the response body and
+        `Content-Type` differ. With `Accept: application/json`, adding
+        `?include_bmp=1` appends a `frame_bmp_base64` field decoding to the
+        exact BMP an `Accept: image/bmp` sibling call would have returned.
       parameters:
         - $ref: '#/components/parameters/RadiatorSlug'
         - $ref: '#/components/parameters/AcceptEncodingGzip'
+        - $ref: '#/components/parameters/AcceptVariant'
+        - $ref: '#/components/parameters/IncludeBmp'
         - $ref: '#/components/parameters/RadiatorHardwareId'
       responses:
         '200':
@@ -198,6 +214,41 @@ components:
         pattern: '(^|, *)gzip(,|$)'
       example: gzip
 
+    AcceptVariant:
+      name: Accept
+      in: header
+      required: false
+      description: |
+        Selects the response variant via HTTP content negotiation (ADR-0004):
+
+        - `image/bmp`, `*/*`, or **absent** — the gzipped 1-bit BMP frame. This
+          is the radiator's path and is byte-identical to a request with no
+          `Accept` at all.
+        - `application/json` — the JSON **view model** envelope describing the
+          render fed to Satori for this request (see `FrameViewModelEnvelope`).
+
+        The radiator never sends this header; it is a diagnostics affordance for
+        humans and tests running `curl`.
+      schema:
+        type: string
+      example: application/json
+
+    IncludeBmp:
+      name: include_bmp
+      in: query
+      required: false
+      description: |
+        Only meaningful alongside `Accept: application/json`. When set to `1`,
+        the JSON envelope gains a `frame_bmp_base64` field whose decoded bytes
+        are byte-identical to the BMP an `Accept: image/bmp` sibling call would
+        have returned at the same instant. Default off — the field is absent —
+        keeping the common diagnostics response small. Ignored for the
+        `image/bmp` variant.
+      schema:
+        type: string
+        enum: ['1']
+      example: '1'
+
     RadiatorHardwareId:
       name: X-Radiator-Hardware-Id
       in: header
@@ -225,10 +276,15 @@ components:
 
     FrameOk:
       description: |
-        Valid request — the rendered frame is in the body, the next sleep
-        duration is in `X-Sleep-Seconds`. The `200` is also used for the
-        idle-profile fall-through and the Metlink-staleness fallback (see
-        the operation description).
+        Valid request. By default — `Accept: image/bmp` or no `Accept` — the
+        rendered frame is in the body and the next sleep duration is in
+        `X-Sleep-Seconds`. With `Accept: application/json` the body is instead
+        the JSON **view model** for this render (ADR-0004); the headers are
+        identical. The `200` is also used for the idle-profile fall-through and
+        the Metlink-staleness fallback (see the operation description).
+
+        `Content-Encoding: gzip` applies only to the `image/bmp` body; the JSON
+        variant is returned uncompressed.
       headers:
         Content-Encoding:
           $ref: '#/components/headers/ContentEncodingGzip'
@@ -252,6 +308,9 @@ components:
               64,862 bytes. On the wire the body is gzipped — Cloudflare's
               edge auto-compression skips `image/*`, so the explicit
               `Content-Encoding: gzip` header is honoured end-to-end.
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FrameViewModelEnvelope'
 
     Unauthorized:
       description: |
@@ -466,6 +525,132 @@ components:
         - bedroom-philip-tania
         - fridge
         - daughter-school
+
+    FrameViewModelEnvelope:
+      type: object
+      description: |
+        The **view model** fed to the renderer for this request (ADR-0004),
+        returned when `Accept: application/json`. It leads with the
+        cross-cutting diagnostics fields — the active **profile phase**, the
+        **layout**, and the observability values that also appear as response
+        headers — then carries the layout's view-model fields, which depend on
+        `layout`:
+
+        - `priority_split` → `wall_clock` plus a `columns` array (one entry per
+          **transit target**).
+        - `minimal_clock` → `slug`, `time`, `date`.
+
+        Every field name reuses the glossary vocabulary verbatim. The values are
+        exactly what Satori was fed — the JSON variant is a serialiser of the
+        rendered view model, never a parallel definition.
+      required: [profile_phase, layout, server_time]
+      properties:
+        profile_phase:
+          type: string
+          description: |
+            The resolved **profile phase** for this request — the same value as
+            the `X-Profile-Phase` header.
+          examples:
+            - morning_school_run
+            - all_day_clock
+            - idle_profile
+        layout:
+          type: string
+          description: The **layout** that produced this render.
+          examples:
+            - priority_split
+            - minimal_clock
+        server_time:
+          type: string
+          format: date-time
+          description: The Worker clock at request time — mirrors `X-Server-Time`.
+          example: 2026-05-23T06:48:12.000Z
+        metlink_fetched_at:
+          type: string
+          format: date-time
+          description: |
+            Mirrors `X-Metlink-Fetched-At`. Present only when the render used
+            Metlink data backed by the **KV cache**; the cache lands in #24, so
+            this field is absent until then.
+        cache_status:
+          type: string
+          enum: [hit, miss, stale-served]
+          description: |
+            Mirrors `X-Cache-Status`. Present only on responses that touched the
+            KV cache (#24); absent until then.
+        wall_clock:
+          type: string
+          description: |
+            The **wall-clock time** in the global header. `priority_split` only.
+          example: '07:30'
+        columns:
+          type: array
+          description: |
+            One entry per **transit target**, in config order. `priority_split`
+            only. A single target renders one full-width column.
+          items:
+            $ref: '#/components/schemas/FrameColumn'
+        slug:
+          allOf:
+            - $ref: '#/components/schemas/RadiatorSlug'
+          description: The **radiator slug**. `minimal_clock` only.
+        time:
+          type: string
+          description: The 24-hour `HH:MM` wall-clock time. `minimal_clock` only.
+          example: '18:48'
+        date:
+          type: string
+          description: The `Dow DD Mon` date. `minimal_clock` only.
+          example: Sat 23 May
+        frame_bmp_base64:
+          type: string
+          format: byte
+          description: |
+            Base64 of the raw 1-bit BMP for this render. Present only when
+            `?include_bmp=1` was sent; the decoded bytes are byte-identical to
+            the BMP an `Accept: image/bmp` sibling call would have returned at
+            the same instant.
+
+    FrameColumn:
+      type: object
+      description: |
+        One **transit target** column's rendered view-model fields. The string
+        fields hold the exact display strings Satori was fed (label + value),
+        so they read the same as the panel — e.g. `LEAVE IN` reads `7 MIN` or
+        the literal `NOW`, and dashes (`—`) mark a degraded/no-service column.
+      properties:
+        mode:
+          type: string
+          enum: [bus, train]
+          description: The transit target's **mode**.
+        route_code:
+          type: string
+          description: The selected service's identifier shown in the column header.
+          example: '634'
+        leave_in:
+          type: string
+          description: The Tier 1 **Leave In** hero value — `n MIN` or `NOW`.
+          example: 7 MIN
+        leave_by:
+          type: string
+          description: The Tier 2 **Leave By** clock time.
+          example: BY 07:37
+        arrives:
+          type: string
+          description: |
+            The Tier 2 **Arrives In** + **arrival time** detail, as one string.
+          example: ARRIVES 12 MIN · 07:42
+        next:
+          type: string
+          description: The Tier 3 **Next service** footnote — `NEXT hh:mm` or `—`.
+          example: NEXT 07:54
+        marker_ratio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: |
+            The **marker** position on the track: `0` hard-left, `1` at **Now**.
+          example: 0.1667
 
     SleepSeconds:
       type: integer
