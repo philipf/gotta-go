@@ -43,11 +43,13 @@ type Sizing = {
 	arrives: number;
 	next: number;
 	trackW: number | string;
+	rowGap: number; // fixed gap between the column's five sections
+	heroGap: number; // gap within the LEAVE IN hero group (label ↔ value ↔ BY)
 };
 
 const FULL: Sizing = {
 	modeIconH: 5,
-	routeLabel: 26, // matched to `arrives` (live-tuned)
+	routeLabel: 30, // service name, bumped +15% over `arrives` (live-tuned)
 	labelMaxW: 820, // wide enough that a full-width column never truncates in practice
 	leaveInLabel: 26, // matched to `arrives` (live-tuned)
 	hero: 128, // full pane never had the #42 overflow; the proportional metric only adds headroom
@@ -55,11 +57,13 @@ const FULL: Sizing = {
 	arrives: 26,
 	next: 29,
 	trackW: 620,
+	rowGap: 13, // gap between the five sections (live-tuned)
+	heroGap: 8, // tight LEAVE IN ↔ hero ↔ BY grouping (live-tuned)
 };
 
 const SPLIT: Sizing = {
 	modeIconH: 4,
-	routeLabel: 24, // matched to `arrives` (live-tuned)
+	routeLabel: 28, // service name, bumped +15% over `arrives` (live-tuned)
 	labelMaxW: 400, // half-width pane: proportional text fits "KPL · Wellington Station"; longer names ellipsize
 	leaveInLabel: 24, // matched to `arrives` (live-tuned)
 	// Proportional digits/caps make the widest valid hero ("NN MIN") ~60% of its
@@ -71,6 +75,8 @@ const SPLIT: Sizing = {
 	arrives: 24,
 	next: 24,
 	trackW: '88%',
+	rowGap: 18, // gap between the five sections (live-tuned)
+	heroGap: 8, // tight LEAVE IN ↔ hero ↔ BY grouping (live-tuned)
 };
 
 function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
@@ -82,8 +88,15 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				display: 'flex',
 				flexDirection: 'column',
 				alignItems: 'center',
-				justifyContent: 'space-between',
-				padding: '24px 0 28px',
+				// Top-anchored stack with a fixed gap rather than space-between:
+				// the header pins under the global wall-clock (as before) and the
+				// sections sit close together. NEXT lives in a flex-grow wrapper
+				// (below) that centres it in the leftover space; the bottom padding
+				// equals rowGap so NEXT's gap to the track and to the screen edge
+				// come out symmetric.
+				justifyContent: 'flex-start',
+				gap: s.rowGap,
+				padding: `24px 0 ${s.rowGap}px`,
 			}}
 		>
 			{/* Column header — mode icon on the left, service name to its right
@@ -116,27 +129,35 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 			{/* Tier 1 — the LEAVE IN hero group: the LEAVE IN label, the hero
 			    value, and the BY hh:mm that qualifies it. BY belongs to the hero
 			    (it answers "leave by when?"), not to the ARRIVES detail, so it
-			    sits below the hero with the same gap LEAVE IN has above it. */}
+			    sits below the hero with the same gap LEAVE IN has above it. The
+			    extra top margin stacks on rowGap to push the group 2.5× rowGap
+			    clear of the header, giving the hero room to breathe. */}
 			<div
 				style={{
 					display: 'flex',
 					flexDirection: 'column',
 					alignItems: 'center',
+					marginTop: s.rowGap * 1.5,
 				}}
 			>
 				<div style={{ fontSize: s.leaveInLabel }}>LEAVE IN</div>
-				<div style={{ fontSize: s.hero, lineHeight: 1, marginTop: 18 }}>
+				<div style={{ fontSize: s.hero, lineHeight: 1, marginTop: s.heroGap }}>
 					{col.leaveIn}
 				</div>
-				<div style={{ fontSize: s.leaveBy, marginTop: 18 }}>{col.leaveBy}</div>
+				<div style={{ fontSize: s.leaveBy, marginTop: s.heroGap }}>
+					{col.leaveBy}
+				</div>
 			</div>
 
-			{/* Tier 2 — ARRIVES n MIN · hh:mm */}
+			{/* Tier 2 — ARRIVES n MIN · hh:mm. Extra top margin sets it apart
+			    from the hero group (whose last line is BY), reinforcing that
+			    ARRIVES is supporting detail, not part of the hero. */}
 			<div
 				style={{
 					display: 'flex',
 					flexDirection: 'column',
 					alignItems: 'center',
+					marginTop: 12,
 				}}
 			>
 				<div style={{ fontSize: s.arrives }}>{col.arrives}</div>
@@ -165,8 +186,19 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				/>
 			</div>
 
-			{/* Tier 3 — NEXT */}
-			<div style={{ fontSize: s.next }}>{col.next}</div>
+			{/* Tier 3 — NEXT. Wrapped in a flex-grow box that centres it in the
+			    leftover space below the track, so its gap to the track equals its
+			    gap to the screen edge (which is the rowGap bottom padding). */}
+			<div
+				style={{
+					flex: 1,
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+				}}
+			>
+				<div style={{ fontSize: s.next }}>{col.next}</div>
+			</div>
 		</div>
 	);
 }
