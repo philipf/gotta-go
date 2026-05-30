@@ -55,6 +55,12 @@ export function normalizeStatus(wire: string | null): Arrival['status'] {
 	const lower = wire.toLowerCase();
 	if (lower === 'delayed') return 'delayed';
 	if (lower === 'cancelled' || lower === 'canceled') return 'cancelled';
+	// "ontime" — monitored and running to schedule. The domain has no distinct
+	// on-time state (the union is scheduled | delayed | cancelled), so it folds
+	// into 'scheduled'; recognising it keeps the log quiet (#41).
+	if (lower === 'ontime' || lower === 'on-time' || lower === 'on time') {
+		return 'scheduled';
+	}
 	console.warn(`metlink: unknown status "${wire}"`);
 	return 'scheduled';
 }

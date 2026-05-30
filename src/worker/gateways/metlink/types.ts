@@ -10,7 +10,7 @@ export type WireDeparture = {
 	trip_headsign?: string;
 	name?: string;
 	delay: string; // ISO 8601 duration, e.g. "PT0S", "PT6M12S"
-	status: string | null; // null | "delayed" | "cancelled" (case may vary)
+	status: string | null; // null | "ontime" | "delayed" | "cancelled" (case may vary)
 	monitored: boolean;
 	arrival: { aimed?: string; expected: string | null };
 	departure: { aimed?: string; expected: string | null };
