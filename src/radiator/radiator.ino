@@ -19,8 +19,8 @@
  * Toolchain pinned by ADR-0006: arduino-cli + esp32:esp32@2.0.15 +
  * LilyGo-EPD47@1.0.1 + uzlib. FQBN lives in sketch.yaml.
  *
- * Secrets (Wi-Fi creds, Worker URL, shared token, slug) live in secrets.h —
- * gitignored; copy from secrets.example.h before flashing.
+ * Settings (Wi-Fi creds, Worker URL, shared token, slug) live in settings.h —
+ * gitignored; copy from settings.example.h before flashing.
  */
 
 #ifndef BOARD_HAS_PSRAM
@@ -36,7 +36,7 @@ extern "C" {
 }
 
 #include "epd_driver.h"
-#include "secrets.h"  // WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
+#include "settings.h"  // WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
 
 // Firmware fallback sleep duration (seconds). Applied only when no usable
 // X-Sleep-Seconds value reached the radiator — see ADR-0003.
@@ -216,7 +216,7 @@ static CycleResult fetchAndInflate(HTTPClient &https,
         https.addHeader("X-Radiator-Hardware-Id", mac);
     }
 
-    // Dev-only: when secrets.h defines DEBUG_NOW, send it so the Worker resolves
+    // Dev-only: when settings.h defines DEBUG_NOW, send it so the Worker resolves
     // the profile phase against that instant instead of real time (lets you
     // preview e.g. morning_school_run any time of day). Requires the Worker to
     // run with DEV_TIME_OVERRIDE=true; ignored in production. Compile-time gated,

@@ -16,19 +16,21 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 | File                | Purpose                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------- |
 | `radiator.ino`      | The sketch: Wi-Fi, HTTP fetch, inflate, BMP decode, panel flush, deep sleep.            |
-| `secrets.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `secrets.h` (gitignored). |
+| `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.h` (gitignored). |
 | `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
 | `mise.toml`         | Tool pin (python for esptool).                                                          |
-| `.gitignore`        | Excludes `secrets.h` and build artefacts.                                               |
+| `.gitignore`        | Excludes `settings.h` and build artefacts.                                               |
 
-## Configure secrets
+## Configure settings
 
 ```sh
-cp secrets.example.h secrets.h
-$EDITOR secrets.h    # WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
+cp settings.example.h settings.h
+$EDITOR settings.h    # WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
 ```
 
-`secrets.h` is gitignored. The sketch `#include`s it, so it will not compile until that file exists.
+`settings.h` is gitignored. The sketch `#include`s it, so it will not compile until that file exists.
+
+> Renamed from `secrets.h` in [#52](https://github.com/philipf/gotta-go/issues/52). If you have a pre-existing gitignored `secrets.h`, rename it: `git mv`-free — just `mv secrets.h settings.h`.
 
 If you already filled in `poc/lilygo/wake-cycle-32/secrets.h` for PoC #32, the `WIFI_SSID` and `WIFI_PASSWORD` values can be copied straight from it — it's the same network.
 
@@ -86,7 +88,7 @@ yay -S cloudflared            # AUR; cloudflared-bin works too. Not in core/extr
 cloudflared tunnel --url http://localhost:8787
 ```
 
-cloudflared prints a banner ending with a `*.trycloudflare.com` URL — paste `https://<that>/v1/frame` into `FRAME_URL` in `secrets.h`, then re-flash. The URL is throwaway: each `cloudflared tunnel --url` invocation gets a fresh subdomain and is dropped when the process exits.
+cloudflared prints a banner ending with a `*.trycloudflare.com` URL — paste `https://<that>/v1/frame` into `FRAME_URL` in `settings.h`, then re-flash. The URL is throwaway: each `cloudflared tunnel --url` invocation gets a fresh subdomain and is dropped when the process exits.
 
 **Why a quick tunnel rather than `wrangler deploy`.** Per the Worker AC comment on #4, production deploy is intentionally deferred to #12 ("Multi-radiator rollout"). The quick tunnel exercises the same HTTPS surface as a deployed Worker without pulling deploy / DNS / KV-namespace scope into this slice.
 
@@ -156,7 +158,7 @@ Verify F3 by:
 ## What this firmware does NOT do
 
 - **TLS certificate pinning.** `client.setInsecure()` — same as PoC #32. Production radiator would pin or bundle the CA for the Worker's host.
-- **Wi-Fi provisioning UI.** Credentials are hardcoded in `secrets.h`; no captive portal.
+- **Wi-Fi provisioning UI.** Credentials are hardcoded in `settings.h`; no captive portal.
 - **OTA updates.** Re-flash over USB only.
 - **Telemetry beyond `X-Radiator-Hardware-Id`.** ADR-0003 reserves the `X-Radiator-*` namespace for future fields (battery, RSSI, firmware version); none of those are set yet.
 - **Partial / region refreshes on the panel.** Full-frame flush only — same shape as #31. Faster refresh is a follow-up if battery accounting demands it.

@@ -1,10 +1,10 @@
 #pragma once
 
-// Copy this file to secrets.h and fill in real values:
+// Copy this file to settings.h and fill in real values:
 //
-//   cp secrets.example.h secrets.h
+//   cp settings.example.h settings.h
 //
-// secrets.h is gitignored. The sketch #includes it, so it will not compile
+// settings.h is gitignored. The sketch #includes it, so it will not compile
 // until that file exists.
 //
 // The WIFI_SSID and WIFI_PASSWORD here are the same ones used by the
