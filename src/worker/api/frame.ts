@@ -47,7 +47,11 @@ export async function handleFrame(
 		format,
 		includeBmp,
 		env,
-		fetchFn: fetch,
+		// Bind to globalThis: workerd's `fetch` throws "Illegal invocation" if
+		// invoked with a `this` other than the global scope, which happens once
+		// it is passed around and called as a method (e.g. `req.fetch(...)` in
+		// the Metlink client). Tests inject a plain mock fn so never hit this.
+		fetchFn: fetch.bind(globalThis),
 	});
 
 	// 3. Response — encode & shape. The observability inputs are identical
