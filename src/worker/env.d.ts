@@ -4,4 +4,7 @@
 interface __BaseEnv_Env {
 	RADIATOR_SHARED_TOKEN: string;
 	METLINK_API_KEY: string;
+	// Dev-only: when "true", an X-Debug-Now request header overrides server time
+	// (see dev-time.ts). Set in .dev.vars; never configured in production.
+	DEV_TIME_OVERRIDE?: string;
 }

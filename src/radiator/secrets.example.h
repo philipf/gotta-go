@@ -28,3 +28,10 @@
 // This radiator's slug. Must resolve to a known entry in the Worker's
 // radiators: config, otherwise the Worker returns 404 + X-Sleep-Seconds: 3600.
 #define RADIATOR_SLUG "bedroom-philip-tania"
+
+// Optional dev-only time override. Uncomment and set an ISO 8601 timestamp to
+// make the Worker resolve the profile phase against that instant instead of
+// real time — e.g. to preview the morning_school_run layout outside its
+// 07:15–08:30 window. Requires the Worker to run with DEV_TIME_OVERRIDE=true.
+// Leave commented for normal operation.
+// #define DEBUG_NOW "2026-06-01T07:30:00+12:00"

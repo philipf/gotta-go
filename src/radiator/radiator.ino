@@ -216,6 +216,15 @@ static CycleResult fetchAndInflate(HTTPClient &https,
         https.addHeader("X-Radiator-Hardware-Id", mac);
     }
 
+    // Dev-only: when secrets.h defines DEBUG_NOW, send it so the Worker resolves
+    // the profile phase against that instant instead of real time (lets you
+    // preview e.g. morning_school_run any time of day). Requires the Worker to
+    // run with DEV_TIME_OVERRIDE=true; ignored in production. Compile-time gated,
+    // so a normal build that leaves DEBUG_NOW undefined sends nothing.
+#ifdef DEBUG_NOW
+    https.addHeader("X-Debug-Now", DEBUG_NOW);
+#endif
+
     // Retain the diagnostic headers we want to read off the response.
     // Content-Length is tracked internally by HTTPClient regardless of
     // this list.
