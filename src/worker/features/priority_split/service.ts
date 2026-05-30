@@ -23,6 +23,7 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
 				apiKey: ctx.env.METLINK_API_KEY,
 				stopId: t.stopId,
 				serviceId: t.serviceId,
+				limit: ctx.stopPredictionLimit,
 			});
 			return result.ok ? result.data : { kind: 'closed' };
 		}),

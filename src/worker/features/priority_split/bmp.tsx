@@ -11,7 +11,12 @@ import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import { modeIcon } from './mode-icon';
 import { serviceName } from './service-name';
-import type { ColumnViewModel, PrioritySplitViewModel } from './viewmodel';
+import type {
+	ColumnViewModel,
+	NoServiceColumn,
+	PrioritySplitViewModel,
+	ServiceColumn,
+} from './viewmodel';
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -39,6 +44,7 @@ type Sizing = {
 	labelMaxW: number; // cap so a long headsign truncates with an ellipsis, not overflow
 	leaveInLabel: number;
 	hero: number;
+	noServiceHero: number; // "NO SERVICE" literal — smaller than the numeric hero so 10 chars fit one line
 	leaveBy: number;
 	arrives: number;
 	next: number;
@@ -53,6 +59,7 @@ const FULL: Sizing = {
 	labelMaxW: 820, // wide enough that a full-width column never truncates in practice
 	leaveInLabel: 26, // matched to `arrives` (live-tuned)
 	hero: 128, // full pane never had the #42 overflow; the proportional metric only adds headroom
+	noServiceHero: 72, // "NO SERVICE" across the full pane — fits one line well under 960px
 	leaveBy: 32, // Tier 2/3 grown into the ample vertical whitespace (live-tuned)
 	arrives: 26,
 	next: 29,
@@ -71,6 +78,7 @@ const SPLIT: Sizing = {
 	// refills the half-pane (~479px wide) without touching the centre rule, while
 	// staying under the vertically-proven FULL hero (128). Verify live per ADR-0009.
 	hero: 96,
+	noServiceHero: 44, // "NO SERVICE" in the ~479px half-pane — one line clear of the centre rule
 	leaveBy: 27, // Tier 2/3 grown into the ample vertical whitespace (live-tuned)
 	arrives: 24,
 	next: 24,
@@ -79,7 +87,39 @@ const SPLIT: Sizing = {
 	heroGap: 8, // tight LEAVE IN ↔ hero ↔ BY grouping (live-tuned)
 };
 
+// Column header — mode icon on the left, service name to its right
+// (service_id·trip_headsign). A long headsign truncates with an ellipsis inside
+// the narrow split pane so every column keeps the same single-line header
+// height (#40). Shared by the service and no-service column bodies.
+function header(col: ColumnViewModel, s: Sizing): ReactNode {
+	return (
+		<div
+			style={{
+				display: 'flex',
+				flexDirection: 'row',
+				alignItems: 'center',
+				justifyContent: 'center',
+				gap: 12,
+			}}
+		>
+			{modeIcon({ mode: col.mode, height: s.modeIconH })}
+			<div
+				style={{
+					fontSize: s.routeLabel,
+					maxWidth: s.labelMaxW,
+					whiteSpace: 'nowrap',
+					overflow: 'hidden',
+					textOverflow: 'ellipsis',
+				}}
+			>
+				{serviceName(col.serviceId, col.tripHeadsign)}
+			</div>
+		</div>
+	);
+}
+
 function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
+	if (col.kind === 'no_service') return noServiceColumn(col, key, s);
 	return (
 		<div
 			key={key}
@@ -99,33 +139,57 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				padding: `24px 0 ${s.rowGap}px`,
 			}}
 		>
-			{/* Column header — mode icon on the left, service name to its right
-			    (service_id·trip_headsign). A long headsign truncates with an
-			    ellipsis inside the narrow split pane so every column keeps the
-			    same single-line header height (#40). */}
+			{header(col, s)}
+			{serviceBody(col, s)}
+		</div>
+	);
+}
+
+// The no-service column (#10): NO SERVICE truly centred in the column's full
+// height, with the optional next-departure clock beneath it. The route header
+// is pinned out of flow (absolute, top) so it doesn't bias the centring toward
+// the bottom — a normal-flow header would push the hero below the frame's
+// midline. No track or marker: there is nothing to leave for.
+function noServiceColumn(col: NoServiceColumn, key: number, s: Sizing): ReactNode {
+	return (
+		<div
+			key={key}
+			style={{
+				flex: 1,
+				position: 'relative',
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+			}}
+		>
 			<div
 				style={{
+					position: 'absolute',
+					top: 24,
+					left: 0,
+					width: '100%',
 					display: 'flex',
-					flexDirection: 'row',
-					alignItems: 'center',
 					justifyContent: 'center',
-					gap: 12,
 				}}
 			>
-				{modeIcon({ mode: col.mode, height: s.modeIconH })}
-				<div
-					style={{
-						fontSize: s.routeLabel,
-						maxWidth: s.labelMaxW,
-						whiteSpace: 'nowrap',
-						overflow: 'hidden',
-						textOverflow: 'ellipsis',
-					}}
-				>
-					{serviceName(col.serviceId, col.tripHeadsign)}
-				</div>
+				{header(col, s)}
 			</div>
+			<div style={{ fontSize: s.noServiceHero, lineHeight: 1 }}>NO SERVICE</div>
+			{/* Next departure clock only when one is actually known — a lone dash
+			    here reads as a leftover artifact, not information. */}
+			{col.nextDeparture ? (
+				<div style={{ fontSize: s.leaveBy, marginTop: s.heroGap * 2 }}>
+					{col.nextDeparture}
+				</div>
+			) : null}
+		</div>
+	);
+}
 
+function serviceBody(col: ServiceColumn, s: Sizing): ReactNode {
+	return (
+		<>
 			{/* Tier 1 — the LEAVE IN hero group: the LEAVE IN label, the hero
 			    value, and the BY hh:mm that qualifies it. BY belongs to the hero
 			    (it answers "leave by when?"), not to the ARRIVES detail, so it
@@ -199,7 +263,7 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 			>
 				<div style={{ fontSize: s.next }}>{col.next}</div>
 			</div>
-		</div>
+		</>
 	);
 }
 

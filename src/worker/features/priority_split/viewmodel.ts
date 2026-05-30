@@ -7,7 +7,12 @@ import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
 import type { Mode } from './mode-icon';
 
-export type ColumnViewModel = {
+// A column carrying a catchable service — the full Tier 1–3 + marker layout.
+// (Also the gateway-error/closed fallback, rendered with every field dashed:
+// a transient fetch failure must read as "no data" blanks, not the deliberate
+// NO SERVICE state, which only a genuinely empty live feed earns.)
+export type ServiceColumn = {
+	kind: 'service';
 	mode: Mode;
 	serviceId: string; // selected service's id, e.g. "634"
 	tripHeadsign: string; // destination headsign, e.g. "Island Bay"; '' when unknown
@@ -17,6 +22,20 @@ export type ColumnViewModel = {
 	next: string; // "NEXT 07:22" | "—"
 	markerRatio: number; // 0 = hard-left, 1 = Now
 };
+
+// The no-service state (glossary §4): zero catchable services. The Tier 1 hero
+// becomes the literal NO SERVICE; the only supporting line is the next departure
+// clock when the live feed still carries an upcoming (if uncatchable) bus, else a
+// dash. Track, marker, and Tiers 2/3 are suppressed — there is nothing to leave for.
+export type NoServiceColumn = {
+	kind: 'no_service';
+	mode: Mode;
+	serviceId: string; // target's first service id — the header still names the route
+	tripHeadsign: ''; // unknown without a selected service
+	nextDeparture: string; // "08:42" when one is known; '' when none — the renderer omits the line (a lone dash reads as a stray artifact)
+};
+
+export type ColumnViewModel = ServiceColumn | NoServiceColumn;
 
 export type PrioritySplitViewModel = {
 	wallClock: string; // global header — "07:30"
@@ -64,19 +83,47 @@ function selectCatchable(arrivals: Arrival[], target: TransitTarget, now: Date):
 		.filter((a) => leaveByTime(a, target).getTime() >= now.getTime());
 }
 
-function degraded(target: TransitTarget): ColumnViewModel {
-	const fallbackRoute = Array.isArray(target.serviceId)
-		? target.serviceId[0]
-		: target.serviceId;
+function fallbackRouteId(target: TransitTarget): string {
+	return Array.isArray(target.serviceId) ? target.serviceId[0] : target.serviceId;
+}
+
+// Gateway error / closed stop: degrade to dashes rather than throw. Distinct
+// from the no-service state — a failed fetch must not masquerade as a confident
+// "NO SERVICE" when the truth is "we couldn't ask".
+function degraded(target: TransitTarget): ServiceColumn {
 	return {
+		kind: 'service',
 		mode: target.mode,
-		serviceId: fallbackRoute,
+		serviceId: fallbackRouteId(target),
 		tripHeadsign: '', // no catchable service — destination unknown
 		leaveIn: DASH,
 		leaveBy: DASH,
 		arrives: DASH,
 		next: DASH,
 		markerRatio: 1,
+	};
+}
+
+// The no-service column (glossary §4 / #10). `nextDeparture` is the earliest
+// arrival still in the future for this target — it is, by definition, not
+// catchable (or it would have been selected), but it tells the rider when the
+// next bus physically departs. Empty when the live feed carries none, so the
+// renderer shows NO SERVICE alone rather than a meaningless dash beneath it.
+function noService(
+	target: TransitTarget,
+	arrivals: Arrival[],
+	tz: string,
+	now: Date,
+): NoServiceColumn {
+	const upcoming = [...arrivals]
+		.filter((a) => a.predicted.getTime() >= now.getTime())
+		.sort((a, b) => a.predicted.getTime() - b.predicted.getTime());
+	return {
+		kind: 'no_service',
+		mode: target.mode,
+		serviceId: fallbackRouteId(target),
+		tripHeadsign: '',
+		nextDeparture: upcoming[0] ? hhmm(upcoming[0].predicted, tz) : '',
 	};
 }
 
@@ -102,16 +149,27 @@ export function buildViewModel(
 export function toJsonView(vm: PrioritySplitViewModel): Record<string, unknown> {
 	return {
 		wall_clock: vm.wallClock,
-		columns: vm.columns.map((c) => ({
-			mode: c.mode,
-			service_id: c.serviceId,
-			trip_headsign: c.tripHeadsign,
-			leave_in: c.leaveIn,
-			leave_by: c.leaveBy,
-			arrives: c.arrives,
-			next: c.next,
-			marker_ratio: c.markerRatio,
-		})),
+		columns: vm.columns.map((c) =>
+			c.kind === 'no_service'
+				? {
+						kind: c.kind,
+						mode: c.mode,
+						service_id: c.serviceId,
+						trip_headsign: c.tripHeadsign,
+						next_departure: c.nextDeparture,
+					}
+				: {
+						kind: c.kind,
+						mode: c.mode,
+						service_id: c.serviceId,
+						trip_headsign: c.tripHeadsign,
+						leave_in: c.leaveIn,
+						leave_by: c.leaveBy,
+						arrives: c.arrives,
+						next: c.next,
+						marker_ratio: c.markerRatio,
+					},
+		),
 	};
 }
 
@@ -121,13 +179,15 @@ export function buildColumn(
 	tz: string,
 	now: Date,
 ): ColumnViewModel {
-	const catchable =
-		state.kind === 'open' ? selectCatchable(state.arrivals, target, now) : [];
+	// Closed stop / gateway error: dashes, kept distinct from no-service (above).
+	if (state.kind === 'closed') return degraded(target);
+
+	const catchable = selectCatchable(state.arrivals, target, now);
 	const service = catchable[0];
 
-	// No catchable service — no-service rendering is deferred (#5 out of scope).
-	// Degrade gracefully rather than throw.
-	if (!service) return degraded(target);
+	// Open stop, but nothing catchable: the deliberate NO SERVICE state (#10),
+	// not the confusing all-dashes column it used to render (#36).
+	if (!service) return noService(target, state.arrivals, tz, now);
 
 	const leaveBy = leaveByTime(service, target);
 	const leaveInMins = Math.max(
@@ -144,6 +204,7 @@ export function buildColumn(
 	const nextService = catchable[1];
 
 	return {
+		kind: 'service',
 		mode: target.mode,
 		serviceId: service.serviceId,
 		tripHeadsign: service.tripHeadsign,

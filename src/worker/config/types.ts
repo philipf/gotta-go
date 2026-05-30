@@ -24,6 +24,13 @@ export type TransitTarget = {
 export type Global = {
 	timezone: string;
 	defaultRefreshIntervalMinutes: number;
+	// Upper bound for the Metlink /stop-predictions `limit`. The limit is applied
+	// upstream across *all* services at a stop before the gateway filters to a
+	// watched service, so at a shared stop a low limit can push a watched service
+	// out of the window entirely — the empty result then renders no-service even
+	// when buses are due (#36/#10). Set high so Metlink itself decides the
+	// truncation point; it caps the value server-side.
+	stopPredictionLimit: number;
 };
 
 // Mirrors PRD §9 profile phase — a time-of-day phase inside a profile.

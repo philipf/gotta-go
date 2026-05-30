@@ -43,6 +43,7 @@ export async function handleFrame(
 		radiator,
 		phase,
 		timezone: GLOBAL.timezone,
+		stopPredictionLimit: GLOBAL.stopPredictionLimit,
 		now,
 		format,
 		includeBmp,

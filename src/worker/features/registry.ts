@@ -16,6 +16,10 @@ export type RenderContext = {
 	radiator: Radiator;
 	phase: ProfilePhase;
 	timezone: string;
+	// Upper bound for the Metlink /stop-predictions `limit` (GLOBAL.stopPredictionLimit).
+	// Threaded through the context rather than read from a global so renderers stay
+	// binding-driven per ADR-0005 §DI. minimal_clock ignores it.
+	stopPredictionLimit: number;
 	now: Date;
 	format: ResponseFormat;
 	// Whether the rasterised BMP is needed: always for `format: 'bmp'`, and for

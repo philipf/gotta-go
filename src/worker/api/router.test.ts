@@ -142,6 +142,7 @@ describe('api.router — JSON view-model variant', () => {
 		expect(body.wall_clock).toBe('07:30');
 		expect(body.columns).toHaveLength(1);
 		expect(body.columns[0]).toEqual({
+			kind: 'service',
 			mode: 'bus',
 			service_id: '634',
 			trip_headsign: '',

@@ -8,6 +8,9 @@ import type { Global, Profile } from './types';
 export const GLOBAL: Global = {
 	timezone: 'Pacific/Auckland',
 	defaultRefreshIntervalMinutes: 3,
+	// High by design: Metlink truncates server-side, and a generous window keeps
+	// a watched service visible at busy shared stops (see Global.stopPredictionLimit).
+	stopPredictionLimit: 1000,
 };
 
 // PRD §9 `profiles:` block — named profiles keyed by profile name. Each
