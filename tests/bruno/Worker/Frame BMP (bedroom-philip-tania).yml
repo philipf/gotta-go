@@ -1,5 +1,5 @@
 info:
-  name: Get Frame
+  name: Frame BMP (bedroom-philip-tania)
   type: http
   seq: 1
 
@@ -8,7 +8,7 @@ http:
   url: "{{base-uri}}/v1/frame"
   headers:
     - name: X-Radiator-Slug
-      value: "{{radiator-slug}}"
+      value: bedroom-philip-tania
     - name: Accept
       value: image/bmp
     - name: Accept-Encoding

@@ -1,7 +1,7 @@
 info:
-  name: Frame JSON (priority_split)
+  name: Frame BMP (bedroom-daughter)
   type: http
-  seq: 3
+  seq: 2
 
 http:
   method: GET
@@ -10,9 +10,10 @@ http:
     - name: X-Radiator-Slug
       value: bedroom-daughter
     - name: Accept
-      value: application/json
+      value: image/bmp
     - name: X-Debug-Now
       value: 2026-05-22T19:30:00Z
+      disabled: true
   auth: inherit
 
 settings:

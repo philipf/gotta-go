@@ -1,5 +1,5 @@
 info:
-  name: Frame SVG (minimal_clock)
+  name: Frame SVG (bedroom-philip-tania)
   type: http
   seq: 5
 
@@ -8,13 +8,14 @@ http:
   url: "{{base-uri}}/v1/frame"
   headers:
     - name: X-Radiator-Slug
-      value: "{{radiator-slug}}"
+      value: bedroom-philip-tania
     - name: Accept
       value: image/svg+xml
     - name: Accept-Encoding
       value: gzip
     - name: X-Debug-Now
       value: 2026-05-23T06:48:00Z
+      disabled: true
   auth: inherit
 
 settings:
