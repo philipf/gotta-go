@@ -287,11 +287,11 @@ and the remaining service-state layouts once they land.
 
 - [x] Validate Metlink API endpoints for `stop_id` (bus and train) — confirmed field names, response shapes, and rate-limit behaviour. See ADR-0002.
 - [x] BMP rendering validated: Satori + bundled TTF + manual 1-bit BMP encoder confirmed against the LilyGO T5 EPD panel. Typeface is **DejaVu Sans Bold** per [ADR-0009](adr/0009-display-typeface-dejavu-sans-bold.md) (replaces the earlier Press Start 2P pixel font); already bundled as a static Worker asset (`src/worker/assets/`) and wired via the `.ttf` data rule in `wrangler.jsonc`.
-- [ ] Populate the `radiators:` registry and `profiles:` in `src/worker/config/data.ts` (config is TypeScript, not `config.yaml`) for the slug(s) being deployed.
-- [ ] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
-- [ ] Flash the radiator's firmware (`src/radiator/secrets.h`, gitignored) with its **radiator slug**, the `RADIATOR_SHARED_TOKEN` value, the production `FRAME_URL`, and Wi-Fi creds as compile-time constants.
-- [ ] Deploy Worker: `wrangler deploy`. (Metlink runs uncached for this deploy — acceptable at household scale per ADR-0002 rate-limit headroom.)
-- [ ] One **wake cycle** from the deployed radiator returns the expected **layout** and a valid `X-Sleep-Seconds`.
+- [x] Populate the `radiators:` registry and `profiles:` in `src/worker/config/data.ts` (config is TypeScript, not `config.yaml`) for the slug(s) being deployed. `bedroom-philip-tania` → `philip_and_tania` (priority_split morning + minimal_clock fallback) is in place.
+- [x] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
+- [x] Flash the radiator's firmware (`src/radiator/secrets.h`, gitignored) with its **radiator slug**, the `RADIATOR_SHARED_TOKEN` value, the production `FRAME_URL`, and Wi-Fi creds as compile-time constants.
+- [x] Deploy Worker: `wrangler deploy`. (Metlink runs uncached for this deploy — acceptable at household scale per ADR-0002 rate-limit headroom.)
+- [x] One **wake cycle** from the deployed radiator returns the expected **layout** and a valid `X-Sleep-Seconds`.
 
 ### Second deploy — cache + remaining service states
 
