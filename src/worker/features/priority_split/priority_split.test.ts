@@ -110,6 +110,7 @@ describe('priority_split.buildViewModel - assembly', () => {
 			NOW,
 		);
 		expect(vm.wallClock).toBe('07:30');
+		expect(vm.date).toBe('Sat 23 May');
 		expect(vm.columns).toHaveLength(1);
 		const col = vm.columns[0];
 		expect(col.kind).toBe('service');
@@ -255,6 +256,7 @@ describe('priority_split.toJsonView - serialisation', () => {
 
 		expect(toJsonView(vm)).toEqual({
 			wall_clock: '07:30',
+			date: 'Sat 23 May',
 			columns: [
 				{
 					kind: 'service',
@@ -276,6 +278,7 @@ describe('priority_split.toJsonView - serialisation', () => {
 
 		expect(toJsonView(vm)).toEqual({
 			wall_clock: '07:30',
+			date: 'Sat 23 May',
 			columns: [
 				{
 					kind: 'no_service',
