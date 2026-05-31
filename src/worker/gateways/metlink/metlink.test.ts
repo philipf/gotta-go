@@ -199,7 +199,7 @@ describe('fetchArrivals', () => {
 		expect(result.error.detail).toBe('x'.repeat(256));
 	});
 
-	it('surfaces HTTP 429 as { kind: "rate_limited" }', async () => {
+	it('surfaces HTTP 429 as rate_limited with status + body detail', async () => {
 		const stubFetch: typeof fetch = async () => new Response('Too Many Requests', { status: 429 });
 
 		const result = await fetchArrivals({
@@ -209,7 +209,10 @@ describe('fetchArrivals', () => {
 			serviceId: 'KPL',
 		});
 
-		expect(result).toEqual({ ok: false, error: { kind: 'rate_limited' } });
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: 'rate_limited', status: 429, detail: 'Too Many Requests' },
+		});
 	});
 
 	it('builds the request URL + x-api-key header and omits service_id from the query', async () => {
@@ -235,8 +238,9 @@ describe('fetchArrivals', () => {
 		expect(capturedUrl).not.toContain('service_id');
 	});
 
-	it.each([401, 403])('surfaces HTTP %i as { kind: "auth" }', async (status) => {
-		const stubFetch: typeof fetch = async () => new Response('Unauthorized', { status });
+	it.each([401, 403])('surfaces HTTP %i as auth with status + body detail', async (status) => {
+		const stubFetch: typeof fetch = async () =>
+			new Response('{"message":"Forbidden"}', { status });
 
 		const result = await fetchArrivals({
 			fetch: stubFetch,
@@ -245,7 +249,10 @@ describe('fetchArrivals', () => {
 			serviceId: 'KPL',
 		});
 
-		expect(result).toEqual({ ok: false, error: { kind: 'auth' } });
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: 'auth', status, detail: '{"message":"Forbidden"}' },
+		});
 	});
 
 	it('falls back to departure.aimed when arrival.aimed is absent at origin stops', async () => {

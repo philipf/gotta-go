@@ -370,6 +370,8 @@ describe('priority_split.render - gateway failure logging (#55)', () => {
 			level: 'error',
 			event: 'metlink.fetch_failed',
 			kind: 'auth',
+			status: 401,
+			detail: 'Unauthorized',
 			stopId: '3234',
 			serviceId: ['634', '635'],
 			radiatorSlug: 'bedroom-philip',

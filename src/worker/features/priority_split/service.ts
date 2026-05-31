@@ -33,8 +33,9 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
 			const { error } = result;
 			const fields = {
 				kind: error.kind,
-				status: error.kind === 'upstream' ? error.status : undefined,
-				detail: error.kind === 'upstream' ? error.detail : undefined,
+				// Every kind but network carries the HTTP status + body snippet.
+				status: error.kind === 'network' ? undefined : error.status,
+				detail: error.kind === 'network' ? undefined : error.detail,
 				stopId: t.stopId,
 				serviceId: t.serviceId,
 				radiatorSlug: ctx.radiator.slug,

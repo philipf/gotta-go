@@ -32,18 +32,28 @@ export type StopState =
 	| { kind: 'open'; arrivals: Arrival[] }
 	| { kind: 'closed' };
 
+// Every HTTP-error kind carries the status and a truncated `detail` snippet of
+// the upstream body, captured here so it stays quarantined in the gateway
+// (ADR-0005) while the caller logs it (#55). `detail` is absent when the body
+// is empty or was already consumed (malformed-JSON-on-2xx). `network` has no
+// HTTP response, so it carries neither.
 export type GatewayError =
-	| { kind: 'auth' }
-	| { kind: 'rate_limited' }
-	// `detail` is a truncated snippet of the upstream body, captured here so it
-	// stays quarantined in the gateway (ADR-0005) while the caller can log it
-	// (#55). Absent when the body was already consumed (malformed-JSON-on-2xx).
+	| { kind: 'auth'; status: number; detail?: string }
+	| { kind: 'rate_limited'; status: number; detail?: string }
 	| { kind: 'upstream'; status: number; detail?: string }
 	| { kind: 'network' };
 
-// Upper bound on the upstream-body snippet carried in GatewayError.detail —
-// enough to diagnose a 5xx without bloating a log event.
+// Upper bound on the body snippet carried in GatewayError.detail — enough to
+// diagnose a failure without bloating a log event.
 const MAX_DETAIL = 256;
+
+// Reads the error response body once and truncates it for `detail`. Returns
+// undefined for an empty body so the field drops out of the log entirely.
+async function bodySnippet(response: Response): Promise<string | undefined> {
+	const body = await response.text();
+	if (!body) return undefined;
+	return body.length > MAX_DETAIL ? body.slice(0, MAX_DETAIL) : body;
+}
 
 export type FetchResult =
 	| { ok: true; data: StopState }
@@ -62,18 +72,18 @@ export async function fetchArrivals(req: FetchArrivalsRequest): Promise<FetchRes
 		return { ok: false, error: { kind: 'network' } };
 	}
 
-	if (response.status === 401 || response.status === 403) {
-		return { ok: false, error: { kind: 'auth' } };
-	}
-	if (response.status === 429) {
-		return { ok: false, error: { kind: 'rate_limited' } };
-	}
 	if (!response.ok) {
-		// Capture a truncated body snippet for diagnostics; the caller logs it
-		// (#55). The gateway itself stays side-effect-free per ADR-0005.
-		const body = await response.text();
-		const detail = body.length > MAX_DETAIL ? body.slice(0, MAX_DETAIL) : body;
-		return { ok: false, error: { kind: 'upstream', status: response.status, detail } };
+		// One body read for every HTTP error; the caller logs status + detail
+		// (#55). The gateway stays side-effect-free per ADR-0005.
+		const status = response.status;
+		const detail = await bodySnippet(response);
+		if (status === 401 || status === 403) {
+			return { ok: false, error: { kind: 'auth', status, detail } };
+		}
+		if (status === 429) {
+			return { ok: false, error: { kind: 'rate_limited', status, detail } };
+		}
+		return { ok: false, error: { kind: 'upstream', status, detail } };
 	}
 
 	let json: WireResponse;
