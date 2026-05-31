@@ -261,9 +261,9 @@ Worth follow-up issues, but not gating the close of #4:
 
 - **JSON renderer for `minimal_clock`** — issue #19.
 - **SVG renderer for `minimal_clock`** — issue #20.
-- **`priority_split` feature** — issues #5, #6 (with Metlink, KV cache).
+- **`priority_split` feature** — issues #5, #6 (with Metlink; no cache — ADR-0010).
 - **`idle` profile** — issue #17.
-- **`gateways/metlink/` (Fowler gateway: client, mapper, cache, fixtures)** — issues #5+.
+- **`gateways/metlink/` (Fowler gateway: client, mapper, fixtures — no cache, ADR-0010)** — issues #5+.
 - **`gateways/quotes/` or similar for idle profile content** — issue #17.
 - **`gateways/clock/` (RealClock / FixedClock)** — introduce only when a test needs a fixed clock.
 - **Migration of config from TypeScript to YAML/KV** — defer until schema stabilises.

@@ -4,7 +4,7 @@
 
 ## Context
 
-Issue [#5](https://github.com/philipf/gotta-go/issues/5) was re-scoped after the #2 spike: the Metlink fetch (now [#23](https://github.com/philipf/gotta-go/issues/23), **closed**) and KV cache (now [#24](https://github.com/philipf/gotta-go/issues/24), **open**) were extracted. What remains is the `features/priority_split/` slice — view-model construction, Tier 1–3 rendering, and the track + marker — for the single-column case.
+Issue [#5](https://github.com/philipf/gotta-go/issues/5) was re-scoped after the #2 spike: the Metlink fetch (now [#23](https://github.com/philipf/gotta-go/issues/23), **closed**) was extracted. A KV cache was also extracted (#24) but has since been **dropped** — there is no caching layer ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)), so `fetchArrivals` calls Metlink directly. What remains is the `features/priority_split/` slice — view-model construction, Tier 1–3 rendering, and the track + marker — for the single-column case.
 
 This slice sits on three things already in the tree:
 
@@ -21,7 +21,7 @@ Authoritative references for the maths and the language:
 ## Two scoping decisions taken before this plan
 
 1. **Schedule resolver — time-window matching, idle deferred.** #4 deferred real multi-phase resolution to here. This slice implements start/end-time matching in the configured timezone so `morning_school_run` is actually selected during its window (07:15–08:30). A request that falls outside every configured window keeps a documented fallback (return the first phase) with a `TODO(#17)` — the real `idle_profile` layout + fall-through stays issue #17.
-2. **Build against the uncached gateway.** #5 is "blocked by #24", but #23's `fetchArrivals` is the *public* gateway entry and is already done. This slice calls it directly. #24 will wrap that same entry point with the KV read-through transparently — no consumer rework. The plan notes the gap; cache tests belong to #24.
+2. **Build against the uncached gateway.** #5 was nominally "blocked by #24", but #23's `fetchArrivals` is the *public* gateway entry and is already done. This slice calls it directly — and that is now the permanent shape: the gateway stays uncached ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)), so there is no wrapping layer to wait for and no cache tests to add.
 
 ## Scope for #5
 
@@ -33,8 +33,8 @@ Authoritative references for the maths and the language:
 | `config/types.ts` | add `TransitTarget` + `transitTargets?` on `ProfilePhase` | YAML/KV migration |
 | `config/data.ts` | seed the `daughter_school` profile + `bedroom-daughter` radiator (real IDs from ADR-0002 / GH #16) | — |
 | `api/frame.ts` | build the `RenderContext` (pass `env` + `fetch` + matched phase to the renderer) | — |
-| `env.d.ts` / `.dev.vars` | declare + supply `METLINK_API_KEY` | KV binding (added by #24) |
-| `gateways/metlink/` | **untouched** — consumed only | client/mapper/cache |
+| `env.d.ts` / `.dev.vars` | declare + supply `METLINK_API_KEY` | — (no KV binding — ADR-0010) |
+| `gateways/metlink/` | **untouched** — consumed only | client/mapper (no cache — ADR-0010) |
 
 ## Config schema extension
 
@@ -211,7 +211,7 @@ After green, sweep for refactor candidates (duplication between the two `viewmod
 - **Two transit targets / two-column split + hairline rule** — PRD §5.1 two-column case; follow-up.
 - **Delayed banner, cancelled strike-through, no-service literal, promotion** — PRD §5.1 exception states; each its own slice. The `predicted`-time maths already *absorbs* delay; only the banner is deferred.
 - **`idle_profile` layout + true fall-through** — issue #17. #5 only adds the resolver's window matching with a documented first-phase fallback.
-- **KV cache + in-flight coalescing** — issue #24, wraps `fetchArrivals` transparently later.
+- **~~KV cache + in-flight coalescing~~** — was #24; **dropped**, no caching layer ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)). `fetchArrivals` calls Metlink directly.
 - **DST ambiguous-hour resolution** — documented non-goal.
 
 ## Verification
@@ -250,13 +250,13 @@ Final AC — flash the `bedroom-daughter` radiator (firmware from #4; just point
 - Two-target two-column `priority_split` — follow-up.
 - Delayed / cancelled / no-service / promotion rendering — follow-ups.
 - `idle_profile` layout + content — #17.
-- KV cache layer (#24) and 429 handling (ADR-0002 follow-up).
+- 429 handling (ADR-0002 follow-up). (KV cache #24 — dropped, see ADR-0010.)
 - JSON / SVG diagnostic renderers — #19 / #20.
 - Production deploy + secret management — #12.
 
 ## References
 
-- [#5](https://github.com/philipf/gotta-go/issues/5), [#23](https://github.com/philipf/gotta-go/issues/23) (done), [#24](https://github.com/philipf/gotta-go/issues/24) (open)
+- [#5](https://github.com/philipf/gotta-go/issues/5), [#23](https://github.com/philipf/gotta-go/issues/23) (done), [#24](https://github.com/philipf/gotta-go/issues/24) (closed — no cache, [ADR-0010](../adr/0010-no-metlink-cache-layer.md))
 - `docs/glossary.md` §3, §5, §6, §7 — Leave In/By, Arrives In, Next, track/marker/window, time-to-stop/comfort-buffer/leave-margin
 - `docs/PRD/GottaGo PRD v0.4.md` §5.1, §5.3, §5.4, §9
 - `docs/adr/0002-metlink-stop-predictions-field-mapping.md` — field mapping + `service_id` schema extension

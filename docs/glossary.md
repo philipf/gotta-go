@@ -242,9 +242,6 @@ The number of seconds the radiator should deep-sleep before its next **wake cycl
 ### Wake cycle
 One iteration of: panel wakes → radiator fetches frame from Worker → panel flushes new frame → radiator deep-sleeps for **sleep duration**.
 
-### KV cache
-The Cloudflare KV store of recent Metlink GTFS-Realtime responses. 30-second TTL. Bypassed entirely for the `minimal_clock` and `idle_profile` layouts.
-
 ### `X-Radiator-*` request-header namespace
 Reserved prefix for any future radiator-side telemetry header (e.g. `X-Radiator-Battery-Pct`, `X-Radiator-Firmware-Version`, `X-Radiator-Wifi-Rssi`). The Worker MUST ignore unknown headers in this namespace so firmware can add telemetry without a Worker change.
 
@@ -255,8 +252,8 @@ Diagnostic headers the Worker sets on every meaningful response. The radiator's 
 |---|---|
 | `X-Server-Time` | Worker clock at request time (ISO 8601 UTC). |
 | `X-Profile-Phase` | Resolved profile phase key, or `idle_profile` for the fallback. |
-| `X-Metlink-Fetched-At` | When the cached Metlink data was originally fetched (ISO 8601 UTC). |
-| `X-Cache-Status` | `hit` / `miss` / `stale-served`. |
+| `X-Metlink-Fetched-At` | When the Metlink data was fetched (ISO 8601 UTC). |
+| `X-Cache-Status` | `hit` / `miss` / `stale-served`. **Vestigial** — there is no caching layer ([ADR-0010](adr/0010-no-metlink-cache-layer.md)); retiring or repurposing this header is part of the failure-policy work in [#56](https://github.com/philipf/gotta-go/issues/56). |
 
 ### Diagnostics view
 The diagnostics surface the Worker returns from `/v1/frame` instead of the rendered BMP, selected by the request's `Accept` header (ADR-0004). Two variants: `Accept: application/json` returns the JSON **view model**; `Accept: image/svg+xml` returns the intermediate Satori SVG — the exact document the BMP encoder rasterises for this render, gzipped per ADR-0001 so a human can open it in a browser. Same auth, slug resolution, sleep duration, and informational headers as the BMP path — only the body and `Content-Type` differ. The radiator never negotiates either; it is a surface for humans and tests running `curl`.

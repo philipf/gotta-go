@@ -1,0 +1,14 @@
+{
+	"name": "kv-cache",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"dev": "wrangler dev",
+		"dev:remote": "wrangler dev --remote",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"typescript": "^5.5.2",
+		"wrangler": "^4.92.0"
+	}
+}

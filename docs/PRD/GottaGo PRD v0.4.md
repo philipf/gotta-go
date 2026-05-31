@@ -87,7 +87,7 @@ When the **catchable service** becomes a **missed service** (Leave In passes zer
 Full-screen centred layout:
 - **Wall-clock time** — large pixel font (24-hour `HH:MM`), centred.
 - **Current date** — smaller pixel font below (e.g. `Fri 16 May`).
-- No transit data, no marker. The Worker bypasses all Metlink API and KV cache calls for this layout.
+- No transit data, no marker. The Worker makes no Metlink API call for this layout.
 
 ### 5.3 Marker position
 
@@ -121,7 +121,7 @@ See [GottaGo — UI/UX Reference](../UI/GottaGo%20%E2%80%94%20UI_UX%20Design%20R
 
 * **While** the active **profile phase** has two **transit targets**, the Worker **shall** render the `priority_split` layout split evenly into two columns (one per transit target).
 * **While** the active profile phase has one transit target, the Worker **shall** render the `priority_split` layout with a single full-width column.
-* **While** the active profile phase selects `minimal_clock`, the Worker **shall** render the `minimal_clock` layout and **shall not** issue any Metlink API or KV cache requests.
+* **While** the active profile phase selects `minimal_clock`, the Worker **shall** render the `minimal_clock` layout and **shall not** issue any Metlink API requests.
 * **When** **Leave In** for a transit target reaches zero, the Worker **shall** render the literal `NOW` as the Tier 1 hero value under the unchanged `LEAVE IN` label. The column **shall not** be inverted and no separate `LEAVE NOW` banner **shall** be rendered.
 * **When** the **catchable service** becomes a **missed service**, the Worker **shall** promote the **next service** into the catchable slot. If no next service is available, the next-service slot **shall** render `—`.
 * **When** the Metlink feed reports a cancellation for a transit target's catchable service, the Worker **shall** render the cancelled service's scheduled time with strike-through directly above the **replacement service** in the same column.
@@ -134,9 +134,8 @@ See [GottaGo — UI/UX Reference](../UI/GottaGo%20%E2%80%94%20UI_UX%20Design%20R
 ## 7. Non-functional requirements (EARS format)
 
 ### Performance & data fetching
-* **When** a radiator requests a frame, the Worker **shall** query the **KV cache** first.
-* **When** the KV cache entry is older than 30 seconds, the Worker **shall** issue a single request to the Metlink GTFS-Realtime API, update the cache, and return the frame to protect API rate limits.
-* **When** the active layout is `minimal_clock`, the Worker **shall** bypass the KV cache and Metlink API entirely and return a clock frame immediately.
+* **When** a radiator requests a frame for a `priority_split` layout, the Worker **shall** issue a request to the Metlink GTFS-Realtime API and render the returned predictions into the frame. There is **no caching layer** — see [ADR-0010](../adr/0010-no-metlink-cache-layer.md); Metlink runs uncached, which is well within its rate-limit headroom at household scale (ADR-0002).
+* **When** the active layout is `minimal_clock`, the Worker **shall** bypass the Metlink API entirely and return a clock frame immediately.
 * **When** the rendering pipeline executes, the Worker **shall** render layout elements using **Satori** (for DejaVu Sans Bold font rendering and CSS-based layout) and encode the final output as a flattened 1-bit monochrome BMP byte array at 960×540 via manual BMP byte construction, optimised for direct native flushing by the LilyGO T5 panel.
 
 ### Power management & lifecycle
@@ -156,7 +155,7 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 
 ### Technology stack
 * **Edge compute:** Cloudflare Workers (TypeScript).
-* **Caching layer:** Cloudflare KV Storage (30-second TTL for Metlink API responses).
+* **Caching layer:** None — the Metlink API is called uncached per frame (see [ADR-0010](../adr/0010-no-metlink-cache-layer.md)).
 * **Graphics engine:** **Satori** for CSS-driven layout and DejaVu Sans Bold font rendering (TTF bundled as a static Worker asset; see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)), producing an intermediate SVG. The SVG pixel data is encoded into a 1-bit monochrome BMP byte array via manual BMP byte construction — zero native dependencies, sub-millisecond encode time.
 * **Firmware:** C++/Arduino ESP-IDF framework running on the LilyGO T5 (handles Wi-Fi connection, HTTP fetching, deep sleep management, and raw E-paper EPD buffer flushing).
 * **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions). API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/adr/0002-metlink-stop-predictions-field-mapping.md`](../adr/0002-metlink-stop-predictions-field-mapping.md).
@@ -167,7 +166,7 @@ The authoritative wire contract — paths, headers, status codes, response shape
 
 **Endpoint shape.** A single call: `GET /v1/frame`. The radiator identifies itself via `X-Radiator-Slug` and authenticates with the shared `X-Radiator-Token`; the Worker returns a gzipped 1-bit 960×540 BMP **frame** and the next **sleep duration** in `X-Sleep-Seconds`. All future radiator-side telemetry (battery, firmware version, Wi-Fi RSSI) reserves the `X-Radiator-*` header prefix, so firmware can add it later without a Worker change or a contract version bump.
 
-**Error model.** The Worker never errors on "no active profile phase" — server time outside every configured window falls through to the **idle profile** and returns `200`. Likewise, a Metlink outage with any cached data (even past TTL) is served as a `200` with a `stale-served` cache-status header rather than a `502`. The radiator's response to every status code is the same shape: flush the frame if `200`, ignore the body otherwise, and sleep for `X-Sleep-Seconds` (or the firmware's 300-s fallback when no response arrived).
+**Error model.** The Worker never errors on "no active profile phase" — server time outside every configured window falls through to the **idle profile** and returns `200`. Because there is **no caching layer** ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)), a Metlink outage has no stale data to fall back on; the Worker's outage response (error/idle frame vs `502`) is under design in [GH #56](https://github.com/philipf/gotta-go/issues/56). The radiator's response to every status code is the same shape: flush the frame if `200`, ignore the body otherwise, and sleep for `X-Sleep-Seconds` (or the firmware's 300-s fallback when no response arrived).
 
 ### Profile-phase resolution flow (Worker)
 1. Validate `X-Radiator-Token`.
@@ -175,7 +174,7 @@ The authoritative wire contract — paths, headers, status codes, response shape
 3. Convert server UTC time to `global.timezone`.
 4. Match current time against the profile's phase `start_time` / `end_time` ranges → determine the active **profile phase**.
 5. If the phase selects `minimal_clock`: render the clock frame and return immediately (no Metlink call).
-6. If the phase selects `priority_split`: check KV cache → fetch Metlink if stale → render the frame.
+6. If the phase selects `priority_split`: fetch Metlink → render the frame (no cache; see ADR-0010).
 7. Return BMP + `X-Sleep-Seconds`.
 
 ## 9. Relevant configuration files
@@ -263,9 +262,7 @@ name = "gottago-worker"
 main = "src/worker.ts"
 compatibility_date = "2026-05-16"
 
-kv_namespaces = [
-    { binding = "TRANSIT_CACHE", id = "prod_metlink_cache_kv_id_here" }
-]
+# No KV namespace — the Metlink gateway runs uncached by design (ADR-0010).
 
 [env.production.vars]
 METLINK_API_URL = "https://api.opendata.metlink.org.nz/v1"
@@ -280,8 +277,8 @@ METLINK_API_URL = "https://api.opendata.metlink.org.nz/v1"
 
 Rollout is split into two production deploys so the already-useful core can ship
 early. The **first deploy** ships the current feature set against the live
-Metlink API with a single radiator; the **second deploy** layers on the KV cache
-and the remaining service-state layouts once they land.
+Metlink API with a single radiator; the **second deploy** layers on the
+remaining service-state layouts once they land.
 
 ### First deploy — minimal viable production
 
@@ -290,12 +287,11 @@ and the remaining service-state layouts once they land.
 - [x] Populate the `radiators:` registry and `profiles:` in `src/worker/config/data.ts` (config is TypeScript, not `config.yaml`) for the slug(s) being deployed. `bedroom-philip-tania` → `philip_and_tania` (priority_split morning + minimal_clock fallback) is in place.
 - [x] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
 - [x] Flash the radiator's firmware (`src/radiator/secrets.h`, gitignored) with its **radiator slug**, the `RADIATOR_SHARED_TOKEN` value, the production `FRAME_URL`, and Wi-Fi creds as compile-time constants.
-- [x] Deploy Worker: `wrangler deploy`. (Metlink runs uncached for this deploy — acceptable at household scale per ADR-0002 rate-limit headroom.)
+- [x] Deploy Worker: `wrangler deploy`. (Metlink runs uncached — the permanent design; no caching layer per [ADR-0010](adr/0010-no-metlink-cache-layer.md), well within ADR-0002 rate-limit headroom at household scale.)
 - [x] One **wake cycle** from the deployed radiator returns the expected **layout** and a valid `X-Sleep-Seconds`.
 
-### Second deploy — cache + remaining service states
+### Second deploy — remaining service states
 
-- [ ] Create the Cloudflare **KV cache** namespace, wire the binding in `wrangler.jsonc`, and ship the gateway cache layer (GH #24).
 - [ ] Re-deploy once cancelled-service (GH #8), delayed-service (GH #9), and the stale/failed-fetch indicator (GH #47) layouts land.
 - [ ] Flash / add any additional radiators (e.g. `bedroom-daughter`) to bring the full network online.
 

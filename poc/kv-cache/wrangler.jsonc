@@ -1,0 +1,11 @@
+{
+	"name": "gotta-go-poc-kv",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-07-18",
+	"compatibility_flags": ["nodejs_compat"],
+	// Local `wrangler dev` simulates KV regardless of `id` — a placeholder string like
+	// "poc-kv-local-placeholder" is tolerated locally (Miniflare keys its simulated
+	// namespace by binding name, not id). The real id below was created via
+	// `wrangler kv namespace create POC_KV` and is required for `wrangler dev --remote`.
+	"kv_namespaces": [{ "binding": "POC_KV", "id": "0c058038d4504ee9b2a4d9c8c23d3001" }],
+}
