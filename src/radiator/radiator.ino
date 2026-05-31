@@ -213,6 +213,80 @@ static bool connectWiFi() {
     return true;
 }
 
+// ---------- Body I/O (shared by the happy path and the error path) ----------
+
+// Drain the response body into buf (capacity cap). Byte-at-a-time matches the
+// wake-cycle-32 pattern and avoids the available()-vs-actual confusion the TLS
+// layer's record-sized buffer introduces; we cap on bytes actually received
+// (total), never on available(), so a chatty TLS buffer can't spuriously
+// truncate. Handles the HTTP/1.0 connection-close path the cloudflared tunnel
+// forces. Returns bytes read; sets *truncated when the body filled the buffer.
+// The caller (not this helper) calls https.end().
+static size_t drainBody(HTTPClient &https, uint8_t *buf, size_t cap, bool *truncated) {
+    WiFiClient *stream = https.getStreamPtr();
+    const int expectedSize = https.getSize();  // -1 when server omits Content-Length
+    size_t total = 0;
+    *truncated = false;
+    const uint32_t readStart = millis();
+    while ((millis() - readStart) < 10000) {
+        while (stream->available() && total < cap) {
+            buf[total++] = (uint8_t)stream->read();
+        }
+        if (total >= cap) {
+            *truncated = true;
+            break;
+        }
+        if (expectedSize != -1 && total >= (size_t)expectedSize) break;
+        if (!https.connected()) {
+            // Drain any tail bytes the TLS layer still has buffered after the
+            // server closed the connection. Bound by expectedSize when known
+            // so a trailing CRLF (or similar) doesn't sneak past.
+            delay(20);
+            const size_t tailCap = (expectedSize != -1) ? (size_t)expectedSize : cap;
+            while (stream->available() && total < tailCap) {
+                buf[total++] = (uint8_t)stream->read();
+            }
+            break;
+        }
+        delay(1);
+    }
+    return total;
+}
+
+// Inflate a gzip stream src[0..srcLen) into dst[0..dstCap). Returns bytes
+// produced, or -1 on any uzlib error (logging the failure). Shared by the BMP
+// path and the error path (ADR-0008 one-shot inflate). The dictionary scratch
+// (uzlibDict) is the file-scope buffer allocated per wake.
+static long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap) {
+    uzlib_init();
+    TINF_DATA d;
+    memset(&d, 0, sizeof(d));
+    d.source = src;
+    d.source_limit = src + srcLen;
+    d.source_read_cb = NULL;
+
+    uzlib_uncompress_init(&d, uzlibDict, UZLIB_DICT_BYTES);
+
+    const int hdr = uzlib_gzip_parse_header(&d);
+    if (hdr != TINF_OK) {
+        Serial.printf("inflate: gzip header parse failed (err=%d)\n", hdr);
+        return -1;
+    }
+
+    d.dest_start = d.dest = dst;
+    d.dest_limit = dst + dstCap;
+    const int res = uzlib_uncompress_chksum(&d);
+    // TINF_OK (0) = success while filling dest; TINF_DONE (1) = success with
+    // end-of-stream marker observed. Either means dst holds valid inflated
+    // bytes. Negative values are real failures.
+    if (res != TINF_DONE && res != TINF_OK) {
+        Serial.printf("inflate: failed (res=%d, produced=%ld bytes)\n",
+                      res, (long)(d.dest - dst));
+        return -1;
+    }
+    return (long)(d.dest - dst);
+}
+
 // ---------- HTTP fetch ----------
 
 // One wake cycle's request. Returns the outcome plus (on success) the
@@ -290,84 +364,35 @@ static CycleResult fetchAndInflate(HTTPClient &https,
         return CycleResult::HttpError;
     }
 
-    // Drain the response into the compressed scratch buffer. Byte-at-a-time
-    // matches the wake-cycle-32 pattern and avoids the available()-vs-actual
-    // confusion that the TLS layer's record-sized buffer introduces. We cap
-    // on bytes actually received (total), never on available(), so a chatty
-    // TLS buffer can never spuriously trip BodyTooLarge.
-    WiFiClient *stream = https.getStreamPtr();
+    // Drain the response into the compressed scratch buffer.
     const int expectedSize = https.getSize();  // -1 when server omits Content-Length
-    size_t total = 0;
-    const uint32_t readStart = millis();
-    while ((millis() - readStart) < 10000) {
-        while (stream->available() && total < MAX_COMPRESSED_BYTES) {
-            compressedBuf[total++] = (uint8_t)stream->read();
-        }
-        if (total >= MAX_COMPRESSED_BYTES) {
-            Serial.printf("body: exceeds %u byte cap (read so far)\n",
-                          (unsigned)MAX_COMPRESSED_BYTES);
-            https.end();
-            return CycleResult::BodyTooLarge;
-        }
-        if (expectedSize != -1 && total >= (size_t)expectedSize) break;
-        if (!https.connected()) {
-            // Drain any tail bytes the TLS layer still has buffered after
-            // the server closed the connection. Bound by expectedSize when
-            // known so a trailing CRLF (or similar) doesn't sneak past.
-            delay(20);
-            const size_t cap = (expectedSize != -1)
-                ? (size_t)expectedSize
-                : MAX_COMPRESSED_BYTES;
-            while (stream->available() && total < cap) {
-                compressedBuf[total++] = (uint8_t)stream->read();
-            }
-            break;
-        }
-        delay(1);
-    }
+    bool truncated = false;
+    const size_t total = drainBody(https, compressedBuf, MAX_COMPRESSED_BYTES, &truncated);
     https.end();
+    if (truncated) {
+        Serial.printf("body: exceeds %u byte cap (read so far)\n",
+                      (unsigned)MAX_COMPRESSED_BYTES);
+        return CycleResult::BodyTooLarge;
+    }
     Serial.printf("body: %u bytes received (Content-Length=%d)\n",
                   (unsigned)total, expectedSize);
 
     // ADR-0008: one-shot inflate. Compressed body is small enough (<= 8 KB)
     // to live alongside the inflated frame in PSRAM during this call.
-    uzlib_init();
-    TINF_DATA d;
-    memset(&d, 0, sizeof(d));
-    d.source = compressedBuf;
-    d.source_limit = compressedBuf + total;
-    d.source_read_cb = NULL;
-
-    uzlib_uncompress_init(&d, uzlibDict, UZLIB_DICT_BYTES);
-
-    const int hdr = uzlib_gzip_parse_header(&d);
-    if (hdr != TINF_OK) {
-        Serial.printf("inflate: gzip header parse failed (err=%d)\n", hdr);
-        return CycleResult::InflateFailed;
-    }
-
-    d.dest_start = d.dest = inflatedBuf;
-    d.dest_limit = inflatedBuf + EXPECTED_BMP_BYTES;
     const uint32_t inflateStart = millis();
-    const int res = uzlib_uncompress_chksum(&d);
+    const long produced = inflateGzip(compressedBuf, total, inflatedBuf, EXPECTED_BMP_BYTES);
     const uint32_t inflateMs = millis() - inflateStart;
-    // TINF_OK (0) = success while filling dest; TINF_DONE (1) = success with
-    // end-of-stream marker observed. Either means the output buffer holds
-    // valid inflated bytes. Negative values are real failures.
-    if (res != TINF_DONE && res != TINF_OK) {
-        Serial.printf("inflate: failed (res=%d, produced=%u bytes)\n",
-                      res, (unsigned)(d.dest - inflatedBuf));
+    if (produced < 0) {
         return CycleResult::InflateFailed;
     }
-    const size_t produced = (size_t)(d.dest - inflatedBuf);
-    Serial.printf("inflate: ok %u bytes in %lu ms\n",
-                  (unsigned)produced, (unsigned long)inflateMs);
-    if (produced != EXPECTED_BMP_BYTES) {
+    Serial.printf("inflate: ok %ld bytes in %lu ms\n",
+                  produced, (unsigned long)inflateMs);
+    if ((size_t)produced != EXPECTED_BMP_BYTES) {
         Serial.printf("inflate: size mismatch (expected %u)\n",
                       (unsigned)EXPECTED_BMP_BYTES);
         return CycleResult::InflateFailed;
     }
-    *outInflatedBytes = produced;
+    *outInflatedBytes = (size_t)produced;
     return CycleResult::Ok;
 }
 
