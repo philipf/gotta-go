@@ -63,3 +63,13 @@ ErrorScreen resolveErrorScreen(const ProblemDoc &doc, bool verbose);
 // worker-unreachable case.
 void renderErrorScreen(const char *title, const char *detail,
                        const char *upstreamOrNull);
+
+// Common-path entry for a Worker error response: parse a problem+json body
+// (json[0..len), already de-gzipped by the caller), resolve it against httpStatus
+// + verbose, and render the screen — one call instead of the parseProblem →
+// resolveErrorScreen → renderErrorScreen trilogy. The ProblemDoc/ErrorScreen
+// pair (and its aliasing lifetime, see ErrorScreen above) stays contained here.
+// An empty/unparseable body resolves to the generic screen (Decision 8). The
+// lower-level seams remain public for #47 reuse and host tests.
+void renderProblemScreen(const char *json, size_t len, int httpStatus,
+                         bool verbose);

@@ -105,8 +105,9 @@ static CycleResult handleFrameResponse(const HttpResponse &r) {
 static void renderWorkerError(const HttpResponse &r) {
     Serial.printf("worker-error: reachable status=%d — rendering error screen\n", r.status);
 
-    ProblemDoc problem = {};
-    problem.httpStatus = r.status;
+    // Select the JSON bytes to parse: inflate first if the edge gzipped the body
+    // in transit (Decision 2). A failed inflate yields an empty body, which
+    // renderProblemScreen() resolves to the generic screen (Decision 8).
     const char *json = (const char *)compressedBuf;
     size_t jsonLen = r.bodyLen;
     if (r.gzipped) {
@@ -114,22 +115,16 @@ static void renderWorkerError(const HttpResponse &r) {
                                           EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
         if (produced < 0) {
             Serial.println("problem: gzip inflate failed — generic fallback");
-            parseProblem("", 0, &problem);
+            json = "";
+            jsonLen = 0;
         } else {
             Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
             json = (const char *)inflatedBuf;
             jsonLen = (size_t)produced;
-            parseProblem(json, jsonLen, &problem);
         }
-    } else {
-        parseProblem(json, jsonLen, &problem);
     }
-    Serial.printf("problem: parsed title='%s' detail_len=%u upstream=%s\n",
-                  problem.title, (unsigned)strlen(problem.detail),
-                  problem.hasUpstream ? "yes" : "no");
 
-    const ErrorScreen es = resolveErrorScreen(problem, RADIATOR_VERBOSE);
-    renderErrorScreen(es.title, es.detail, es.upstream);
+    renderProblemScreen(json, jsonLen, r.status, RADIATOR_VERBOSE);
 }
 
 // ---------- Wake path ----------

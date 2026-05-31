@@ -164,3 +164,18 @@ void renderErrorScreen(const char *title, const char *detail,
     epd_poweroff();
     Serial.println("error-screen: latched");
 }
+
+// ---------- Composed common-path entry (ADR-0011) ----------
+
+void renderProblemScreen(const char *json, size_t len, int httpStatus,
+                         bool verbose) {
+    ProblemDoc doc = {};
+    doc.httpStatus = httpStatus;
+    parseProblem(json, len, &doc);
+    Serial.printf("problem: parsed title='%s' detail_len=%u upstream=%s\n",
+                  doc.title, (unsigned)strlen(doc.detail),
+                  doc.hasUpstream ? "yes" : "no");
+
+    const ErrorScreen es = resolveErrorScreen(doc, verbose);
+    renderErrorScreen(es.title, es.detail, es.upstream);
+}
