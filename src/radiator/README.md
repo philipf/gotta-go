@@ -15,7 +15,8 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 
 | File                | Purpose                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------- |
-| `radiator.ino`      | The sketch: Wi-Fi, HTTP fetch, inflate, BMP decode, panel flush, deep sleep.            |
+| `radiator.ino`      | Wake-cycle orchestrator: Wi-Fi, HTTP fetch, inflate, BMP decode, panel flush, deep sleep. |
+| `problem.{h,cpp}`   | Error-screen module (ADR-0011): problem+json parse, fallback resolution, on-panel render. Neutral `renderErrorScreen()` reusable by #47. |
 | `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.h` (gitignored). |
 | `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
 | `mise.toml`         | Tool pin (python for esptool).                                                          |
