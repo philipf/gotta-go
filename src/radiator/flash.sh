@@ -15,13 +15,6 @@ PORT=/dev/ttyACM0
 # Operate on the sketch dir this script lives in, regardless of cwd.
 cd "$(dirname "$(readlink -f "$0")")"
 
-# --- Precondition: the board must be enumerated at $PORT -------------------
-if [[ ! -e "$PORT" ]]; then
-    echo "Error: $PORT not found — is the LilyGo plugged in and powered on?" >&2
-    echo "       (check 'ls /dev/ttyACM*' / 'dmesg | tail' if it should be there)" >&2
-    exit 1
-fi
-
 # --- ROM download mode dance -----------------------------------------------
 cat <<'EOF'
 Put the board into ROM download (flash) mode before continuing:
