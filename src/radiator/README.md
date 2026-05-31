@@ -40,19 +40,20 @@ If you already filled in `poc/lilygo/wake-cycle-32/secrets.h` for PoC #32, the `
 
 ## Install libraries
 
-The toolchain ADR-0006 already pulls `LilyGo-EPD47`, `SensorLib`, and `Button2`. Add the gzip inflater per ADR-0008:
+The toolchain ADR-0006 already pulls `LilyGo-EPD47`, `SensorLib`, and `Button2`. Add the gzip inflater per ADR-0008 and the JSON parser the error screen uses per [ADR-0011](../../docs/adr/0011-error-contract-problem-details.md):
 
 ```sh
 arduino-cli lib install "uzlib"
+arduino-cli lib install "ArduinoJson@7.4.3"
 ```
 
-Verify all four show up:
+Verify they show up:
 
 ```sh
-arduino-cli lib list | grep -E "LilyGo-EPD47|SensorLib|Button2|uzlib"
+arduino-cli lib list | grep -E "LilyGo-EPD47|SensorLib|Button2|uzlib|ArduinoJson"
 ```
 
-If `arduino-cli lib search uzlib` returns nothing, the registry name may have shifted — see the _Troubleshooting_ section below.
+If `arduino-cli lib search uzlib` returns nothing, the registry name may have shifted — see the _Troubleshooting_ section below. `ArduinoJson` is pinned at `7.x`; the error-path parser uses the v7 `JsonDocument` API.
 
 ## Build, flash, watch
 

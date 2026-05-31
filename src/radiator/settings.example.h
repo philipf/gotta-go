@@ -29,6 +29,13 @@
 // radiators: config, otherwise the Worker returns 404 + X-Sleep-Seconds: 3600.
 #define RADIATOR_SLUG "bedroom-philip-tania"
 
+// Verbose error screen. When the Worker returns an error, the radiator renders
+// a generic on-panel error screen from the problem+json body (ADR-0011): the
+// `title` as heading and `detail` as body. Set this to 1 to also render the raw
+// upstream snippet (`upstream_detail`, present on metlink-* errors) underneath —
+// a debugging aid. Leave at 0 for normal operation.
+#define RADIATOR_VERBOSE 0
+
 // Optional dev-only time override. Uncomment and set an ISO 8601 timestamp to
 // make the Worker resolve the profile phase against that instant instead of
 // real time — e.g. to preview the morning_school_run layout outside its

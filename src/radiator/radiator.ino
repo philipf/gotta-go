@@ -31,12 +31,21 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
 extern "C" {
 #include "src/uzlib/uzlib.h"
 }
 
 #include "epd_driver.h"
+#include "firasans.h"  // bundled FiraSans GFXfont — used by the error screen
 #include "settings.h"  // WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
+
+// Verbose: gate rendering of upstream_detail on the error screen. Default off;
+// override in settings.h. Namespaced like RADIATOR_TOKEN / RADIATOR_SLUG. The
+// #ifndef guard lets an existing settings.h without the define still compile.
+#ifndef RADIATOR_VERBOSE
+#define RADIATOR_VERBOSE 0
+#endif
 
 // Firmware fallback sleep duration (seconds). Applied only when no usable
 // X-Sleep-Seconds value reached the radiator — see ADR-0003.
@@ -65,11 +74,37 @@ static const size_t EXPECTED_BMP_BYTES = 64862;
 // uzlib needs a small dictionary for sliding-window matches.
 static const size_t UZLIB_DICT_BYTES = 32768;
 
+// Problem-document display caps (ADR-0011). title/detail are short
+// Worker-authored strings; upstream_detail is verbose-only and capped — the
+// panel clips any overflow.
+static const size_t PROBLEM_TITLE_CAP    = 64;
+static const size_t PROBLEM_DETAIL_CAP   = 256;
+static const size_t PROBLEM_UPSTREAM_CAP = 512;
+
+// Error-screen layout (FiraSans advance_y = 50 px; panel is 960x540).
+static const int32_t ERR_MARGIN_X    = 40;
+static const int32_t ERR_MARGIN_TOP  = 70;
+static const int32_t ERR_LINE_GAP    = 16;   // extra px between title and body
+static const int32_t ERR_WRAP_MAX_PX = EPD_WIDTH - 2 * ERR_MARGIN_X;  // 880
+
+// A parsed problem+json document (RFC 9457 / ADR-0011). Only the three string
+// fields the firmware renders are lifted; type/instance/status[as-int] feed the
+// generic fallback message but are not drawn. Empty title/detail signal a parse
+// failure to the caller, which then falls back to the generic screen.
+struct ProblemDoc {
+    int  httpStatus;
+    char title[PROBLEM_TITLE_CAP];
+    char detail[PROBLEM_DETAIL_CAP];
+    char upstream[PROBLEM_UPSTREAM_CAP];
+    bool hasUpstream;
+};
+
 // Outcome of one wake cycle's network + decode work. The sleep policy
 // downstream is driven entirely by this enum — see sleepFor() and ADR-0003.
 enum class CycleResult {
     Ok,             // 200 + valid BMP. flushed to panel. sleep = X-Sleep-Seconds.
-    HttpError,      // non-2xx (or transport failure). panel untouched.
+    HttpError,      // transport failure / no response. panel untouched. (#47's arm)
+    WorkerError,    // reachable Worker returned a non-2xx problem doc. error screen rendered.
     BodyTooLarge,   // body exceeded MAX_COMPRESSED_BYTES. panel untouched.
     InflateFailed,  // gzip inflate produced wrong size or returned an error.
     BmpInvalid,     // inflated bytes did not parse as a 960x540 1bpp BMP.
@@ -142,6 +177,7 @@ static void sleepFor(CycleResult outcome, SleepHeader sleep, uint32_t awakeMs) {
     switch (outcome) {
         case CycleResult::Ok:            outcomeStr = "ok"; break;
         case CycleResult::HttpError:     outcomeStr = "http-error"; break;
+        case CycleResult::WorkerError:   outcomeStr = "worker-error"; break;
         case CycleResult::BodyTooLarge:  outcomeStr = "body-too-large"; break;
         case CycleResult::InflateFailed: outcomeStr = "inflate-failed"; break;
         case CycleResult::BmpInvalid:    outcomeStr = "bmp-invalid"; break;
