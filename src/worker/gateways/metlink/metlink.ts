@@ -35,8 +35,15 @@ export type StopState =
 export type GatewayError =
 	| { kind: 'auth' }
 	| { kind: 'rate_limited' }
-	| { kind: 'upstream'; status: number }
+	// `detail` is a truncated snippet of the upstream body, captured here so it
+	// stays quarantined in the gateway (ADR-0005) while the caller can log it
+	// (#55). Absent when the body was already consumed (malformed-JSON-on-2xx).
+	| { kind: 'upstream'; status: number; detail?: string }
 	| { kind: 'network' };
+
+// Upper bound on the upstream-body snippet carried in GatewayError.detail —
+// enough to diagnose a 5xx without bloating a log event.
+const MAX_DETAIL = 256;
 
 export type FetchResult =
 	| { ok: true; data: StopState }
@@ -62,8 +69,11 @@ export async function fetchArrivals(req: FetchArrivalsRequest): Promise<FetchRes
 		return { ok: false, error: { kind: 'rate_limited' } };
 	}
 	if (!response.ok) {
-		console.error(await response.text());
-		return { ok: false, error: { kind: 'upstream', status: response.status } };
+		// Capture a truncated body snippet for diagnostics; the caller logs it
+		// (#55). The gateway itself stays side-effect-free per ADR-0005.
+		const body = await response.text();
+		const detail = body.length > MAX_DETAIL ? body.slice(0, MAX_DETAIL) : body;
+		return { ok: false, error: { kind: 'upstream', status: response.status, detail } };
 	}
 
 	let json: WireResponse;

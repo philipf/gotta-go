@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildColumn, buildViewModel, toJsonView } from './viewmodel';
 import type { ServiceColumn } from './viewmodel';
+import { render } from './service';
 import { serviceName } from './service-name';
+import type { RenderContext } from '../registry';
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
 
@@ -323,5 +325,102 @@ describe('priority_split.buildColumn - Marker', () => {
 		// window 15 → ratio = 1 − 12.5/15 = 0.1666…
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:47:30Z')), TZ, NOW);
 		expect(col.markerRatio).toBeCloseTo(1 - 12.5 / 15, 5);
+	});
+});
+
+// Drives the public render() through a stubbed fetch (format: 'json',
+// includeBmp: false) so the sandbox-blocked BMP pipeline is skipped while the
+// gateway + caller error path runs for real. Asserts the #55 observability:
+// every failure kind is logged (no longer silent) and behaviour is unchanged
+// (the frame still renders — closed stop → dashes).
+describe('priority_split.render - gateway failure logging (#55)', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	function ctxWith(fetchFn: typeof fetch): RenderContext {
+		return {
+			radiator: { slug: 'bedroom-philip', profile: { name: 'p', phases: [] } },
+			phase: {
+				key: 'morning_commute',
+				startTime: '07:00',
+				endTime: '09:00',
+				layout: 'priority_split',
+				refreshIntervalMinutes: 5,
+				transitTargets: [busTarget],
+			},
+			timezone: TZ,
+			stopPredictionLimit: 5,
+			now: NOW,
+			format: 'json',
+			includeBmp: false,
+			env: { METLINK_API_KEY: 'test-key' } as unknown as RenderContext['env'],
+			fetchFn,
+		};
+	}
+
+	it('logs metlink.fetch_failed at error on an auth failure, still rendering dashes', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const fetchFn: typeof fetch = async () => new Response('Unauthorized', { status: 401 });
+
+		const result = await render(ctxWith(fetchFn));
+
+		expect(errorSpy).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(errorSpy.mock.calls[0][0] as string)).toMatchObject({
+			level: 'error',
+			event: 'metlink.fetch_failed',
+			kind: 'auth',
+			stopId: '3234',
+			serviceId: ['634', '635'],
+			radiatorSlug: 'bedroom-philip',
+		});
+		// Behaviour unchanged: the frame still renders (closed stop → dashes column).
+		expect((result.viewModel as { columns: unknown[] }).columns).toHaveLength(1);
+	});
+
+	it.each([
+		[429, 'rate_limited'],
+		[500, 'upstream'],
+	])('logs metlink.fetch_failed at warn for HTTP %i (%s)', async (status, kind) => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchFn: typeof fetch = async () => new Response('nope', { status });
+
+		await render(ctxWith(fetchFn));
+
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toMatchObject({
+			level: 'warn',
+			event: 'metlink.fetch_failed',
+			kind,
+		});
+	});
+
+	it('logs a thrown fetch (network failure) at warn with kind network', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchFn: typeof fetch = async () => {
+			throw new TypeError('connection refused');
+		};
+
+		await render(ctxWith(fetchFn));
+
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toMatchObject({
+			level: 'warn',
+			event: 'metlink.fetch_failed',
+			kind: 'network',
+		});
+	});
+
+	it('carries the truncated upstream body in detail', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchFn: typeof fetch = async () => new Response('boom detail', { status: 503 });
+
+		await render(ctxWith(fetchFn));
+
+		expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toMatchObject({
+			kind: 'upstream',
+			status: 503,
+			detail: 'boom detail',
+		});
 	});
 });

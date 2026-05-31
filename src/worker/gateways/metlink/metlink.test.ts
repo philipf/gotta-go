@@ -162,7 +162,7 @@ describe('fetchArrivals', () => {
 		expect(result).toEqual({ ok: false, error: { kind: 'network' } });
 	});
 
-	it('surfaces other non-2xx as upstream and logs the body for diagnostics', async () => {
+	it('surfaces other non-2xx as upstream with a body snippet in detail, without logging (#55)', async () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const stubFetch: typeof fetch = async () =>
 			new Response('upstream exploded', { status: 500 });
@@ -174,8 +174,29 @@ describe('fetchArrivals', () => {
 			serviceId: 'KPL',
 		});
 
-		expect(result).toEqual({ ok: false, error: { kind: 'upstream', status: 500 } });
-		expect(error).toHaveBeenCalledWith('upstream exploded');
+		// Body is now carried back in detail for the caller to log — the gateway
+		// itself no longer touches console (side-effect-free bulkhead, ADR-0005).
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: 'upstream', status: 500, detail: 'upstream exploded' },
+		});
+		expect(error).not.toHaveBeenCalled();
+	});
+
+	it('truncates an oversized upstream body to 256 chars in detail', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response('x'.repeat(500), { status: 502 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+		});
+
+		expect(result.ok).toBe(false);
+		if (result.ok || result.error.kind !== 'upstream') throw new Error('expected upstream');
+		expect(result.error.detail).toBe('x'.repeat(256));
 	});
 
 	it('surfaces HTTP 429 as { kind: "rate_limited" }', async () => {
