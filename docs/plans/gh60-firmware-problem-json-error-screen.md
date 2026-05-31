@@ -1,7 +1,9 @@
 # GH #60 — Firmware: render the `problem+json` error screen
 
-> Status: ✅ implemented (commits A–E on branch `feat/60-firmware-problem-json-error-screen` off `main`).
-> Code compiles clean at every commit; the on-panel human-verification steps (Commits B/C/D) remain to be run on the physical device — see the `👤 HUMAN STEP` markers below.
+> Status: ✅ done (commits A–E on branch `feat/60-firmware-problem-json-error-screen` off `main`).
+> Code compiles clean at every commit. On-panel human verification passed: happy-path
+> re-render (Commit B), Fatal 401 + Retryable 502 error screens (Commit C/D), and the
+> verbose on/off `upstream_detail` pass — all confirmed on the physical device.
 > Scope: `src/radiator/` only — `radiator.ino`, `settings.example.h`, `settings.h.prod`,
 > the (gitignored, local) `settings.h`, and `README.md`. **No worker changes** — the
 > worker already emits `problem+json` (landed in #59, commit `c387c3d`).
