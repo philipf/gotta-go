@@ -207,9 +207,14 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 				<div style={{ flex: 1 - col.markerRatio, height: 4, backgroundColor: BLACK }} />
 			</div>
 
-			{/* Tier 3 — NEXT. Wrapped in a flex-grow box that centres it in the
-			    leftover space below the track, so its gap to the track equals its
-			    gap to the screen edge (which is the rowGap bottom padding). */}
+			{/* Tier 3 — NEXT: up to three services after the hero, chained with
+			    " → " ("NEXT 14:48 → 14:58 → 15:40"). Wrapped in a flex-grow box
+			    that centres it in the leftover space below the track, so its gap
+			    to the track equals its gap to the screen edge (the rowGap bottom
+			    padding). Forced single-line (nowrap): the wide three-time chain
+			    must not wrap in the ~479px SPLIT pane. If it crowds the centre
+			    rule on the live 1-bit read, shrink s.next (≥ FLOOR_PX) rather
+			    than truncate — a half-shown time is useless (ADR-0009 §3). */}
 			<div
 				style={{
 					flex: 1,
@@ -218,7 +223,7 @@ function column(col: ColumnViewModel, key: number, s: Sizing): ReactNode {
 					justifyContent: 'center',
 				}}
 			>
-				<div style={{ fontSize: s.next }}>{col.next}</div>
+				<div style={{ fontSize: s.next, whiteSpace: 'nowrap' }}>{col.next}</div>
 			</div>
 		</div>
 	);

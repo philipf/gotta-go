@@ -83,7 +83,7 @@ The upstream Metlink `service_id` — a route identifier used inside the gateway
 The three weight bands within a column. Each tier must be visibly lighter than the one above.
 - **Tier 1** — the **Leave In** hero. Largest, heaviest.
 - **Tier 2** — the **Leave By** + **Arrives In** + **arrival time** detail block.
-- **Tier 3** — the **Next service** footnote.
+- **Tier 3** — the **Next services** footnote.
 
 ---
 
@@ -114,10 +114,10 @@ The hero state when **Leave In** reaches zero. The hero value renders the litera
 - **Appears as:** the literal hero value `NOW`.
 - **Not to be confused with:** ~~LEAVE NOW banner~~ (legacy, deprecated), ~~urgency state~~, ~~urgency filter~~ (legacy, deprecated).
 
-### Next service
-The fallback service shown in Tier 3 — the third option if the **catchable service** falls through.
-- **Appears as:** UI label `NEXT hh:mm`, code symbol `next_service`. Renders `—` when no next service is available.
-- **Not to be confused with:** ~~backup service~~, ~~secondary service~~ — both deprecated.
+### Next services
+The fallback services shown in Tier 3 — up to **three** departures *after* the **catchable service** (the Tier 1 hero), so the rider sees their later options if the hero falls through or they simply miss it. The first of these is the service **promoted** into the catchable slot when the hero becomes a **missed service**.
+- **Appears as:** UI label `NEXT hh:mm → hh:mm → hh:mm` (chained with a ` → ` separator), shrinking to fewer times — or a single `NEXT hh:mm` — when fewer follow the hero; code symbol `next` (one composed string). Renders `—` when no service follows the hero.
+- **Not to be confused with:** ~~backup service~~, ~~secondary service~~, ~~next service~~ (singular — superseded once Tier 3 showed more than one) — all deprecated.
 
 ### Wall-clock time
 The current local time, rendered in the **global header**.

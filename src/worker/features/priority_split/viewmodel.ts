@@ -21,7 +21,7 @@ export type ServiceColumn = {
 	leaveIn: string; // "7 MIN" | "NOW"
 	leaveBy: string; // "BY 07:08"
 	arrives: string; // "ARRIVES IN 4 MIN · 07:14"
-	next: string; // "NEXT 07:22" | "—"
+	next: string; // up to three services after the hero: "NEXT 14:48 → 14:58 → 15:40" | "NEXT 14:48" | "—"
 	markerRatio: number; // 0 = hard-left, 1 = Now
 };
 
@@ -47,6 +47,18 @@ export type PrioritySplitViewModel = {
 
 const MS_PER_MIN = 60_000;
 const DASH = '—';
+
+// Tier 3 shows up to this many services *after* the hero (catchable[1..3]) —
+// the hero itself is catchable[0]. Hardcoded by design: the SPLIT-pane width
+// (view.tsx) caps how many times fit on one line, so a config knob that can't
+// safely grow past 3 would be illusory. Promote to config only on real need.
+const NEXT_COUNT = 3;
+
+// Separator between the Tier 3 service times: "NEXT 14:48 → 14:58 → 15:40".
+// U+2192 is present in the full bundled DejaVu Sans Bold (ADR-0009); its thin
+// shaft is the most at-risk glyph on the 1-bit panel, so this is provisional
+// pending the live read — swap to '›' here if it thresholds ragged.
+const SEP = ' → ';
 
 function minutesUntil(target: Date, now: Date): number {
 	return (target.getTime() - now.getTime()) / MS_PER_MIN;
@@ -189,7 +201,10 @@ export function buildColumn(
 	const window = target.timeToStopMins * target.comfortBuffer;
 	const markerRatio = 1 - clamp(leaveMargin / window, 0, 1);
 
-	const nextService = catchable[1];
+	// The next NEXT_COUNT services after the hero — all catchable by definition
+	// (later than the selected one). Renders only those that exist, no dash
+	// padding: a trailing "→ —" would read as missing data, not "no more buses".
+	const upcoming = catchable.slice(1, 1 + NEXT_COUNT);
 
 	return {
 		kind: 'service',
@@ -199,7 +214,9 @@ export function buildColumn(
 		leaveIn: leaveInMins === 0 ? 'NOW' : `${leaveInMins} MIN`,
 		leaveBy: `BY ${hhmm(leaveBy, tz)}`,
 		arrives: `ARRIVES IN ${arrivesInMins} MIN · ${hhmm(service.predicted, tz)}`,
-		next: nextService ? `NEXT ${hhmm(nextService.predicted, tz)}` : DASH,
+		next: upcoming.length
+			? `NEXT ${upcoming.map((a) => hhmm(a.predicted, tz)).join(SEP)}`
+			: DASH,
 		markerRatio,
 	};
 }

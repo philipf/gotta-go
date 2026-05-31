@@ -86,8 +86,56 @@ describe('priority_split.buildColumn - Arrives', () => {
 	});
 });
 
-describe('priority_split.buildColumn - Next service', () => {
-	it('renders the second catchable service as "NEXT hh:mm"', () => {
+describe('priority_split.buildColumn - Next services (the three after the hero)', () => {
+	it('chains the three services after the hero with an arrow separator (NEXT a -> b -> c)', () => {
+		// Hero = 19:42 (07:42); the next three catchable = 07:54, 08:06, 08:18.
+		const col = serviceColumn(
+			busTarget,
+			open(
+				arrival('2026-05-22T19:42:00Z'),
+				arrival('2026-05-22T19:54:00Z', '635'),
+				arrival('2026-05-22T20:06:00Z'),
+				arrival('2026-05-22T20:18:00Z', '635'),
+			),
+			TZ,
+			NOW,
+		);
+		expect(col.next).toBe('NEXT 07:54 → 08:06 → 08:18');
+	});
+
+	it('caps the chain at three even when more services are catchable', () => {
+		// Hero + five more; only the first three after the hero are shown.
+		const col = serviceColumn(
+			busTarget,
+			open(
+				arrival('2026-05-22T19:42:00Z'),
+				arrival('2026-05-22T19:54:00Z'),
+				arrival('2026-05-22T20:06:00Z'),
+				arrival('2026-05-22T20:18:00Z'),
+				arrival('2026-05-22T20:30:00Z'),
+				arrival('2026-05-22T20:42:00Z'),
+			),
+			TZ,
+			NOW,
+		);
+		expect(col.next).toBe('NEXT 07:54 → 08:06 → 08:18');
+	});
+
+	it('renders only the services that exist (no dash padding) - two after the hero', () => {
+		const col = serviceColumn(
+			busTarget,
+			open(
+				arrival('2026-05-22T19:42:00Z'),
+				arrival('2026-05-22T19:54:00Z', '635'),
+				arrival('2026-05-22T20:06:00Z'),
+			),
+			TZ,
+			NOW,
+		);
+		expect(col.next).toBe('NEXT 07:54 → 08:06');
+	});
+
+	it('renders the single service after the hero as "NEXT hh:mm" (no separator)', () => {
 		const col = serviceColumn(
 			busTarget,
 			open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z', '635')),
@@ -97,7 +145,7 @@ describe('priority_split.buildColumn - Next service', () => {
 		expect(col.next).toBe('NEXT 07:54');
 	});
 
-	it('renders dash when no next service is available', () => {
+	it('renders dash when no service follows the hero', () => {
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:42:00Z')), TZ, NOW);
 		expect(col.next).toBe('—');
 	});
