@@ -43,9 +43,10 @@ A single rendered 960×540 1-bit BMP image, produced by the Worker, flushed to t
 - **Not to be confused with:** **layout** (the structural template), **screen** (a named example scenario in the UI doc), ~~canvas~~, ~~image stream~~.
 
 ### Layout
-The structural template a frame uses. Two layouts exist:
+The structural template a frame uses. Three layouts exist:
 - `priority_split` — global header + one or two columns of transit content.
 - `minimal_clock` — full-screen wall-clock time.
+- `idle_jokes` — the **idle profile**'s ambient content: a dad joke beside a meme, no wall-clock. Rendered overnight when no **profile phase** is active.
 - **Appears as:** config key `layout:`, prose, code.
 
 ### Screen
@@ -194,9 +195,9 @@ A named user/household configuration. One profile may be shared by multiple radi
 - **Not to be confused with:** **user** (a person — multiple people can share one profile).
 
 ### Idle profile
-A system-wide default profile that takes over when server time falls outside every configured **profile phase** of the slug's profile (e.g. overnight gaps between configured phases). Renders a low-frequency ambient layout with a long **sleep duration** (capped at 4 h). The Worker never errors on "no active phase" — it falls through to the idle profile and returns `200`.
+A system-wide default profile that takes over when server time falls outside every configured **profile phase** of the slug's profile (e.g. overnight gaps between configured phases). Renders the `idle_jokes` **layout** with a long **sleep duration** (until the next phase opens, capped at 4 h). The Worker never errors on "no active phase" — it falls through to the idle profile and returns `200`. A profile may carry its own `idle` override; absent that, the system default applies.
 - **Appears as:** the literal `X-Profile-Phase: idle_profile` response header, prose ("the idle profile takes over overnight").
-- **Defined by:** [ADR-0003](adr/0003-radiator-worker-contract.md) §"Idle profile". Layout and content source are a deferred follow-up.
+- **Defined by:** [ADR-0003](adr/0003-radiator-worker-contract.md) §"Idle profile"; layout and content source settled in #17 (`idle_jokes`, dad jokes from icanhazdadjoke).
 
 ### Profile phase
 A named time-of-day phase inside a profile. Each phase has a `start_time`, an `end_time`, a **layout**, and (for `priority_split`) one or more **transit targets**.

@@ -25,13 +25,13 @@ function frameReq(slug: string): Request {
 
 describe('resolveTestRadiator', () => {
 	it('resolves test-<phaseKey> to a synthetic all-day radiator', () => {
-		const r = resolveTestRadiator('test-all_day_clock');
-		expect(r?.slug).toBe('test-all_day_clock');
+		const r = resolveTestRadiator('test-daytime_clock');
+		expect(r?.slug).toBe('test-daytime_clock');
 		// profile.name carries the originating profile's name.
 		expect(r?.profile.name).toBe('philip_and_tania');
 		expect(r?.profile.phases).toHaveLength(1);
 		const phase = r!.profile.phases[0];
-		expect(phase.key).toBe('all_day_clock');
+		expect(phase.key).toBe('daytime_clock');
 		expect(phase.layout).toBe('minimal_clock');
 		// Widened to the half-open full day so resolveProfilePhase always matches.
 		expect(phase.startTime).toBe('00:00');
@@ -50,7 +50,7 @@ describe('resolveTestRadiator', () => {
 	});
 
 	it('returns undefined when the test- prefix is absent', () => {
-		expect(resolveTestRadiator('all_day_clock')).toBeUndefined();
+		expect(resolveTestRadiator('daytime_clock')).toBeUndefined();
 	});
 });
 
@@ -63,9 +63,9 @@ describe('GET /v1/frame with a test- slug', () => {
 		// Noon and midnight both render minimal_clock — the phase is all-day, so
 		// it never falls back to a different phase the way a real slug would.
 		for (const iso of ['2026-05-30T12:00:00Z', '2026-05-30T00:00:00Z']) {
-			const res = await route(frameReq('test-all_day_clock'), env, new Date(iso));
+			const res = await route(frameReq('test-daytime_clock'), env, new Date(iso));
 			expect(res.status).toBe(200);
-			expect(res.headers.get('X-Profile-Phase')).toBe('all_day_clock');
+			expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
 			const body = (await res.json()) as Record<string, unknown>;
 			expect(body.layout).toBe('minimal_clock');
 		}

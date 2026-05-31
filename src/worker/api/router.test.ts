@@ -83,7 +83,7 @@ describe('api.router — JSON view-model variant', () => {
 	});
 
 	it('returns the minimal_clock view model with diagnostics fields and no BMP', async () => {
-		const now = new Date('2026-05-23T06:48:00Z'); // 18:48 NZST → all_day_clock
+		const now = new Date('2026-05-23T06:48:00Z'); // 18:48 NZST → daytime_clock
 		const req = buildReq({
 			'X-Radiator-Slug': 'bedroom-philip-tania',
 			'X-Radiator-Token': TOKEN,
@@ -95,7 +95,7 @@ describe('api.router — JSON view-model variant', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get('Content-Type')).toBe('application/json');
 		const body = (await res.json()) as Record<string, unknown>;
-		expect(body.profile_phase).toBe('all_day_clock');
+		expect(body.profile_phase).toBe('daytime_clock');
 		expect(body.layout).toBe('minimal_clock');
 		expect(body.server_time).toBe('2026-05-23T06:48:00.000Z');
 		expect(body.slug).toBe('bedroom-philip-tania');
@@ -114,8 +114,8 @@ describe('api.router — JSON view-model variant', () => {
 		const res = await route(req, env, now);
 
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T06:48:00.000Z');
-		expect(res.headers.get('X-Profile-Phase')).toBe('all_day_clock');
-		// all_day_clock refreshes every 5 min → 300s.
+		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
+		// daytime_clock refreshes every 5 min → 300s.
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
 	});
 

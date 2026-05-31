@@ -30,6 +30,7 @@ export type ProblemSlug =
 	| 'metlink-bad-request'
 	| 'metlink-unavailable'
 	| 'metlink-rate-limited'
+	| 'joke-source-unavailable'
 	| 'internal'
 	| 'unauthorized'
 	| 'unknown-radiator';
@@ -152,6 +153,21 @@ export function metlinkRateLimited(upstreamDetail?: string): RetryableError {
 		title: 'Transit data unavailable',
 		status: 502,
 		detail: 'Metlink returned HTTP 429 (rate limited). The radiator will retry on its next wake cycle.',
+		upstreamDetail,
+	});
+}
+
+// idle_jokes content source (icanhazdadjoke) unreachable / 5xx / unusable body.
+// Treated exactly like Metlink (#17): a 502, Retryable, warn — so an overnight
+// joke-API blip retries on the next idle wake at the idle phase cadence rather
+// than wedging. No bundled fallback by design; the firmware shows the error
+// screen per ADR-0011.
+export function jokeSourceUnavailable(detail: string, upstreamDetail?: string): RetryableError {
+	return new RetryableError({
+		slug: 'joke-source-unavailable',
+		title: 'Idle content unavailable',
+		status: 502,
+		detail,
 		upstreamDetail,
 	});
 }

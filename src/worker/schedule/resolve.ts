@@ -1,14 +1,22 @@
 // Profile-phase resolver. Maps (radiator, now) → active profile phase, its
 // layout, and the clamped sleep duration (30s ≤ n ≤ 14400s per glossary §8).
+// When server time is outside every configured phase, falls through to the
+// idle profile (ADR-0003 §"Idle profile" / #17): renders the idle layout and
+// sleeps until the next phase opens, capped at the 4h ceiling.
 
 import type { Radiator } from '../config/lookup';
 import type { ProfilePhase } from '../config/types';
 import type { LayoutKey } from '../features/registry';
-import { GLOBAL } from '../config/data';
+import { GLOBAL, SYSTEM_IDLE_DEFAULT } from '../config/data';
 import { hhmm } from '../shared/hhmm';
 
 const SLEEP_FLOOR = 30;
 const SLEEP_CEILING = 14400;
+const MINUTES_PER_DAY = 1440;
+
+// The literal X-Profile-Phase value for the idle fall-through (ADR-0003). The
+// idle profile is not a configured phase, so it has no per-profile key.
+const IDLE_PROFILE_PHASE = 'idle_profile';
 
 export type ProfilePhaseResolution = {
 	profilePhase: string;
@@ -32,19 +40,57 @@ function toMinutes(hhmm: string): number {
 	return Number(h) * 60 + Number(m);
 }
 
+function clampSleep(seconds: number): number {
+	return Math.min(SLEEP_CEILING, Math.max(SLEEP_FLOOR, seconds));
+}
+
+// Minutes from `mins` until the next phase start, wrapping past midnight. A
+// phase starting exactly at `mins` would have matched the half-open window, so
+// a 0 delta means the *next* occurrence — a full day away. With no phases at
+// all the reduce yields Infinity, which the caller clamps to the 4h ceiling.
+function minutesUntilNextPhaseStart(phases: ProfilePhase[], mins: number): number {
+	return phases.reduce((best, p) => {
+		const raw = (toMinutes(p.startTime) - mins + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+		const delta = raw === 0 ? MINUTES_PER_DAY : raw;
+		return Math.min(best, delta);
+	}, Infinity);
+}
+
 // Selects the phase whose half-open [startTime, endTime) window contains the
-// local wall-clock time. A request outside every window falls back to the
-// first phase — TODO(#17): replace with the idle_profile fall-through.
+// local wall-clock time. Outside every window, falls through to the idle
+// profile: the slug's `idle` override or the system default, sleeping until the
+// next phase opens (ADR-0003).
 export function resolveProfilePhase(radiator: Radiator, now: Date): ProfilePhaseResolution {
 	const phases = radiator.profile.phases;
 	const mins = nowMinutes(now, GLOBAL.timezone);
-	const phase =
-		phases.find((p) => mins >= toMinutes(p.startTime) && mins < toMinutes(p.endTime)) ??
-		phases[0];
-
-	const sleepSeconds = Math.min(
-		SLEEP_CEILING,
-		Math.max(SLEEP_FLOOR, phase.refreshIntervalMinutes * 60),
+	const active = phases.find(
+		(p) => mins >= toMinutes(p.startTime) && mins < toMinutes(p.endTime),
 	);
-	return { profilePhase: phase.key, phase, layout: phase.layout, sleepSeconds };
+
+	if (active) {
+		return {
+			profilePhase: active.key,
+			phase: active,
+			layout: active.layout,
+			sleepSeconds: clampSleep(active.refreshIntervalMinutes * 60),
+		};
+	}
+
+	// Idle fall-through (ADR-0003). Wake exactly when the next configured phase
+	// opens, capped at 4h. The synthesised phase exists only to satisfy the
+	// RenderContext shape — idle_jokes ignores its fields (no transit targets).
+	const idle = radiator.profile.idle ?? SYSTEM_IDLE_DEFAULT;
+	const idlePhase: ProfilePhase = {
+		key: IDLE_PROFILE_PHASE,
+		startTime: '00:00',
+		endTime: '00:00',
+		layout: idle.layout,
+		refreshIntervalMinutes: 0,
+	};
+	return {
+		profilePhase: IDLE_PROFILE_PHASE,
+		phase: idlePhase,
+		layout: idle.layout,
+		sleepSeconds: clampSleep(minutesUntilNextPhaseStart(phases, mins) * 60),
+	};
 }

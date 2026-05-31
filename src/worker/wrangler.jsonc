@@ -11,5 +11,6 @@
 	},
 	"rules": [
 		{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true },
+		{ "type": "Data", "globs": ["**/*.png"], "fallthrough": true },
 	],
 }

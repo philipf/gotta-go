@@ -1,8 +1,9 @@
-// PoC seed data for the PRD global:, profiles: and radiators: blocks. One
-// profile with one all-day minimal_clock phase and one radiator slug, so
-// resolution always finds a phase regardless of server time during the PoC.
+// PoC seed data for the PRD global:, profiles: and radiators: blocks. Each
+// profile leaves an overnight gap outside its phases, which the resolver falls
+// through to the idle profile (idle_jokes, #17) — so server time is not always
+// inside a configured phase by design.
 
-import type { Global, Profile } from './types';
+import type { Global, IdleProfile, Profile } from './types';
 
 // PRD §9 `global:` block.
 export const GLOBAL: Global = {
@@ -13,12 +14,19 @@ export const GLOBAL: Global = {
 	stopPredictionLimit: 1000,
 };
 
+// The system-wide default idle profile (ADR-0003 / #17). The resolver falls
+// through to this when server time is outside every configured phase, unless
+// the slug's profile carries its own `idle` override. Renders ambient content
+// (a dad joke + meme) on the long overnight sleep — see features/idle_jokes.
+export const SYSTEM_IDLE_DEFAULT: IdleProfile = {
+	layout: 'idle_jokes',
+};
+
 // PRD §9 `profiles:` block — named profiles keyed by profile name. Each
-// profile owns its phases. Multiple radiators may share one profile.
-//
-// The PoC seeds one profile with one all-day `minimal_clock` phase, so
-// resolution always finds a phase regardless of server time. Multi-phase
-// content (priority_split, idle, etc.) lands in subsequent issues.
+// profile owns its phases (and may carry an `idle` override; both seeds use the
+// system default). Multiple radiators may share one profile. Phases do not
+// cover the whole day — the uncovered overnight hours fall through to the idle
+// profile (#17).
 export const PROFILES: Record<string, Profile> = {
 	philip_and_tania: {
 		name: 'philip_and_tania',
@@ -51,11 +59,13 @@ export const PROFILES: Record<string, Profile> = {
 					},
 				],
 			},
-			// Catch-all idle phase outside the commute window.
+			// Daytime clock after the commute window. Bounded at 21:00 (not
+			// all-day) so the 21:00–06:30 overnight gap falls through to the idle
+			// profile → idle_jokes (#17) instead of ticking a clock nobody reads.
 			{
-				key: 'all_day_clock',
-				startTime: '00:00',
-				endTime: '23:59',
+				key: 'daytime_clock',
+				startTime: '09:00',
+				endTime: '21:00',
 				layout: 'minimal_clock',
 				refreshIntervalMinutes: 5,
 			},

@@ -11,6 +11,7 @@ import type { ProfilePhase } from '../config/types';
 import type { ResponseFormat } from '../api/format';
 import { render as minimalClockRender } from './minimal_clock/service';
 import { render as prioritySplitRender } from './priority_split/service';
+import { render as idleJokesRender } from './idle_jokes/service';
 
 export type RenderContext = {
 	radiator: Radiator;
@@ -45,6 +46,7 @@ export type RenderResult = {
 export const layouts = {
 	minimal_clock: minimalClockRender,
 	priority_split: prioritySplitRender,
+	idle_jokes: idleJokesRender,
 } satisfies Record<string, (ctx: RenderContext) => Promise<RenderResult>>;
 
 export type LayoutKey = keyof typeof layouts;

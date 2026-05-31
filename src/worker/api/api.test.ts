@@ -103,7 +103,7 @@ describe('api.response.frameOk', () => {
 			gzip: true,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
-			profilePhase: 'all_day_clock',
+			profilePhase: 'daytime_clock',
 		});
 
 		expect(res.status).toBe(200);
@@ -111,7 +111,7 @@ describe('api.response.frameOk', () => {
 		expect(res.headers.get('Content-Encoding')).toBe('gzip');
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T06:48:12.000Z');
-		expect(res.headers.get('X-Profile-Phase')).toBe('all_day_clock');
+		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
 	});
 
 	it('omits Content-Encoding when gzip is false (uncompressed BMP body)', () => {
@@ -120,7 +120,7 @@ describe('api.response.frameOk', () => {
 			gzip: false,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
-			profilePhase: 'all_day_clock',
+			profilePhase: 'daytime_clock',
 		});
 
 		expect(res.status).toBe(200);
@@ -141,7 +141,7 @@ describe('api.response.frameSvg', () => {
 			gzip: true,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
-			profilePhase: 'all_day_clock',
+			profilePhase: 'daytime_clock',
 		});
 
 		expect(res.status).toBe(200);
@@ -149,7 +149,7 @@ describe('api.response.frameSvg', () => {
 		expect(res.headers.get('Content-Encoding')).toBe('gzip');
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T06:48:12.000Z');
-		expect(res.headers.get('X-Profile-Phase')).toBe('all_day_clock');
+		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
 	});
 
 	it('omits Content-Encoding when gzip is false (uncompressed SVG body)', () => {
@@ -158,7 +158,7 @@ describe('api.response.frameSvg', () => {
 			gzip: false,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
-			profilePhase: 'all_day_clock',
+			profilePhase: 'daytime_clock',
 		});
 
 		expect(res.status).toBe(200);

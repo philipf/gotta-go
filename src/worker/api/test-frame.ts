@@ -19,10 +19,10 @@ const TEST_PREFIX = 'test-';
 // Resolves a `test-<phaseKey>` slug to a synthetic radiator carrying just that
 // phase, widened to the full day. The window is [00:00, 24:00) — a half-open
 // 24:00 (`[0, 1440)`) means resolveProfilePhase's find matches at every minute,
-// so it never falls through to the phases[0] fallback (which #17 will replace
-// with idle fall-through). Unknown key → undefined → 404, fail-closed like
-// lookupRadiator. First match wins; a config.test.ts assertion keeps phase keys
-// globally unique so there is nothing to disambiguate.
+// so it never falls through to the idle profile (#17): a test- slug always
+// renders its named phase, never overnight jokes. Unknown key → undefined →
+// 404, fail-closed like lookupRadiator. First match wins; a config.test.ts
+// assertion keeps phase keys globally unique so there is nothing to disambiguate.
 export function resolveTestRadiator(slug: string): Radiator | undefined {
 	if (!slug.startsWith(TEST_PREFIX)) return undefined;
 	const key = slug.slice(TEST_PREFIX.length);

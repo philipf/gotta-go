@@ -115,6 +115,16 @@ All text renders in **DejaVu Sans Bold** (bundled as a static Worker asset); the
 
 See [GottaGo — UI/UX Reference](../UI/GottaGo%20%E2%80%94%20UI_UX%20Design%20Reference.md) for screen scenarios and weight-band guidance.
 
+### 5.5 `idle_jokes` layout
+
+The **idle profile**'s ambient content, shown overnight when no **profile phase** is active. Not utility — amusement: a glance is rewarded with a joke rather than woken with bright information.
+
+- **Joke** (left) — a random dad joke from [icanhazdadjoke.com](https://icanhazdadjoke.com/), word-wrapped in DejaVu Sans Bold; the font size steps down as the joke lengthens so short and long jokes both fit.
+- **Meme** (right) — a fixed 1-bit line-art face, bundled as a static Worker asset.
+- **No wall-clock or date.** The idle **sleep duration** runs until the next phase opens (up to 4 h), so any rendered time would be stale before it is read.
+- **Rotation** — a fresh joke is fetched each **wake cycle**; overnight wakes are rare, so the joke is effectively static for hours.
+- **Failure mode** — if the joke source is unreachable or returns nothing usable, the Worker returns `502` and the radiator shows the standard error screen (no bundled fallback), consistent with [ADR-0011](../adr/0011-error-contract-problem-details.md).
+
 ---
 
 ## 6. Functional requirements (EARS format)

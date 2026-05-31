@@ -34,7 +34,7 @@ export type Global = {
 };
 
 // Mirrors PRD §9 profile phase — a time-of-day phase inside a profile.
-// `key` is the phase identifier (e.g. `morning_commute`, `all_day_clock`).
+// `key` is the phase identifier (e.g. `morning_commute`, `daytime_clock`).
 export type ProfilePhase = {
 	key: string;
 	startTime: string;
@@ -45,11 +45,23 @@ export type ProfilePhase = {
 	transitTargets?: TransitTarget[];
 };
 
+// The idle profile a slug falls through to when server time is outside every
+// configured phase (ADR-0003 §"Idle profile" / #17). System-wide by default
+// (SYSTEM_IDLE_DEFAULT in data.ts); a profile may override it. Only the layout
+// is configurable today — both the default and any override resolve to
+// `idle_jokes`, rendered under the literal `idle_profile` phase key.
+export type IdleProfile = {
+	layout: LayoutKey;
+};
+
 // Mirrors PRD §9 `profiles:` entry — a named user/household configuration.
-// One profile may be shared by multiple radiators (PRD §7).
+// One profile may be shared by multiple radiators (PRD §7). `idle` overrides
+// the system-wide idle profile for this profile's overnight gaps; absent → the
+// system default.
 export type Profile = {
 	name: string;
 	phases: ProfilePhase[];
+	idle?: IdleProfile;
 };
 
 // Mirrors PRD §9 `radiators:` entry — one physical radiator. The slug

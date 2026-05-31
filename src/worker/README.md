@@ -61,7 +61,7 @@ nothing to register. With today's seed data:
 |---|---|---|
 | `test-morning_commute` | philip's two-target (bus + train) `priority_split` | live Metlink |
 | `test-morning_school_run` | daughter's one-target `priority_split` | live Metlink |
-| `test-all_day_clock` | `minimal_clock` | offline |
+| `test-daytime_clock` | `minimal_clock` | offline |
 | `test-afternoon_idle` | the idle `minimal_clock` phase | offline |
 
 These resolve in **every environment** by design — there is no env gate, and no
@@ -70,7 +70,7 @@ unknown radiator. The complementary [`X-Debug-Now`](#dev-time-override) header
 takes the other half: it drives *real* phase selection at a chosen time.
 
 ```bash
-curl -H "X-Radiator-Token: test-token-123" -H "X-Radiator-Slug: test-all_day_clock" \
+curl -H "X-Radiator-Token: test-token-123" -H "X-Radiator-Slug: test-daytime_clock" \
      -H "Accept: image/svg+xml" --compressed http://localhost:8787/v1/frame -o frame.svg
 ```
 
