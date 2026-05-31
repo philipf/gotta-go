@@ -18,9 +18,10 @@ if(NOT EXISTS "${ARDUINOJSON_DIR}/ArduinoJson.h")
 endif()
 
 # Each module under test is compiled from its real firmware source; only the
-# Arduino/EPD surface is swapped for host stubs/. net.cpp is excluded — it is
-# pure HTTPClient/TLS (device-only) with no host-testable seam. sleep.h is
-# header-only, so it needs no source entry.
+# Arduino/EPD surface is swapped for host stubs/. net.cpp and sleep.cpp are
+# excluded — they are device-only (HTTPClient/TLS; the deep-sleep timer) with no
+# host-testable seam. The sleep module's pure policy lives in sleep.h, which the
+# tests include directly.
 add_executable(radiator_tests
     test_problem.cpp
     test_sleep.cpp

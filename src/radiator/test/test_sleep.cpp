@@ -1,9 +1,12 @@
-// Host-native tests for the pure X-Sleep-Seconds parser (ADR-0003). Guards the
-// strictness contract: anything not a clean in-range integer must signal absent
+// Host-native tests for the pure sleep policy (ADR-0003): the X-Sleep-Seconds
+// parser, the present-vs-fallback decision, and the outcome→log-token map. Guards
+// the strictness contract — anything not a clean in-range integer signals absent
 // so the orchestrator applies the firmware fallback rather than a bad cadence.
 #include "doctest.h"
 
 #include "sleep.h"
+
+#include <string>
 
 TEST_CASE("parseSleepSecondsValue accepts a clean in-range integer") {
     SleepHeader s = parseSleepSecondsValue("300");
@@ -35,4 +38,25 @@ TEST_CASE("parseSleepSecondsValue rejects non-integers and trailing garbage") {
 TEST_CASE("parseSleepSecondsValue treats absent/empty as not present") {
     CHECK_FALSE(parseSleepSecondsValue("").present);
     CHECK_FALSE(parseSleepSecondsValue(nullptr).present);
+}
+
+TEST_CASE("chooseSleep honours a present X-Sleep-Seconds directive") {
+    const SleepDecision d = chooseSleep({true, 1800});
+    CHECK(d.seconds == 1800u);
+    CHECK(std::string(d.source) == "X-Sleep-Seconds");
+}
+
+TEST_CASE("chooseSleep falls back to the firmware default when absent") {
+    const SleepDecision d = chooseSleep({false, 0});
+    CHECK(d.seconds == FIRMWARE_FALLBACK_SLEEP_S);
+    CHECK(std::string(d.source) == "firmware fallback");
+}
+
+TEST_CASE("cycleResultStr maps every outcome to its log token") {
+    CHECK(std::string(cycleResultStr(CycleResult::Ok)) == "ok");
+    CHECK(std::string(cycleResultStr(CycleResult::HttpError)) == "http-error");
+    CHECK(std::string(cycleResultStr(CycleResult::WorkerError)) == "worker-error");
+    CHECK(std::string(cycleResultStr(CycleResult::BodyTooLarge)) == "body-too-large");
+    CHECK(std::string(cycleResultStr(CycleResult::InflateFailed)) == "inflate-failed");
+    CHECK(std::string(cycleResultStr(CycleResult::BmpInvalid)) == "bmp-invalid");
 }

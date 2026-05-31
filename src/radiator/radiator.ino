@@ -14,7 +14,7 @@
  *   net.{h,cpp}     — Wi-Fi + HTTP request + body drain + gzip inflate
  *   frame.{h,cpp}   — 1bpp BMP decode + panel flush
  *   problem.{h,cpp} — problem+json parse + error-screen render (ADR-0011)
- *   sleep.h         — X-Sleep-Seconds parse + the SleepHeader type (ADR-0003)
+ *   sleep.{h,cpp}   — X-Sleep-Seconds parse + sleep policy + deep sleep (ADR-0003)
  * This file is the wake-cycle orchestrator: it allocates scratch, drives one
  * request via net, and maps the response onto the ADR-0003/0011 table below.
  *
@@ -46,6 +46,7 @@
 #include "net.h"         // connectWiFi, fetchFrame, inflateGzip, HttpResponse
 #include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
 #include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
+#include "sleep.h"       // CycleResult, SleepHeader, sleepFor
 #include "settings.h"    // RADIATOR_VERBOSE (creds/URL are net.cpp's)
 
 // Verbose: gate rendering of upstream_detail on the error screen. Default off;
@@ -54,21 +55,6 @@
 #ifndef RADIATOR_VERBOSE
 #define RADIATOR_VERBOSE 0
 #endif
-
-// Firmware fallback sleep duration (seconds). Applied only when no usable
-// X-Sleep-Seconds value reached the radiator — see ADR-0003.
-static const uint32_t FIRMWARE_FALLBACK_SLEEP_S = 300;
-
-// Outcome of one wake cycle's network + decode work. The sleep policy
-// downstream is driven entirely by this enum — see sleepFor() and ADR-0003.
-enum class CycleResult {
-    Ok,             // 200 + valid BMP. flushed to panel. sleep = X-Sleep-Seconds.
-    HttpError,      // transport failure / no response. panel untouched. (#47's arm)
-    WorkerError,    // reachable Worker returned a non-2xx problem doc. error screen rendered.
-    BodyTooLarge,   // body exceeded MAX_COMPRESSED_BYTES. panel untouched.
-    InflateFailed,  // gzip inflate produced wrong size or returned an error.
-    BmpInvalid,     // inflated bytes did not parse as a 960x540 1bpp BMP.
-};
 
 // Wake counter parked in RTC slow memory — survives deep sleep, zeroed only
 // on a true cold boot. Used to disambiguate cold-boot vs timer-wake in logs.
@@ -88,32 +74,6 @@ static const char *wakeReasonStr(esp_sleep_wakeup_cause_t cause) {
         case ESP_SLEEP_WAKEUP_UNDEFINED: return "power-on / hard reset (cold boot)";
         default: return "other";
     }
-}
-
-// Sleep decision per ADR-0003 firmware response handling table. The caller
-// names which row fired (for the serial log) and supplies the header value
-// already parsed by net::fetchFrame().
-static void sleepFor(CycleResult outcome, SleepHeader sleep, uint32_t awakeMs) {
-    uint32_t seconds = sleep.present ? sleep.seconds : FIRMWARE_FALLBACK_SLEEP_S;
-    const char *source = sleep.present ? "X-Sleep-Seconds" : "firmware fallback";
-
-    const char *outcomeStr = "?";
-    switch (outcome) {
-        case CycleResult::Ok:            outcomeStr = "ok"; break;
-        case CycleResult::HttpError:     outcomeStr = "http-error"; break;
-        case CycleResult::WorkerError:   outcomeStr = "worker-error"; break;
-        case CycleResult::BodyTooLarge:  outcomeStr = "body-too-large"; break;
-        case CycleResult::InflateFailed: outcomeStr = "inflate-failed"; break;
-        case CycleResult::BmpInvalid:    outcomeStr = "bmp-invalid"; break;
-    }
-
-    Serial.printf("Cycle #%lu: outcome=%s, awake %lu ms, sleeping %lu s (%s)\n",
-                  (unsigned long)wakeCount, outcomeStr,
-                  (unsigned long)awakeMs, (unsigned long)seconds, source);
-    Serial.flush();  // drain the USB CDC FIFO before the peripheral powers down
-
-    esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
-    esp_deep_sleep_start();  // never returns
 }
 
 // ---------- Response handlers (the content half of the ADR table) ----------
@@ -193,7 +153,7 @@ void setup() {
     uzlibDict     = (uint8_t *)heap_caps_malloc(UZLIB_DICT_BYTES,     MALLOC_CAP_SPIRAM);
     if (!compressedBuf || !inflatedBuf || !uzlibDict) {
         Serial.println("PSRAM alloc failed — sleeping on firmware fallback");
-        sleepFor(CycleResult::HttpError, {false, 0}, millis() - wakeStart);
+        sleepFor(CycleResult::HttpError, {false, 0}, millis() - wakeStart, wakeCount);
     }
 
     epd_init();
@@ -222,7 +182,7 @@ void setup() {
     }
     disconnectWiFi();  // drop the radio before sleeping
 
-    sleepFor(outcome, sleep, millis() - wakeStart);
+    sleepFor(outcome, sleep, millis() - wakeStart, wakeCount);
 }
 
 void loop() {
