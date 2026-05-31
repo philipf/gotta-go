@@ -539,6 +539,117 @@ static bool flushToPanel(const uint8_t *bmp, size_t bmpLen) {
     return true;
 }
 
+// ---------- Error screen renderer (ADR-0011; reusable by #47) ----------
+
+// Width in px of `s` when drawn in `font`, via the library's own measurement.
+static int32_t textWidthPx(const GFXfont *font, const char *s) {
+    int32_t x = 0, y = 0, x1 = 0, y1 = 0, w = 0, h = 0;
+    get_text_bounds(font, s, &x, &y, &x1, &y1, &w, &h, NULL);
+    return w;
+}
+
+// Greedy word-wrap `in` to maxWidthPx, writing the result into out (capacity
+// outCap) with '\n' inserted at wrap points. Honours any '\n' already present
+// in `in`. A single word wider than maxWidthPx is emitted as its own line and
+// the panel clips the overflow (Decision 6). There is no drop-in wrap library
+// for this 16-bit parallel panel (Decision 5) — this ~30-line helper uses the
+// measurement get_text_bounds already provides.
+static void wrapText(const GFXfont *font, const char *in, char *out,
+                     size_t outCap, int32_t maxWidthPx) {
+    if (outCap == 0) return;
+    out[0] = '\0';
+    if (outCap < 2) return;
+
+    size_t outLen = 0;
+    size_t lineStart = 0;  // index in out where the current line begins
+    char cand[PROBLEM_UPSTREAM_CAP + 1];
+
+    size_t i = 0;
+    while (in[i] != '\0') {
+        if (in[i] == '\n') {  // hard break
+            if (outLen < outCap - 1) out[outLen++] = '\n';
+            lineStart = outLen;
+            i++;
+            continue;
+        }
+        if (in[i] == ' ' || in[i] == '\t' || in[i] == '\r') { i++; continue; }
+
+        // Read one word.
+        const size_t ws = i;
+        while (in[i] && in[i] != ' ' && in[i] != '\t' && in[i] != '\r' && in[i] != '\n') i++;
+        const size_t wlen = i - ws;
+        const bool lineEmpty = (outLen == lineStart);
+
+        // Build "current line + (space) + word" into cand and measure it.
+        size_t cl = outLen - lineStart;
+        if (cl > sizeof(cand) - 1) cl = sizeof(cand) - 1;
+        memcpy(cand, out + lineStart, cl);
+        size_t candLen = cl;
+        if (!lineEmpty && candLen < sizeof(cand) - 1) cand[candLen++] = ' ';
+        size_t copyw = wlen;
+        if (candLen + copyw > sizeof(cand) - 1) copyw = sizeof(cand) - 1 - candLen;
+        memcpy(cand + candLen, in + ws, copyw);
+        candLen += copyw;
+        cand[candLen] = '\0';
+
+        if (lineEmpty || textWidthPx(font, cand) <= maxWidthPx) {
+            // Fits (or forced onto an empty line) — commit cand as the line.
+            if (lineStart + candLen <= outCap - 1) {
+                memcpy(out + lineStart, cand, candLen);
+                outLen = lineStart + candLen;
+            }
+        } else {
+            // Doesn't fit — break and start the word on a fresh line.
+            if (outLen < outCap - 1) out[outLen++] = '\n';
+            lineStart = outLen;
+            size_t cw = wlen;
+            if (outLen + cw > outCap - 1) cw = outCap - 1 - outLen;
+            memcpy(out + outLen, in + ws, cw);
+            outLen += cw;
+        }
+    }
+    out[outLen] = '\0';
+}
+
+// Render a generic error screen: `title` as the heading, `detail` as the body,
+// and (verbose only) `upstreamOrNull` underneath. Neutral content in, panel out
+// (Decision 10) — #47 reuses this with locally-sourced strings for the
+// worker-unreachable case. Draws directly to the panel with a NULL framebuffer
+// (the hello-world idiom, Decision 4); write_string resets x and advances y per
+// wrapped line, so cursor_y already sits below each block on return.
+static void renderErrorScreen(const char *title, const char *detail,
+                              const char *upstreamOrNull) {
+    Serial.printf("error-screen: render title='%s' verbose=%d upstream=%s\n",
+                  title, RADIATOR_VERBOSE, upstreamOrNull ? "shown" : "hidden");
+
+    const GFXfont *font = (const GFXfont *)&FiraSans;
+    char wrapped[PROBLEM_UPSTREAM_CAP + 64];
+
+    epd_poweron();
+    epd_clear();  // wipe to avoid ghosting
+
+    int32_t cursor_x = ERR_MARGIN_X;
+    int32_t cursor_y = ERR_MARGIN_TOP;
+
+    wrapText(font, title, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
+    write_string(font, wrapped, &cursor_x, &cursor_y, NULL);
+
+    cursor_x = ERR_MARGIN_X;
+    cursor_y += ERR_LINE_GAP;
+    wrapText(font, detail, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
+    write_string(font, wrapped, &cursor_x, &cursor_y, NULL);
+
+    if (upstreamOrNull && upstreamOrNull[0] != '\0') {
+        cursor_x = ERR_MARGIN_X;
+        cursor_y += ERR_LINE_GAP;
+        wrapText(font, upstreamOrNull, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
+        write_string(font, wrapped, &cursor_x, &cursor_y, NULL);
+    }
+
+    epd_poweroff();
+    Serial.println("error-screen: latched");
+}
+
 // ---------- Wake path ----------
 
 void setup() {
@@ -580,10 +691,24 @@ void setup() {
                 outcome = CycleResult::BmpInvalid;
             }
         } else if (outcome == CycleResult::WorkerError) {
-            // Commit C: the problem doc is parsed and logged; the error screen
-            // is wired in Commit D. Panel untouched until then.
-            Serial.printf("worker-error: http=%d title='%s' (render pending)\n",
-                          problem.httpStatus, problem.title);
+            // Render the generic error screen from the parsed problem doc.
+            // Empty title/detail (parse/inflate failure or empty body) fall
+            // back to a generic heading + an HTTP-status line (Decision 8).
+            // upstream_detail is shown only under RADIATOR_VERBOSE.
+            const char *up = (RADIATOR_VERBOSE && problem.hasUpstream)
+                ? problem.upstream : nullptr;
+            const char *title = problem.title[0] ? problem.title : "Unexpected error";
+            char detailBuf[PROBLEM_DETAIL_CAP];
+            const char *detail;
+            if (problem.detail[0]) {
+                detail = problem.detail;
+            } else {
+                snprintf(detailBuf, sizeof(detailBuf),
+                         "The display service returned an error (HTTP %d).",
+                         problem.httpStatus);
+                detail = detailBuf;
+            }
+            renderErrorScreen(title, detail, up);
         }
     }
     WiFi.disconnect(true);  // drop the radio before sleeping
