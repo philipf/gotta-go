@@ -22,7 +22,7 @@ The #56 grill settled the principle: **errors must be visible, not silently degr
 - **[#59](https://github.com/philipf/gotta-go/issues/59)** — *Worker: emit `problem+json` error responses, stop silent degrade.* Adds a gateway `client_error` kind, a `shared/errors.ts` error hierarchy, service-layer throws, a boundary that turns a raised error into a `problem+json` response, converts every existing error response, removes the dead cache headers code-side, and enforces the 2 KB snippet cap.
 - **[#60](https://github.com/philipf/gotta-go/issues/60)** — *Firmware: render the `problem+json` error screen.* Parses the problem document, renders a generic `title` + `detail` screen, and adds a `verbose` flag in `setting.h` gating `upstream_detail`. Relates to [#47](https://github.com/philipf/gotta-go/issues/47).
 
-> **Out of scope for this ADR.** The cache / `stale-served` resilience model (the third ADR-0003 error rule, "Metlink staleness preferred over 502") and the now-vestigial `X-Cache-Status` / `X-Metlink-Fetched-At` observability headers are entangled with [ADR-0010](0010-no-metlink-cache-layer.md) (no caching layer) and are reconciled in their own slice. This ADR does not touch them.
+This ADR also retires the cache-era error model. [ADR-0010](0010-no-metlink-cache-layer.md) removed the caching layer, leaving ADR-0003's "Metlink staleness preferred over 502" rule (serve a past-TTL `stale-served` frame instead of erroring) describing a path with nothing to fall back on. That rule, and the now-vestigial `X-Cache-Status` / `X-Metlink-Fetched-At` observability headers, are superseded here: a Metlink failure returns a `502` problem document, full stop.
 
 ## Decision
 
@@ -97,8 +97,7 @@ This is a **deliberate, scoped relaxation of "Dumb Radiator".** The success path
 |---|---|
 | "Plain-text bodies, never JSON" (§Error model) — one short lowercase string, radiator-ignored | Every error is an `application/problem+json` document (above). |
 | "Hold the last frame on any non-2xx" (§Radiator firmware behaviour, the non-2xx table rows) | The radiator renders a generic error screen from the problem document (above). |
-
-The third ADR-0003 error rule — **"Metlink staleness preferred over 502" / `stale-served`** — is **not** resolved here. It is entangled with the now-cacheless gateway ([ADR-0010](0010-no-metlink-cache-layer.md)) and is reconciled in a separate slice. Until then, the `metlink-unavailable` / `metlink-rate-limited` types above are the contractually correct response to a Metlink outage (there is no cache to fall back on); the lingering `stale-served` text in ADR-0003 and the OpenAPI describes a path that can no longer be reached.
+| "Metlink staleness preferred over 502" / `stale-served` (§Error model) — serve a past-TTL cached frame instead of erroring | No caching layer exists ([ADR-0010](0010-no-metlink-cache-layer.md)), so a Metlink failure returns a `502` problem document (`metlink-unavailable` / `metlink-rate-limited`). The `X-Cache-Status` and `X-Metlink-Fetched-At` headers and their JSON-envelope mirrors are retired with it. |
 
 ADR-0003's other decisions — `GET /v1/frame`, header-based auth/identity, the `401`-no-oracle and `404`-unknown-slug status choices, sleep authority and its `[30, 14400]` bounds, the firmware `300 s` fallback, the `X-Radiator-*` reserved namespace — all stand unchanged.
 
@@ -116,7 +115,7 @@ ADR-0003's other decisions — `GET /v1/frame`, header-based auth/identity, the 
 
 - **The firmware now parses JSON on the error path.** A real, if scoped, departure from "Dumb Radiator". Mitigated by confining it to non-2xx responses and to a single generic layout; the happy path stays parser-free. Firmware implementation lands in [#60](https://github.com/philipf/gotta-go/issues/60).
 - **`type` URIs are pinned to GitHub `blob/main` URLs.** Chosen because it is the only stable, dereferenceable target that exists today. RFC 9457 treats the `type` URI as identity, so moving `errors.md` to a docs site later is a breaking change for any client matching on `type` — do it at a deliberate contract revision, ideally behind a redirect, not casually.
-- **`stale-served` reconciliation still outstanding.** Tracked with the cache surface cleanup; see the out-of-scope note above. The spec carries a transient inconsistency until that lands.
+- **Loss of the `stale-served` resilience fallback.** With the cache gone ([ADR-0010](0010-no-metlink-cache-layer.md)) a Metlink outage can no longer be papered over with a slightly-old frame; the panel shows the error screen instead. Acceptable — the outage is now *visible*, which is the whole point — and Metlink outages are typically brief, so the next wake recovers.
 - **Per-error-type firmware screens deferred.** The contract carries per-type `title`/`detail` so the firmware *can* differentiate later; today it renders one generic screen.
 
 ## Glossary impact

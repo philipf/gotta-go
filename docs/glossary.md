@@ -252,8 +252,6 @@ Diagnostic headers the Worker sets on every meaningful response. The radiator's 
 |---|---|
 | `X-Server-Time` | Worker clock at request time (ISO 8601 UTC). |
 | `X-Profile-Phase` | Resolved profile phase key, or `idle_profile` for the fallback. |
-| `X-Metlink-Fetched-At` | When the Metlink data was fetched (ISO 8601 UTC). |
-| `X-Cache-Status` | `hit` / `miss` / `stale-served`. **Vestigial** — there is no caching layer ([ADR-0010](adr/0010-no-metlink-cache-layer.md)); retiring or repurposing this header is part of the failure-policy work in [#56](https://github.com/philipf/gotta-go/issues/56). |
 
 ### Problem document
 The `application/problem+json` body returned on **every** error response ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)), regardless of the negotiated success format. Members: `type` (the **problem type** URL), `title` (the firmware error-screen heading), `status`, `detail` (per-occurrence prose), an optional `instance` (`urn:gotta-go:request:<requestId>`, omitted when no `X-Request-Id`), and the `upstream_detail` extension. The firmware renders one generic error screen from it (replacing the old "hold the last frame on non-2xx" rule).

@@ -9,7 +9,7 @@
 # ADR-0003 (../adr/0003-radiator-worker-contract.md). Update both together.
 #
 # Every domain term used below (radiator, frame, profile phase, sleep duration,
-# idle profile, KV cache, hardware id, …) is defined in ../glossary.md. Field
+# idle profile, hardware id, …) is defined in ../glossary.md. Field
 # descriptions intentionally reach for the glossary's canonical names rather
 # than inventing local synonyms.
 
@@ -108,21 +108,13 @@ paths:
         `X-Sleep-Seconds = min(seconds_until_next_configured_phase_start, 14400)`.
         `X-Profile-Phase` is set to the literal `idle_profile`.
 
-        ### Metlink staleness fallback
-
-        If Metlink is unreachable but the **KV cache** has any entry for the
-        configured stops (even past its 30 s TTL), the Worker returns `200`
-        with the cached frame and `X-Cache-Status: stale-served`. `502` fires
-        only when no cache entry exists at all to fall back to.
-
         ### Observability headers
 
         On success (and on most error paths) the Worker also sets
-        `X-Server-Time`, `X-Profile-Phase`, `X-Metlink-Fetched-At`, and
-        `X-Cache-Status`. These are diagnostic data for humans running `curl`
-        — the firmware ignores them. New `X-*` response headers may be added
-        unilaterally; the radiator simply does not read response headers it
-        does not act on.
+        `X-Server-Time` and `X-Profile-Phase`. These are diagnostic data for
+        humans running `curl` — the firmware ignores them. New `X-*` response
+        headers may be added unilaterally; the radiator simply does not read
+        response headers it does not act on.
 
         ### Diagnostics view — content negotiation (ADR-0004)
 
@@ -309,8 +301,7 @@ components:
         the JSON **view model** for this render (ADR-0004); with
         `Accept: image/svg+xml` it is the intermediate Satori SVG. The headers
         are identical across all variants. The `200` is also used for the
-        idle-profile fall-through and the Metlink-staleness fallback (see the
-        operation description).
+        idle-profile fall-through (see the operation description).
 
         `Content-Encoding: gzip` applies to the `image/bmp` and `image/svg+xml`
         bodies (per ADR-0001, honouring `Accept-Encoding`); the JSON variant is
@@ -324,10 +315,6 @@ components:
           $ref: '#/components/headers/ServerTime'
         X-Profile-Phase:
           $ref: '#/components/headers/ProfilePhase'
-        X-Metlink-Fetched-At:
-          $ref: '#/components/headers/MetlinkFetchedAt'
-        X-Cache-Status:
-          $ref: '#/components/headers/CacheStatus'
       content:
         image/bmp:
           schema:
@@ -628,38 +615,6 @@ components:
           - idle_profile
           - none
 
-    MetlinkFetchedAt:
-      description: |
-        When the cached Metlink response that backs this frame was
-        originally fetched (ISO 8601 UTC). Present only when the response
-        used Metlink data (the `priority_split` layout). Absent for
-        `minimal_clock` and `idle_profile` responses (no Metlink call).
-
-        Useful for diagnosing "the bus time has not moved in 5 minutes —
-        is the cache stuck?". Observability data — the radiator ignores it.
-      schema:
-        type: string
-        format: date-time
-      example: 2026-05-23T06:47:54Z
-
-    CacheStatus:
-      description: |
-        How the **KV cache** behaved for this request:
-
-        - `hit` — served from cache within TTL (≤ 30 s old).
-        - `miss` — cache refreshed from Metlink for this request.
-        - `stale-served` — Metlink failed but a past-TTL cache entry was
-          returned anyway (the Metlink-staleness fallback). The radiator
-          and panel behave normally; a human may notice transit times have
-          not changed.
-
-        Set on every response that touched the cache. Absent on
-        `minimal_clock` and `idle_profile` responses (no cache lookup).
-        Observability data — the radiator ignores it.
-      schema:
-        type: string
-        enum: [hit, miss, stale-served]
-
   # -----------------------------------------------------------------------
   # Schemas
   # -----------------------------------------------------------------------
@@ -717,19 +672,6 @@ components:
           format: date-time
           description: The Worker clock at request time — mirrors `X-Server-Time`.
           example: 2026-05-23T06:48:12.000Z
-        metlink_fetched_at:
-          type: string
-          format: date-time
-          description: |
-            Mirrors `X-Metlink-Fetched-At`. Present only when the render used
-            Metlink data backed by the **KV cache**; the cache lands in #24, so
-            this field is absent until then.
-        cache_status:
-          type: string
-          enum: [hit, miss, stale-served]
-          description: |
-            Mirrors `X-Cache-Status`. Present only on responses that touched the
-            KV cache (#24); absent until then.
         wall_clock:
           type: string
           description: |

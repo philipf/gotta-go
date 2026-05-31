@@ -6,7 +6,7 @@
 - **Wire specification:** [`../api/openapi.yaml`](../api/openapi.yaml) — the authoritative *what* (paths, headers, status codes, response shapes, value ranges). This ADR is the *why*.
 - **Language reference:** [`../glossary.md`](../glossary.md) — every term used here is defined there.
 
-> **Superseded in part by [ADR-0011](0011-error-contract-problem-details.md).** The error model below — specifically the "plain-text bodies, never JSON" rule and the "hold the last frame on any non-2xx" firmware rule — is replaced by the RFC 9457 `problem+json` contract and the firmware error screen. The inline notes mark each superseded passage. Everything else in this ADR (endpoint shape, header-based auth/identity, the `401`-no-oracle and `404`-unknown-slug choices, sleep authority and bounds, the idle profile, the `X-Radiator-*` namespace) still stands. The separate `stale-served`/cache cleanup is tracked apart from ADR-0011.
+> **Superseded in part by [ADR-0011](0011-error-contract-problem-details.md).** The error model below is replaced on three counts: (1) the "plain-text bodies, never JSON" rule → RFC 9457 `problem+json`; (2) the "hold the last frame on any non-2xx" firmware rule → the firmware renders a generic error screen; (3) the "Metlink staleness preferred over 502 / `stale-served`" rule → there is no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)), so a Metlink failure now returns a `502` (`metlink-unavailable` / `metlink-rate-limited`) problem document. The associated `X-Cache-Status` and `X-Metlink-Fetched-At` observability headers are likewise retired. Inline notes mark each superseded passage. Everything else (endpoint shape, header-based auth/identity, the `401`-no-oracle and `404`-unknown-slug choices, sleep authority and bounds, the idle profile, the `X-Radiator-*` namespace) still stands.
 
 ## Context
 
@@ -71,12 +71,12 @@ The Worker dictates the next **sleep duration** on **every response**, including
 The status-code split is in the OpenAPI; here are the decisions behind it:
 
 - **No "no active profile phase" error.** When server time falls outside every configured phase, the Worker falls through to the **idle profile** and returns `200` with a frame. Treating an unscheduled overnight as an error would mean the radiator's nightly behaviour is driven by an error path, which inverts the relationship.
-- **Metlink staleness preferred over 502.** If Metlink is unreachable but the **KV cache** has any entry — even past its 30 s TTL — the Worker serves the stale frame as `200` with `X-Cache-Status: stale-served`. The panel keeps showing recent transit data instead of a black-screen "outage" event. PRD §7 says the panel retains its last valid frame for ambient reasons; serving a slightly-old frame is the same idea, one layer up. A `502` only fires when there is no cache at all to fall back to.
+- **Metlink staleness preferred over 502.** ~~If Metlink is unreachable but the **KV cache** has any entry — even past its 30 s TTL — the Worker serves the stale frame as `200` with `X-Cache-Status: stale-served`. A `502` only fires when there is no cache at all to fall back to.~~ **Superseded:** there is no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)), so there is nothing stale to serve. A Metlink failure now returns a `502` `problem+json` document (`metlink-unavailable` for `5xx`/network/timeout, `metlink-rate-limited` for `429`) per [ADR-0011](0011-error-contract-problem-details.md), and the firmware shows the error screen.
 - **Plain-text bodies, never JSON.** ~~Error responses carry one short lowercase string. The body is for a human reading `curl` output; the radiator's firmware ignores it. No schema, no encoding, no parser.~~ **Superseded by [ADR-0011](0011-error-contract-problem-details.md):** every error is now an `application/problem+json` document (RFC 9457). The #56 grill found the radiator-ignored body let config errors (a bad `METLINK_API_KEY`) decay into silent dashes; errors must be visible and machine-readable instead.
 
 ### Worker observability response headers
 
-The Worker sets diagnostic headers (`X-Server-Time`, `X-Profile-Phase`, `X-Metlink-Fetched-At`, `X-Cache-Status`) on every response where the value is meaningful. These are **response-only and radiator-ignored** — they exist for a human running `curl` against `/v1/frame`, or a future polling tool, to diagnose "what did the Worker think when it produced this response" without needing Worker logs.
+The Worker sets diagnostic headers (`X-Server-Time`, `X-Profile-Phase`) on every response where the value is meaningful. These are **response-only and radiator-ignored** — they exist for a human running `curl` against `/v1/frame`, or a future polling tool, to diagnose "what did the Worker think when it produced this response" without needing Worker logs. (The cache-era `X-Metlink-Fetched-At` / `X-Cache-Status` headers are retired — there is no caching layer, [ADR-0010](0010-no-metlink-cache-layer.md).)
 
 Because the radiator ignores them, **new ones are free.** Any future Worker-side response header in the `X-*` namespace can be added without a firmware change or a contract version bump. Document additions in the OpenAPI as the Worker evolves.
 
@@ -126,7 +126,7 @@ The following terms must be added or updated in [`../glossary.md`](../glossary.m
 | `X-Radiator-Hardware-Id` | §8 | **Add as 'Appears as'** of the hardware id entry. |
 | `RADIATOR_SHARED_TOKEN` | §8 | Already present under **shared token**; no change. |
 | Reserved namespace `X-Radiator-*` | §8 | **Add** a note: future radiator-side telemetry headers use this prefix; the Worker ignores unknown `X-Radiator-*` headers. |
-| Worker informational response headers | §8 | **Add** a note that the Worker sets `X-Server-Time`, `X-Profile-Phase`, `X-Metlink-Fetched-At`, `X-Cache-Status` on responses for diagnostics. Radiator ignores them. New ones can be added freely. |
+| Worker informational response headers | §8 | **Add** a note that the Worker sets `X-Server-Time`, `X-Profile-Phase` on responses for diagnostics. Radiator ignores them. New ones can be added freely. |
 
 ---
 
@@ -146,7 +146,7 @@ The following terms must be added or updated in [`../glossary.md`](../glossary.m
 - **Glossary changes required.** Three new entries (`hardware id`, `idle profile`, reserved namespace note). Update in the same commit as the ADR to keep the language single-context.
 - **Idle profile content design deferred.** Tracked as issue #17. Until shipped, the idle profile may render `minimal_clock` as a placeholder — the wire contract is unaffected.
 - **URL versioning means a `/v2/` migration is a real cutover.** Bumping the path version requires re-flashing every radiator in the field. Acceptable at 5 units; the cost is intentional — it forces serious consideration before bumping. Side-by-side `/v1/` + `/v2/` operation during migration is easy.
-- **Metlink staleness behaviour surfaced via `X-Cache-Status: stale-served`.** Humans inspecting the response can spot it; the radiator ignores it. Users only see "the bus times haven't moved in 3 minutes." Acceptable per PRD §7 — the panel keeping the last valid frame is the intended ambient behaviour.
+- ~~**Metlink staleness behaviour surfaced via `X-Cache-Status: stale-served`.**~~ **Superseded** — no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)); a Metlink failure now surfaces as a `502` problem document and the firmware error screen ([ADR-0011](0011-error-contract-problem-details.md)).
 - **`X-Sleep-Seconds: 14400` upper bound.** Idle overnight gaps longer than 4 h will produce intermediate wakes. Battery-suboptimal at the margin but worth it as a safety net for config bugs. Revisit if empirical battery telemetry shows the cap is the limiting factor.
 - **OpenAPI must stay in lock-step with this ADR.** When a decision here changes, the OpenAPI changes in the same PR. The CI lint (Redocly) is the immediate guard against drift; the long-term guard is treating the OpenAPI as the wire spec and this ADR as the rationale — never duplicating field-level detail across them.
 
@@ -161,8 +161,7 @@ When the Worker PoC implements this contract, the following must hold. Treat the
 3. Same request with a wrong `X-Radiator-Token` → identical 401 response (no oracle).
 4. Same request with `X-Radiator-Slug: not-a-real-slug` → `404 Not Found`, body `unknown radiator`, `X-Sleep-Seconds: 3600`.
 5. Worker forced into the no-active-phase code path → `200 OK` with the idle-profile frame, `X-Sleep-Seconds` reflects seconds-until-next-phase-start (capped at 14400), `X-Profile-Phase: idle_profile`.
-6. Worker forced to fail Metlink with no cache present → `502 Bad Gateway`, body `upstream unavailable`, `X-Sleep-Seconds: 60`.
-7. Worker forced to fail Metlink with a past-TTL cache entry present → `200 OK` with the cached frame, `X-Cache-Status: stale-served`, `X-Metlink-Fetched-At` reflecting the original fetch time.
+6. Worker forced to fail Metlink → `502 Bad Gateway` with an `application/problem+json` body (`metlink-unavailable` or `metlink-rate-limited`) and a phase-cadence `X-Sleep-Seconds`, per [ADR-0011](0011-error-contract-problem-details.md). (Superseded the old plain-text `upstream unavailable` + the past-TTL `stale-served` cache case, which no longer exists — [ADR-0010](0010-no-metlink-cache-layer.md).)
 8. Firmware integration test (issue #4): pull the network cable mid-request → radiator deep-sleeps for exactly 300 s, panel retains the last frame.
 9. The OpenAPI spec at `../api/openapi.yaml` lints clean under `redocly lint` (or equivalent OpenAPI 3.1 validator).
 
