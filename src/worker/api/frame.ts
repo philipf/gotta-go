@@ -48,7 +48,8 @@ export async function renderFrame(
 	// optional client-supplied requestId give per-device / cross-system
 	// correlation; CF's per-invocation grouping ties the rest together. Undefined
 	// values are dropped by JSON.stringify, so they need no conditional spread.
-	const start = Date.now();
+	// Timing is owned by CF trace spans (observability.traces), not logged here —
+	// workerd freezes Date.now() between I/O so an in-script delta misleads (#54).
 	const slug = request.headers.get('X-Radiator-Slug') ?? '';
 	const hardwareId = request.headers.get('X-Radiator-Hardware-Id') ?? undefined;
 	const requestId = request.headers.get('X-Request-Id') ?? undefined;
@@ -129,7 +130,7 @@ export async function renderFrame(
 		}
 
 		// Single completion log covering the full critical path (auth → render →
-		// encode); durationMs is wall-clock, not the injected domain `now`.
+		// encode). Timing lives in the trace span, not a logged field (#54).
 		log.info('frame.completed', {
 			hardwareId,
 			requestId,
@@ -137,7 +138,6 @@ export async function renderFrame(
 			layoutKey: layout,
 			profilePhase,
 			format,
-			durationMs: Date.now() - start,
 		});
 		return response;
 	} catch (err) {
@@ -151,7 +151,6 @@ export async function renderFrame(
 			hardwareId,
 			requestId,
 			slug,
-			durationMs: Date.now() - start,
 			error,
 		});
 		throw err;
