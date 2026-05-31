@@ -15,8 +15,12 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 
 | File                | Purpose                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------- |
-| `radiator.ino`      | Wake-cycle orchestrator: Wi-Fi, HTTP fetch, inflate, BMP decode, panel flush, deep sleep. |
+| `radiator.ino`      | Wake-cycle orchestrator: allocates scratch, drives one request, maps the response onto the ADR-0003/0011 table, deep-sleeps. |
+| `net.{h,cpp}`       | Wi-Fi + HTTP transport + body I/O: `connectWiFi`, `fetchFrame` → `HttpResponse`, body drain, gzip `inflateGzip`. Device-only. |
+| `frame.{h,cpp}`     | 1bpp BMP decode + panel flush (`flushToPanel`). `decodeBmpToFramebuffer` validation is host-tested. |
 | `problem.{h,cpp}`   | Error-screen module (ADR-0011): problem+json parse, fallback resolution, on-panel render. Neutral `renderErrorScreen()` reusable by #47. |
+| `sleep.h`           | `SleepHeader` + pure `parseSleepSecondsValue()` (ADR-0003); host-tested. Seed of the #5 sleep module. |
+| `test/`             | Host-native unit tests (CMake + doctest) for the pure logic — see [`test/README.md`](test/README.md) and [ADR-0012](../../docs/adr/0012-radiator-host-native-tests.md). |
 | `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.h` (gitignored). |
 | `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
 | `mise.toml`         | Tool pin (python for esptool).                                                          |
@@ -134,7 +138,7 @@ ADR-0003's table tells the radiator how to react to every Worker response; [ADR-
 
 ### Error screen
 
-On a **reachable** non-2xx the Worker returns an `application/problem+json` body (RFC 9457; see [`docs/api/errors.md`](../../docs/api/errors.md)). `fetchAndInflate()` drains it, inflates it if the edge gzipped it in transit (`Content-Encoding: gzip`), and parses it with ArduinoJson; `renderErrorScreen()` then draws the problem's `title` as the heading and `detail` as the body to the panel — so a wrong `RADIATOR_TOKEN` (`401` "Radiator not authorised") or a Metlink outage (`502` "Transit data unavailable") is visible rather than masquerading as a quiet frame. An empty or unparseable body still renders a generic `"Unexpected error"` screen with the HTTP status — never a blank or stale panel.
+On a **reachable** non-2xx the Worker returns an `application/problem+json` body (RFC 9457; see [`docs/api/errors.md`](../../docs/api/errors.md)). `net::fetchFrame()` drains it; the orchestrator's `renderWorkerError()` inflates it if the edge gzipped it in transit (`Content-Encoding: gzip`), parses it with ArduinoJson (`problem::parseProblem`), and `renderErrorScreen()` then draws the problem's `title` as the heading and `detail` as the body to the panel — so a wrong `RADIATOR_TOKEN` (`401` "Radiator not authorised") or a Metlink outage (`502` "Transit data unavailable") is visible rather than masquerading as a quiet frame. An empty or unparseable body still renders a generic `"Unexpected error"` screen with the HTTP status — never a blank or stale panel.
 
 Set `RADIATOR_VERBOSE 1` in `settings.h` to also render the raw `upstream_detail` snippet (carried on `metlink-*` errors) beneath the body — a debugging aid, off by default. The renderer takes neutral strings, not an HTTP object, so [#47](https://github.com/philipf/gotta-go/issues/47) can reuse it for the worker-unreachable case. A **transport** failure (Wi-Fi/DNS/TCP/TLS dead, no response) is *not* a Worker error: it stays `HttpError` and leaves the panel untouched — that stale-frame / unreachable indicator is #47's domain.
 
@@ -142,7 +146,7 @@ Set `RADIATOR_VERBOSE 1` in `settings.h` to also render the raw `upstream_detail
 
 | AC                                                                                                                                       | Where in the sketch                                                         |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **F1** — Sends `X-Radiator-Token`, `X-Radiator-Slug`, `Accept-Encoding: gzip` every wake; `X-Radiator-Hardware-Id` (MAC) where supported | `fetchAndInflate()` — `https.addHeader()` block                             |
+| **F1** — Sends `X-Radiator-Token`, `X-Radiator-Slug`, `Accept-Encoding: gzip` every wake; `X-Radiator-Hardware-Id` (MAC) where supported | `net::fetchFrame()` — `https.addHeader()` block                             |
 | **F2** — Wi-Fi → headers → flush BMP to panel without artefacts → deep sleep for exactly `X-Sleep-Seconds`                               | Full `setup()` flow, gated on `CycleResult::Ok`                             |
 | **F3** — One full wake cycle against the deployed Worker; panel shows correct local time within 1 minute of wake                         | Verified manually against a cloudflared quick tunnel, per the runbook above |
 
@@ -156,7 +160,7 @@ Verify F3 by:
 
 **`uzlib.h: No such file or directory` at compile time.** The Arduino Library Manager registry has shipped uzlib under at least two names historically (`uzlib`, `Uzlib`). If `arduino-cli lib install "uzlib"` fails to find a match, search the registry: `arduino-cli lib search uzlib` and install whatever name comes back. The header include is `<uzlib.h>` (lowercase) regardless. If the registry has dropped uzlib entirely, vendor a copy under `src/radiator/uzlib/` from the upstream repo (<https://github.com/pfalcon/uzlib>) — the public API surface is stable.
 
-**`uzlib_uncompress_init` / `uzlib_gzip_parse_header` signatures don't match.** The pfalcon/uzlib API has shifted between releases. The call site lives in `fetchAndInflate()`; align the arguments with whichever version `arduino-cli lib list | grep uzlib` reports.
+**`uzlib_uncompress_init` / `uzlib_gzip_parse_header` signatures don't match.** The pfalcon/uzlib API has shifted between releases. The call site lives in `net::inflateGzip()`; align the arguments with whichever version `arduino-cli lib list | grep uzlib` reports.
 
 **Upload fails with `No serial data received`.** Park the board in ROM download mode (hold BOOT, tap RST, release BOOT, upload). Same workaround as PoC #31 — see that README for the full sequence.
 

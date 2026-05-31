@@ -10,9 +10,17 @@
  *   poc/lilygo/show-bmp-31   — 1-bit BMP byte array → 4bpp framebuffer → panel
  *   ADR-0008 (uzlib)         — inflate Content-Encoding: gzip in firmware
  *
+ * Split across translation units (GH #63) for navigability and host-testability:
+ *   net.{h,cpp}     — Wi-Fi + HTTP request + body drain + gzip inflate
+ *   frame.{h,cpp}   — 1bpp BMP decode + panel flush
+ *   problem.{h,cpp} — problem+json parse + error-screen render (ADR-0011)
+ *   sleep.h         — X-Sleep-Seconds parse + the SleepHeader type (ADR-0003)
+ * This file is the wake-cycle orchestrator: it allocates scratch, drives one
+ * request via net, and maps the response onto the ADR-0003/0011 table below.
+ *
  * Firmware response handling follows ADR-0003 §Radiator firmware behaviour and
  * ADR-0011 §error screen. A reachable Worker error — a non-2xx carrying an
- * RFC 9457 application/problem+json body — now renders a generic on-panel error
+ * RFC 9457 application/problem+json body — renders a generic on-panel error
  * screen (its title as heading, detail as body) instead of silently holding the
  * last frame, so a bad token or a Metlink outage is visible (CycleResult::
  * WorkerError). A transport failure / no response (Wi-Fi/DNS/TCP/TLS dead)
@@ -33,16 +41,12 @@
 #endif
 
 #include <Arduino.h>
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
-extern "C" {
-#include "src/uzlib/uzlib.h"
-}
 
-#include "epd_driver.h"
-#include "problem.h"   // ProblemDoc, parseProblem, resolveErrorScreen, renderErrorScreen
-#include "settings.h"  // WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
+#include "epd_driver.h"  // epd_init() — panel bring-up
+#include "net.h"         // connectWiFi, fetchFrame, inflateGzip, HttpResponse
+#include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
+#include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
+#include "settings.h"    // RADIATOR_VERBOSE (creds/URL are net.cpp's)
 
 // Verbose: gate rendering of upstream_detail on the error screen. Default off;
 // override in settings.h. Namespaced like RADIATOR_TOKEN / RADIATOR_SLUG. The
@@ -55,29 +59,6 @@ extern "C" {
 // X-Sleep-Seconds value reached the radiator — see ADR-0003.
 static const uint32_t FIRMWARE_FALLBACK_SLEEP_S = 300;
 
-// Wi-Fi association timeout. A flaky AP can never wedge the cycle: we sleep
-// for the firmware fallback and try again next wake.
-static const uint32_t WIFI_TIMEOUT_MS = 15000;
-
-// X-Sleep-Seconds clamp. ADR-0003's Worker contract puts sleep_seconds in
-// [30, 14400], but the radiator's accept-range is the broader [1, 86400] —
-// any integer in that range is a valid Worker directive (e.g. during a
-// staged rollout). Values outside the range fall to the firmware default.
-static const uint32_t SLEEP_S_MIN = 1;
-static const uint32_t SLEEP_S_MAX = 86400;
-
-// Compressed body sanity bound. Headroom over the ~525 B observed on
-// minimal_clock; if a future frame profile exceeds this we'll need streaming
-// inflate (see ADR-0008 reversal trigger). Keeping it small keeps the PSRAM
-// allocation honest and surfaces growth early.
-static const size_t MAX_COMPRESSED_BYTES = 8192;
-
-// Expected uncompressed frame size (BMP header + 1bpp pixel data for 960x540).
-static const size_t EXPECTED_BMP_BYTES = 64862;
-
-// uzlib needs a small dictionary for sliding-window matches.
-static const size_t UZLIB_DICT_BYTES = 32768;
-
 // Outcome of one wake cycle's network + decode work. The sleep policy
 // downstream is driven entirely by this enum — see sleepFor() and ADR-0003.
 enum class CycleResult {
@@ -89,14 +70,6 @@ enum class CycleResult {
     BmpInvalid,     // inflated bytes did not parse as a 960x540 1bpp BMP.
 };
 
-// Sleep header parser tri-state. Distinct from "missing" because a value of
-// e.g. 0 or 999999 from a misbehaving Worker must fall to the fallback, not
-// silently clamp.
-struct SleepHeader {
-    bool present;
-    uint32_t seconds;  // valid only when present
-};
-
 // Wake counter parked in RTC slow memory — survives deep sleep, zeroed only
 // on a true cold boot. Used to disambiguate cold-boot vs timer-wake in logs.
 RTC_DATA_ATTR uint32_t wakeCount = 0;
@@ -106,7 +79,6 @@ RTC_DATA_ATTR uint32_t wakeCount = 0;
 static uint8_t *compressedBuf = nullptr;
 static uint8_t *inflatedBuf = nullptr;
 static uint8_t *uzlibDict = nullptr;
-static uint8_t *epdFramebuffer = nullptr;
 
 // ---------- Helpers ----------
 
@@ -118,36 +90,9 @@ static const char *wakeReasonStr(esp_sleep_wakeup_cause_t cause) {
     }
 }
 
-// Little-endian field readers over a flash- or PSRAM-resident BMP byte array.
-static uint16_t bmpU16(const uint8_t *p, uint32_t off) {
-    return (uint16_t)p[off] | ((uint16_t)p[off + 1] << 8);
-}
-static uint32_t bmpU32(const uint8_t *p, uint32_t off) {
-    return (uint32_t)p[off] | ((uint32_t)p[off + 1] << 8) |
-           ((uint32_t)p[off + 2] << 16) | ((uint32_t)p[off + 3] << 24);
-}
-static int32_t bmpI32(const uint8_t *p, uint32_t off) {
-    return (int32_t)bmpU32(p, off);
-}
-
-// Parse a header value (`Sleep-Seconds`, `Content-Length`, …) into a uint32_t
-// if it sits cleanly in [SLEEP_S_MIN, SLEEP_S_MAX]. Returns { present: false }
-// for any of: header absent, empty string, non-integer, or out-of-range value.
-// The strictness is deliberate per ADR-0003: a Worker that hands us "0" or
-// "garbage" gets the firmware fallback, not a 0-second hot loop.
-static SleepHeader parseSleepSeconds(HTTPClient &https) {
-    const String raw = https.header("X-Sleep-Seconds");
-    if (raw.length() == 0) return {false, 0};
-    char *end = nullptr;
-    const long parsed = strtol(raw.c_str(), &end, 10);
-    if (end == raw.c_str() || *end != '\0') return {false, 0};
-    if (parsed < (long)SLEEP_S_MIN || parsed > (long)SLEEP_S_MAX) return {false, 0};
-    return {true, (uint32_t)parsed};
-}
-
 // Sleep decision per ADR-0003 firmware response handling table. The caller
 // names which row fired (for the serial log) and supplies the header value
-// already parsed by parseSleepSeconds().
+// already parsed by net::fetchFrame().
 static void sleepFor(CycleResult outcome, SleepHeader sleep, uint32_t awakeMs) {
     uint32_t seconds = sleep.present ? sleep.seconds : FIRMWARE_FALLBACK_SLEEP_S;
     const char *source = sleep.present ? "X-Sleep-Seconds" : "firmware fallback";
@@ -171,320 +116,60 @@ static void sleepFor(CycleResult outcome, SleepHeader sleep, uint32_t awakeMs) {
     esp_deep_sleep_start();  // never returns
 }
 
-// ---------- Wi-Fi ----------
+// ---------- Response handlers (the content half of the ADR table) ----------
 
-static bool connectWiFi() {
-    Serial.printf("Wi-Fi: connecting to \"%s\"\n", WIFI_SSID);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-    const uint32_t t0 = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - t0) < WIFI_TIMEOUT_MS) {
-        delay(100);
-    }
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.printf("Wi-Fi: FAILED within %lu ms\n", (unsigned long)WIFI_TIMEOUT_MS);
-        return false;
-    }
-    Serial.printf("Wi-Fi: connected in %lu ms — IP %s, RSSI %d dBm\n",
-                  (unsigned long)(millis() - t0),
-                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    return true;
-}
-
-// ---------- Body I/O (shared by the happy path and the error path) ----------
-
-// Drain the response body into buf (capacity cap). Byte-at-a-time matches the
-// wake-cycle-32 pattern and avoids the available()-vs-actual confusion the TLS
-// layer's record-sized buffer introduces; we cap on bytes actually received
-// (total), never on available(), so a chatty TLS buffer can't spuriously
-// truncate. Handles the HTTP/1.0 connection-close path the cloudflared tunnel
-// forces. Returns bytes read; sets *truncated when the body filled the buffer.
-// The caller (not this helper) calls https.end().
-static size_t drainBody(HTTPClient &https, uint8_t *buf, size_t cap, bool *truncated) {
-    WiFiClient *stream = https.getStreamPtr();
-    const int expectedSize = https.getSize();  // -1 when server omits Content-Length
-    size_t total = 0;
-    *truncated = false;
-    const uint32_t readStart = millis();
-    while ((millis() - readStart) < 10000) {
-        while (stream->available() && total < cap) {
-            buf[total++] = (uint8_t)stream->read();
-        }
-        if (total >= cap) {
-            *truncated = true;
-            break;
-        }
-        if (expectedSize != -1 && total >= (size_t)expectedSize) break;
-        if (!https.connected()) {
-            // Drain any tail bytes the TLS layer still has buffered after the
-            // server closed the connection. Bound by expectedSize when known
-            // so a trailing CRLF (or similar) doesn't sneak past.
-            delay(20);
-            const size_t tailCap = (expectedSize != -1) ? (size_t)expectedSize : cap;
-            while (stream->available() && total < tailCap) {
-                buf[total++] = (uint8_t)stream->read();
-            }
-            break;
-        }
-        delay(1);
-    }
-    return total;
-}
-
-// Inflate a gzip stream src[0..srcLen) into dst[0..dstCap). Returns bytes
-// produced, or -1 on any uzlib error (logging the failure). Shared by the BMP
-// path and the error path (ADR-0008 one-shot inflate). The dictionary scratch
-// (uzlibDict) is the file-scope buffer allocated per wake.
-static long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap) {
-    uzlib_init();
-    TINF_DATA d;
-    memset(&d, 0, sizeof(d));
-    d.source = src;
-    d.source_limit = src + srcLen;
-    d.source_read_cb = NULL;
-
-    uzlib_uncompress_init(&d, uzlibDict, UZLIB_DICT_BYTES);
-
-    const int hdr = uzlib_gzip_parse_header(&d);
-    if (hdr != TINF_OK) {
-        Serial.printf("inflate: gzip header parse failed (err=%d)\n", hdr);
-        return -1;
-    }
-
-    d.dest_start = d.dest = dst;
-    d.dest_limit = dst + dstCap;
-    const int res = uzlib_uncompress_chksum(&d);
-    // TINF_OK (0) = success while filling dest; TINF_DONE (1) = success with
-    // end-of-stream marker observed. Either means dst holds valid inflated
-    // bytes. Negative values are real failures.
-    if (res != TINF_DONE && res != TINF_OK) {
-        Serial.printf("inflate: failed (res=%d, produced=%ld bytes)\n",
-                      res, (long)(d.dest - dst));
-        return -1;
-    }
-    return (long)(d.dest - dst);
-}
-
-// ---------- HTTP fetch ----------
-
-// One wake cycle's request. Returns the outcome plus (on success) the inflated
-// BMP byte count via outInflatedBytes, or (on a reachable non-2xx) the parsed
-// problem document via outProblem. The HTTPClient is configured to collect
-// X-Sleep-Seconds via collectHeaders() so the caller can still honour the
-// Worker's sleep directive on a non-2xx.
-static CycleResult fetchAndInflate(HTTPClient &https,
-                                   WiFiClientSecure &client,
-                                   size_t *outInflatedBytes,
-                                   SleepHeader *outSleep,
-                                   ProblemDoc *outProblem) {
-    // Spike-grade TLS: skip server-cert validation. Production radiator
-    // would pin or bundle the CA for the Worker host — out of scope for
-    // this tracer, but called out in the README and ADR-0003's
-    // Negative consequences list.
-    client.setInsecure();
-
-    Serial.printf("HTTPS: GET %s\n", FRAME_URL);
-    if (!https.begin(client, FRAME_URL)) {
-        Serial.println("HTTPS: begin() failed (bad URL?)");
-        return CycleResult::HttpError;
-    }
-
-    // Force HTTP/1.0 with Connection: close. Avoids two pieces of HTTP/1.1
-    // muddle on the cloudflared path: chunked Transfer-Encoding (which
-    // hides the body length from HTTPClient) and keep-alive (which makes
-    // detecting end-of-body via connection-close unreliable). The body is
-    // still gzipped — Accept-Encoding survives the downgrade.
-    https.useHTTP10(true);
-
-    // ADR-0003 / AC-F1: every wake sends the slug, the shared token, gzip
-    // acceptance, and (where supported) the ESP32-S3 MAC as the hardware id.
-    https.addHeader("X-Radiator-Slug", RADIATOR_SLUG);
-    https.addHeader("X-Radiator-Token", RADIATOR_TOKEN);
-    https.addHeader("Accept-Encoding", "gzip");
-    const String mac = WiFi.macAddress();
-    if (mac.length() > 0) {
-        https.addHeader("X-Radiator-Hardware-Id", mac);
-    }
-
-    // Dev-only: when settings.h defines DEBUG_NOW, send it so the Worker resolves
-    // the profile phase against that instant instead of real time (lets you
-    // preview e.g. morning_school_run any time of day). Requires the Worker to
-    // run with DEV_TIME_OVERRIDE=true; ignored in production. Compile-time gated,
-    // so a normal build that leaves DEBUG_NOW undefined sends nothing.
-#ifdef DEBUG_NOW
-    https.addHeader("X-Debug-Now", DEBUG_NOW);
-#endif
-
-    // Retain the diagnostic headers we want to read off the response.
-    // Content-Length is tracked internally by HTTPClient regardless of
-    // this list.
-    static const char *kept[] = {"X-Sleep-Seconds", "X-Profile-Phase",
-                                 "X-Server-Time", "Content-Encoding"};
-    https.collectHeaders(kept, sizeof(kept) / sizeof(kept[0]));
-
-    const uint32_t t0 = millis();
-    const int status = https.GET();
-    const uint32_t reqMs = millis() - t0;
-    *outSleep = parseSleepSeconds(https);
-
-    if (status <= 0) {
-        Serial.printf("HTTPS: request failed: %s (%lu ms)\n",
-                      HTTPClient::errorToString(status).c_str(),
-                      (unsigned long)reqMs);
-        https.end();
-        return CycleResult::HttpError;
-    }
-    Serial.printf("HTTPS: status %d, content-length %d, sleep=%s (%lu ms)\n",
-                  status, https.getSize(),
-                  outSleep->present ? String(outSleep->seconds).c_str() : "(missing)",
-                  (unsigned long)reqMs);
-
-    if (status < 200 || status >= 300) {
-        // Reachable Worker returned a non-2xx with a problem+json body
-        // (ADR-0011). Drain it, inflate if the edge gzipped it in transit
-        // (Decision 2), parse, and hand the result back for the error screen.
-        // (status <= 0 — transport failure / no response — was handled above
-        // and stays HttpError, panel untouched: #47's arm.)
-        Serial.printf("http-error: reachable worker status=%d — draining problem body\n",
-                      status);
-        const String ceHdr = https.header("Content-Encoding");
-        bool truncated = false;
-        const size_t total = drainBody(https, compressedBuf, MAX_COMPRESSED_BYTES, &truncated);
-        https.end();
-        Serial.printf("problem: body %u bytes, content-encoding=%s\n",
-                      (unsigned)total, ceHdr.c_str());
-
-        outProblem->httpStatus = status;
-        const char *jsonPtr = (const char *)compressedBuf;
-        size_t jsonLen = total;
-        if (ceHdr.indexOf("gzip") >= 0) {
-            const long produced = inflateGzip(compressedBuf, total, inflatedBuf, EXPECTED_BMP_BYTES);
-            if (produced < 0) {
-                // Inflate failed — leave the doc empty so setup() falls back to
-                // the generic screen using httpStatus.
-                Serial.println("problem: gzip inflate failed — generic fallback");
-                parseProblem("", 0, outProblem);
-                return CycleResult::WorkerError;
-            }
-            Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
-            jsonPtr = (const char *)inflatedBuf;
-            jsonLen = (size_t)produced;
-        }
-        parseProblem(jsonPtr, jsonLen, outProblem);
-        Serial.printf("problem: parsed title='%s' detail_len=%u upstream=%s\n",
-                      outProblem->title, (unsigned)strlen(outProblem->detail),
-                      outProblem->hasUpstream ? "yes" : "no");
-        return CycleResult::WorkerError;
-    }
-
-    // Drain the response into the compressed scratch buffer.
-    const int expectedSize = https.getSize();  // -1 when server omits Content-Length
-    bool truncated = false;
-    const size_t total = drainBody(https, compressedBuf, MAX_COMPRESSED_BYTES, &truncated);
-    https.end();
-    if (truncated) {
-        Serial.printf("body: exceeds %u byte cap (read so far)\n",
-                      (unsigned)MAX_COMPRESSED_BYTES);
-        return CycleResult::BodyTooLarge;
-    }
-    Serial.printf("body: %u bytes received (Content-Length=%d)\n",
-                  (unsigned)total, expectedSize);
-
-    // ADR-0008: one-shot inflate. Compressed body is small enough (<= 8 KB)
-    // to live alongside the inflated frame in PSRAM during this call.
+// 200 OK: inflate the gzipped BMP into the frame buffer, size-check it, and
+// flush it to the panel (ADR-0008 one-shot inflate; ADR-0003 happy path).
+static CycleResult handleFrameResponse(const HttpResponse &r) {
     const uint32_t inflateStart = millis();
-    const long produced = inflateGzip(compressedBuf, total, inflatedBuf, EXPECTED_BMP_BYTES);
-    const uint32_t inflateMs = millis() - inflateStart;
+    const long produced = inflateGzip(compressedBuf, r.bodyLen, inflatedBuf,
+                                      EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
     if (produced < 0) {
         return CycleResult::InflateFailed;
     }
     Serial.printf("inflate: ok %ld bytes in %lu ms\n",
-                  produced, (unsigned long)inflateMs);
+                  produced, (unsigned long)(millis() - inflateStart));
     if ((size_t)produced != EXPECTED_BMP_BYTES) {
         Serial.printf("inflate: size mismatch (expected %u)\n",
                       (unsigned)EXPECTED_BMP_BYTES);
         return CycleResult::InflateFailed;
     }
-    *outInflatedBytes = (size_t)produced;
-    return CycleResult::Ok;
+    return flushToPanel(inflatedBuf, (size_t)produced) ? CycleResult::Ok
+                                                       : CycleResult::BmpInvalid;
 }
 
-// ---------- BMP → framebuffer (ported from poc/lilygo/show-bmp-31) ----------
+// Reachable non-2xx: parse the problem+json body (inflating it first if the edge
+// gzipped it in transit, Decision 2) and render the error screen. An empty or
+// unparseable body leaves the doc empty, which resolveErrorScreen() turns into
+// the generic screen using the HTTP status (ADR-0011, Decision 8).
+static void renderWorkerError(const HttpResponse &r) {
+    Serial.printf("worker-error: reachable status=%d — rendering error screen\n", r.status);
 
-static bool decodeBmpToFramebuffer(const uint8_t *bmp, uint32_t len, uint8_t *fb) {
-    if (len < 62 || bmp[0] != 'B' || bmp[1] != 'M') {
-        Serial.println("BMP: bad magic / too short");
-        return false;
-    }
-    const uint32_t dataOffset = bmpU32(bmp, 10);
-    const int32_t  width      = bmpI32(bmp, 18);
-    const int32_t  rawHeight  = bmpI32(bmp, 22);
-    const uint16_t bpp        = bmpU16(bmp, 28);
-    const uint32_t compression = bmpU32(bmp, 30);
-    const bool    topDown = rawHeight < 0;
-    const int32_t height  = topDown ? -rawHeight : rawHeight;
-
-    Serial.printf("BMP: %ldx%ld %ubpp comp=%lu offset=%lu %s\n",
-                  (long)width, (long)height, bpp, (unsigned long)compression,
-                  (unsigned long)dataOffset, topDown ? "top-down" : "bottom-up");
-
-    if (bpp != 1 || compression != 0) {
-        Serial.println("BMP: expected uncompressed 1bpp");
-        return false;
-    }
-    if (width != EPD_WIDTH || height != EPD_HEIGHT) {
-        Serial.printf("BMP: expected %dx%d to match panel\n", EPD_WIDTH, EPD_HEIGHT);
-        return false;
-    }
-
-    const uint32_t rowStride = (((uint32_t)width * bpp + 31) / 32) * 4;
-    if (dataOffset + rowStride * (uint32_t)height > len) {
-        Serial.println("BMP: pixel data runs past end of array");
-        return false;
-    }
-
-    for (int32_t srcRow = 0; srcRow < height; srcRow++) {
-        const int32_t y = topDown ? srcRow : (height - 1 - srcRow);
-        const uint8_t *row = bmp + dataOffset + (uint32_t)srcRow * rowStride;
-        for (int32_t x = 0; x < width; x++) {
-            const uint8_t bit = (row[x >> 3] >> (7 - (x & 7))) & 0x01;
-            if (bit) {
-                // Set bit = palette idx 1 = black = ink on. The framebuffer
-                // is pre-filled white, so we stamp only the black pixels.
-                epd_draw_pixel(x, y, 0x00, fb);
-            }
+    ProblemDoc problem = {};
+    problem.httpStatus = r.status;
+    const char *json = (const char *)compressedBuf;
+    size_t jsonLen = r.bodyLen;
+    if (r.gzipped) {
+        const long produced = inflateGzip(compressedBuf, r.bodyLen, inflatedBuf,
+                                          EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
+        if (produced < 0) {
+            Serial.println("problem: gzip inflate failed — generic fallback");
+            parseProblem("", 0, &problem);
+        } else {
+            Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
+            json = (const char *)inflatedBuf;
+            jsonLen = (size_t)produced;
+            parseProblem(json, jsonLen, &problem);
         }
+    } else {
+        parseProblem(json, jsonLen, &problem);
     }
-    return true;
-}
+    Serial.printf("problem: parsed title='%s' detail_len=%u upstream=%s\n",
+                  problem.title, (unsigned)strlen(problem.detail),
+                  problem.hasUpstream ? "yes" : "no");
 
-static bool flushToPanel(const uint8_t *bmp, size_t bmpLen) {
-    const size_t fbSize = EPD_WIDTH / 2 * EPD_HEIGHT;
-    epdFramebuffer = (uint8_t *)heap_caps_malloc(fbSize, MALLOC_CAP_SPIRAM);
-    if (!epdFramebuffer) {
-        Serial.println("framebuffer alloc failed — PSRAM exhausted?");
-        return false;
-    }
-    memset(epdFramebuffer, 0xFF, fbSize);  // 0xF nibble = white
-
-    const uint32_t t0 = millis();
-    if (!decodeBmpToFramebuffer(bmp, (uint32_t)bmpLen, epdFramebuffer)) {
-        free(epdFramebuffer);
-        epdFramebuffer = nullptr;
-        return false;
-    }
-    Serial.printf("decode: ok in %lu ms\n", (unsigned long)(millis() - t0));
-
-    epd_poweron();
-    epd_clear();                                      // wipe to avoid ghosting
-    epd_draw_grayscale_image(epd_full_screen(), epdFramebuffer);
-    epd_poweroff();
-
-    free(epdFramebuffer);
-    epdFramebuffer = nullptr;
-    Serial.println("panel: frame latched");
-    return true;
+    const ErrorScreen es = resolveErrorScreen(problem, RADIATOR_VERBOSE);
+    renderErrorScreen(es.title, es.detail, es.upstream);
 }
 
 // ---------- Wake path ----------
@@ -515,28 +200,27 @@ void setup() {
 
     SleepHeader sleep = {false, 0};
     CycleResult outcome = CycleResult::HttpError;
-    size_t inflatedBytes = 0;
-    ProblemDoc problem = {};
 
     if (connectWiFi()) {
         WiFiClientSecure client;
         HTTPClient https;
-        outcome = fetchAndInflate(https, client, &inflatedBytes, &sleep, &problem);
+        const HttpResponse r = fetchFrame(https, client, compressedBuf, MAX_COMPRESSED_BYTES);
+        sleep = r.sleep;
 
-        if (outcome == CycleResult::Ok) {
-            if (!flushToPanel(inflatedBuf, inflatedBytes)) {
-                outcome = CycleResult::BmpInvalid;
-            }
-        } else if (outcome == CycleResult::WorkerError) {
-            // Resolve the parsed problem doc into a drawable screen — empty
-            // title/detail (parse/inflate failure or empty body) fall back to a
-            // generic heading + HTTP-status line, and upstream_detail is gated
-            // on RADIATOR_VERBOSE — then render it (ADR-0011, Decision 8).
-            const ErrorScreen es = resolveErrorScreen(problem, RADIATOR_VERBOSE);
-            renderErrorScreen(es.title, es.detail, es.upstream);
+        // ADR-0003 / ADR-0011 response-handling table.
+        if (r.status <= 0) {
+            outcome = CycleResult::HttpError;             // transport failure — panel untouched (#47)
+        } else if (r.status < 200 || r.status >= 300) {
+            renderWorkerError(r);                         // reachable non-2xx — error screen
+            outcome = CycleResult::WorkerError;
+        } else if (r.truncated) {
+            Serial.printf("body: exceeds %u byte cap\n", (unsigned)MAX_COMPRESSED_BYTES);
+            outcome = CycleResult::BodyTooLarge;
+        } else {
+            outcome = handleFrameResponse(r);             // 200 OK — frame to panel
         }
     }
-    WiFi.disconnect(true);  // drop the radio before sleeping
+    disconnectWiFi();  // drop the radio before sleeping
 
     sleepFor(outcome, sleep, millis() - wakeStart);
 }

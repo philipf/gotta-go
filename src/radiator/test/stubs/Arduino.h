@@ -7,6 +7,14 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+
+// ESP heap-caps allocator → plain malloc host-side; the capability flag is moot.
+#define MALLOC_CAP_SPIRAM 0
+inline void *heap_caps_malloc(size_t size, uint32_t) { return std::malloc(size); }
+
+// millis(): firmware timing reads; a fixed value keeps host runs deterministic.
+inline unsigned long millis() { return 0; }
 
 // Minimal Serial: firmware logging is a no-op host-side. Tests assert on
 // behaviour and return values, never on serial output.

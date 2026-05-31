@@ -17,11 +17,16 @@ if(NOT EXISTS "${ARDUINOJSON_DIR}/ArduinoJson.h")
         "-DARDUINOJSON_DIR=/path/to/ArduinoJson/src.")
 endif()
 
-# The module under test is compiled from its real firmware source; only the
-# Arduino/EPD surface is swapped for host stubs/.
+# Each module under test is compiled from its real firmware source; only the
+# Arduino/EPD surface is swapped for host stubs/. net.cpp is excluded — it is
+# pure HTTPClient/TLS (device-only) with no host-testable seam. sleep.h is
+# header-only, so it needs no source entry.
 add_executable(radiator_tests
     test_problem.cpp
+    test_sleep.cpp
+    test_frame.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../problem.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../frame.cpp
 )
 
 target_include_directories(radiator_tests PRIVATE

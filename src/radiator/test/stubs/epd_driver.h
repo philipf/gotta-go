@@ -29,3 +29,14 @@ inline void write_string(const GFXfont *, const char *, int32_t *, int32_t *, vo
 inline void epd_poweron() {}
 inline void epd_poweroff() {}
 inline void epd_clear() {}
+inline void epd_init() {}
+
+// Framebuffer draw surface. The host stub records nothing — frame.cpp's tests
+// assert on the decode/validate return value, not pixel output.
+typedef struct {
+    int32_t x, y, width, height;
+} Rect_t;
+
+inline Rect_t epd_full_screen() { return Rect_t{0, 0, EPD_WIDTH, EPD_HEIGHT}; }
+inline void epd_draw_pixel(int32_t, int32_t, uint8_t, uint8_t *) {}
+inline void epd_draw_grayscale_image(Rect_t, uint8_t *) {}
