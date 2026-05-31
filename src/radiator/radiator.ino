@@ -287,16 +287,49 @@ static long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t 
     return (long)(d.dest - dst);
 }
 
+// ---------- Problem document (error path, ADR-0011) ----------
+
+// Parse a problem+json body (json[0..len)) into doc's string fields. doc's
+// httpStatus is set by the caller beforehand. On any parse failure — empty
+// body, malformed JSON, missing members — the string fields are left empty so
+// the caller falls back to the generic screen (Decision 8). title/detail are
+// rendered as heading/body; upstream_detail is lifted only when present and
+// non-empty (it rides on metlink-* errors), and shown only under RADIATOR_VERBOSE.
+static void parseProblem(const char *json, size_t len, ProblemDoc *doc) {
+    doc->title[0] = '\0';
+    doc->detail[0] = '\0';
+    doc->upstream[0] = '\0';
+    doc->hasUpstream = false;
+
+    JsonDocument jd;
+    const DeserializationError err = deserializeJson(jd, json, len);
+    if (err) {
+        Serial.printf("problem: parse failed — generic fallback (%s)\n", err.c_str());
+        return;
+    }
+
+    snprintf(doc->title, sizeof(doc->title), "%s", jd["title"] | "");
+    snprintf(doc->detail, sizeof(doc->detail), "%s", jd["detail"] | "");
+
+    const char *up = jd["upstream_detail"] | "";
+    if (up[0] != '\0') {
+        snprintf(doc->upstream, sizeof(doc->upstream), "%s", up);
+        doc->hasUpstream = true;
+    }
+}
+
 // ---------- HTTP fetch ----------
 
-// One wake cycle's request. Returns the outcome plus (on success) the
-// inflated BMP byte count via outInflatedBytes. The HTTPClient is configured
-// to collect X-Sleep-Seconds via collectHeaders() so the caller can still
-// honour the Worker's sleep directive on a non-2xx.
+// One wake cycle's request. Returns the outcome plus (on success) the inflated
+// BMP byte count via outInflatedBytes, or (on a reachable non-2xx) the parsed
+// problem document via outProblem. The HTTPClient is configured to collect
+// X-Sleep-Seconds via collectHeaders() so the caller can still honour the
+// Worker's sleep directive on a non-2xx.
 static CycleResult fetchAndInflate(HTTPClient &https,
                                    WiFiClientSecure &client,
                                    size_t *outInflatedBytes,
-                                   SleepHeader *outSleep) {
+                                   SleepHeader *outSleep,
+                                   ProblemDoc *outProblem) {
     // Spike-grade TLS: skip server-cert validation. Production radiator
     // would pin or bundle the CA for the Worker host — out of scope for
     // this tracer, but called out in the README and ADR-0003's
@@ -339,7 +372,7 @@ static CycleResult fetchAndInflate(HTTPClient &https,
     // Content-Length is tracked internally by HTTPClient regardless of
     // this list.
     static const char *kept[] = {"X-Sleep-Seconds", "X-Profile-Phase",
-                                 "X-Server-Time"};
+                                 "X-Server-Time", "Content-Encoding"};
     https.collectHeaders(kept, sizeof(kept) / sizeof(kept[0]));
 
     const uint32_t t0 = millis();
@@ -360,8 +393,41 @@ static CycleResult fetchAndInflate(HTTPClient &https,
                   (unsigned long)reqMs);
 
     if (status < 200 || status >= 300) {
+        // Reachable Worker returned a non-2xx with a problem+json body
+        // (ADR-0011). Drain it, inflate if the edge gzipped it in transit
+        // (Decision 2), parse, and hand the result back for the error screen.
+        // (status <= 0 — transport failure / no response — was handled above
+        // and stays HttpError, panel untouched: #47's arm.)
+        Serial.printf("http-error: reachable worker status=%d — draining problem body\n",
+                      status);
+        const String ceHdr = https.header("Content-Encoding");
+        bool truncated = false;
+        const size_t total = drainBody(https, compressedBuf, MAX_COMPRESSED_BYTES, &truncated);
         https.end();
-        return CycleResult::HttpError;
+        Serial.printf("problem: body %u bytes, content-encoding=%s\n",
+                      (unsigned)total, ceHdr.c_str());
+
+        outProblem->httpStatus = status;
+        const char *jsonPtr = (const char *)compressedBuf;
+        size_t jsonLen = total;
+        if (ceHdr.indexOf("gzip") >= 0) {
+            const long produced = inflateGzip(compressedBuf, total, inflatedBuf, EXPECTED_BMP_BYTES);
+            if (produced < 0) {
+                // Inflate failed — leave the doc empty so setup() falls back to
+                // the generic screen using httpStatus.
+                Serial.println("problem: gzip inflate failed — generic fallback");
+                parseProblem("", 0, outProblem);
+                return CycleResult::WorkerError;
+            }
+            Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
+            jsonPtr = (const char *)inflatedBuf;
+            jsonLen = (size_t)produced;
+        }
+        parseProblem(jsonPtr, jsonLen, outProblem);
+        Serial.printf("problem: parsed title='%s' detail_len=%u upstream=%s\n",
+                      outProblem->title, (unsigned)strlen(outProblem->detail),
+                      outProblem->hasUpstream ? "yes" : "no");
+        return CycleResult::WorkerError;
     }
 
     // Drain the response into the compressed scratch buffer.
@@ -502,16 +568,22 @@ void setup() {
     SleepHeader sleep = {false, 0};
     CycleResult outcome = CycleResult::HttpError;
     size_t inflatedBytes = 0;
+    ProblemDoc problem = {};
 
     if (connectWiFi()) {
         WiFiClientSecure client;
         HTTPClient https;
-        outcome = fetchAndInflate(https, client, &inflatedBytes, &sleep);
+        outcome = fetchAndInflate(https, client, &inflatedBytes, &sleep, &problem);
 
         if (outcome == CycleResult::Ok) {
             if (!flushToPanel(inflatedBuf, inflatedBytes)) {
                 outcome = CycleResult::BmpInvalid;
             }
+        } else if (outcome == CycleResult::WorkerError) {
+            // Commit C: the problem doc is parsed and logged; the error screen
+            // is wired in Commit D. Panel untouched until then.
+            Serial.printf("worker-error: http=%d title='%s' (render pending)\n",
+                          problem.httpStatus, problem.title);
         }
     }
     WiFi.disconnect(true);  // drop the radio before sleeping
