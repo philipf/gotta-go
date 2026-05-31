@@ -183,9 +183,9 @@ describe('fetchArrivals', () => {
 		expect(error).not.toHaveBeenCalled();
 	});
 
-	it('truncates an oversized upstream body to 256 chars in detail', async () => {
+	it('truncates an oversized upstream body to the 2 KB snippet cap in detail', async () => {
 		const stubFetch: typeof fetch = async () =>
-			new Response('x'.repeat(500), { status: 502 });
+			new Response('x'.repeat(3000), { status: 502 });
 
 		const result = await fetchArrivals({
 			fetch: stubFetch,
@@ -196,7 +196,24 @@ describe('fetchArrivals', () => {
 
 		expect(result.ok).toBe(false);
 		if (result.ok || result.error.kind !== 'upstream') throw new Error('expected upstream');
-		expect(result.error.detail).toBe('x'.repeat(256));
+		expect(result.error.detail).toBe('x'.repeat(2048));
+	});
+
+	it('surfaces a 4xx (other than 401/403/429) as client_error, distinct from upstream', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response('{"message":"Stop not found"}', { status: 404 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: '9999',
+			serviceId: 'KPL',
+		});
+
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: 'client_error', status: 404, detail: '{"message":"Stop not found"}' },
+		});
 	});
 
 	it('surfaces HTTP 429 as rate_limited with status + body detail', async () => {

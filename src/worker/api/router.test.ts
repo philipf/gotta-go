@@ -10,7 +10,7 @@ function buildReq(headers: Record<string, string>, path = '/v1/frame'): Request 
 }
 
 describe('api.router', () => {
-	it('returns 404 with body "unknown radiator" when slug does not resolve', async () => {
+	it('returns a 404 unknown-radiator problem document when slug does not resolve', async () => {
 		const req = buildReq({
 			'X-Radiator-Slug': 'ghost',
 			'X-Radiator-Token': TOKEN,
@@ -19,18 +19,23 @@ describe('api.router', () => {
 		const res = await route(req, env, new Date('2026-05-23T06:48:00Z'));
 
 		expect(res.status).toBe(404);
+		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
-		expect(await res.text()).toBe('unknown radiator');
+		const body = (await res.json()) as Record<string, unknown>;
+		expect(body.type).toMatch(/#unknown-radiator$/);
+		expect(body.detail).toBe("No radiator is configured for slug 'ghost'.");
 	});
 
-	it('returns 401 with body "unauthorized" when token is missing', async () => {
+	it('returns a 401 unauthorized problem document when token is missing', async () => {
 		const req = buildReq({ 'X-Radiator-Slug': 'bedroom-philip-tania' });
 
 		const res = await route(req, env, new Date('2026-05-23T06:48:00Z'));
 
 		expect(res.status).toBe(401);
+		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
-		expect(await res.text()).toBe('unauthorized');
+		const body = (await res.json()) as Record<string, unknown>;
+		expect(body.type).toMatch(/#unauthorized$/);
 	});
 
 	it('returns byte-identical 401 responses for missing vs invalid token (no oracle)', async () => {

@@ -1,38 +1,98 @@
 import { describe, it, expect } from 'vitest';
-import { notFound, unauthorized, unknownRadiator } from './errors';
+import { notFound, problemResponse } from './errors';
+import {
+	internalError,
+	metlinkAuth,
+	metlinkUnavailable,
+	unauthorizedError,
+	unknownRadiatorError,
+} from '../shared/errors';
 import { frameOk, frameSvg } from './response';
 
-describe('api.errors.unauthorized', () => {
-	it('returns a 401 with body "unauthorized" and X-Sleep-Seconds: 3600', async () => {
-		const res = unauthorized();
+const TYPE_BASE = 'https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md';
+
+describe('api.errors.problemResponse — unauthorized', () => {
+	it('shapes a 401 problem+json with type #unauthorized and X-Sleep-Seconds 3600', async () => {
+		const res = problemResponse(unauthorizedError());
 
 		expect(res.status).toBe(401);
+		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
-		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
-		expect(await res.text()).toBe('unauthorized');
+		expect(res.headers.get('X-Profile-Phase')).toBe('none');
+		expect(await res.json()).toEqual({
+			type: `${TYPE_BASE}#unauthorized`,
+			title: 'Radiator not authorised',
+			status: 401,
+			detail: 'The X-Radiator-Token header was missing or did not match the configured shared token.',
+		});
 	});
 });
 
-describe('api.errors.unknownRadiator', () => {
-	it('returns a 404 with body "unknown radiator" and X-Sleep-Seconds: 3600', async () => {
-		const res = unknownRadiator();
+describe('api.errors.problemResponse — unknown-radiator', () => {
+	it('shapes a 404 problem+json naming the slug, X-Sleep-Seconds 3600', async () => {
+		const res = problemResponse(unknownRadiatorError('bedroom-attic'));
 
 		expect(res.status).toBe(404);
+		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
-		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
-		expect(await res.text()).toBe('unknown radiator');
+		const body = (await res.json()) as Record<string, unknown>;
+		expect(body.type).toBe(`${TYPE_BASE}#unknown-radiator`);
+		expect(body.detail).toBe("No radiator is configured for slug 'bedroom-attic'.");
+	});
+});
+
+describe('api.errors.problemResponse — instance + upstream_detail', () => {
+	it('adds an instance URN from the request id and an upstream_detail snippet', async () => {
+		const res = problemResponse(metlinkAuth(403, '{"error":"denied"}'), {
+			requestId: 'abc',
+			profilePhase: 'morning_commute',
+		});
+
+		expect(res.status).toBe(500);
+		expect(res.headers.get('X-Profile-Phase')).toBe('morning_commute');
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('3600');
+		const body = (await res.json()) as Record<string, unknown>;
+		expect(body.type).toBe(`${TYPE_BASE}#metlink-auth`);
+		expect(body.instance).toBe('urn:gotta-go:request:abc');
+		expect(body.upstream_detail).toBe('{"error":"denied"}');
+	});
+
+	it('omits instance and X-Sleep-Seconds for a Retryable error with no phase cadence', async () => {
+		const res = problemResponse(internalError());
+
+		expect(res.status).toBe(500);
+		expect(res.headers.get('X-Sleep-Seconds')).toBeNull();
+		expect(res.headers.get('X-Profile-Phase')).toBe('none');
+		const body = (await res.json()) as Record<string, unknown>;
+		expect(body).not.toHaveProperty('instance');
+		expect(body).not.toHaveProperty('upstream_detail');
+	});
+
+	it('derives a Retryable sleep from the phase cadence', () => {
+		const res = problemResponse(metlinkUnavailable('Metlink is unavailable (HTTP 503).'), {
+			phaseCadence: 180,
+			profilePhase: 'morning_commute',
+		});
+
+		expect(res.status).toBe(502);
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('180');
 	});
 });
 
 describe('api.errors.notFound', () => {
-	it('returns a bare 404 with body "not found" and no contract headers', async () => {
-		const res = notFound();
+	it('returns a class-less 404 problem+json with no sleep/profile headers', async () => {
+		const res = notFound('GET', '/v1/frames');
 
 		expect(res.status).toBe(404);
-		expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/);
+		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
 		expect(res.headers.get('X-Sleep-Seconds')).toBeNull();
 		expect(res.headers.get('X-Profile-Phase')).toBeNull();
-		expect(await res.text()).toBe('not found');
+		expect(await res.json()).toEqual({
+			type: `${TYPE_BASE}#not-found`,
+			title: 'Not found',
+			status: 404,
+			detail: 'No route matches GET /v1/frames.',
+		});
 	});
 });
 

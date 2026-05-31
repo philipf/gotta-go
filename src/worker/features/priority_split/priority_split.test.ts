@@ -6,6 +6,7 @@ import { serviceName } from './service-name';
 import type { RenderContext } from '../registry';
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
+import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 
 // Tested one layer below the public render() because the BMP pipeline
 // (Satori → resvg → BMP) is blocked inside the workers-pool sandbox per
@@ -378,10 +379,11 @@ describe('priority_split.buildColumn - Marker', () => {
 
 // Drives the public render() through a stubbed fetch (format: 'json',
 // includeBmp: false) so the sandbox-blocked BMP pipeline is skipped while the
-// gateway + caller error path runs for real. Asserts the #55 observability:
-// every failure kind is logged (no longer silent) and behaviour is unchanged
-// (the frame still renders — closed stop → dashes).
-describe('priority_split.render - gateway failure logging (#55)', () => {
+// gateway + caller error path runs for real. Asserts the #59 failure policy:
+// a gateway error short-circuits the render by throwing the mapped problem type
+// (the renderFrame boundary, tested in router.test.ts, turns it into
+// problem+json) rather than degrading silently to dashes.
+describe('priority_split.render - gateway failure → throws problem type (#59)', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
@@ -407,70 +409,71 @@ describe('priority_split.render - gateway failure logging (#55)', () => {
 		};
 	}
 
-	it('logs metlink.fetch_failed at error on an auth failure, still rendering dashes', async () => {
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+	// Captures the AppError render() throws, failing loudly if it unexpectedly
+	// resolves — keeps the return type a clean AppError (not AppError | Result).
+	async function renderError(ctx: RenderContext): Promise<AppError> {
+		try {
+			await render(ctx);
+		} catch (e) {
+			return e as AppError;
+		}
+		throw new Error('expected render() to throw');
+	}
+
+	it('throws a Fatal metlink-auth on a Metlink 401, carrying the upstream snippet', async () => {
 		const fetchFn: typeof fetch = async () => new Response('Unauthorized', { status: 401 });
 
-		const result = await render(ctxWith(fetchFn));
+		const err = await renderError(ctxWith(fetchFn));
 
-		expect(errorSpy).toHaveBeenCalledTimes(1);
-		expect(JSON.parse(errorSpy.mock.calls[0][0] as string)).toMatchObject({
-			level: 'error',
-			event: 'metlink.fetch_failed',
-			kind: 'auth',
-			status: 401,
-			detail: 'Unauthorized',
-			stopId: '3234',
-			serviceId: ['634', '635'],
-			radiatorSlug: 'bedroom-philip',
-		});
-		// Behaviour unchanged: the frame still renders (closed stop → dashes column).
-		expect((result.viewModel as { columns: unknown[] }).columns).toHaveLength(1);
+		expect(err).toBeInstanceOf(FatalError);
+		expect(err.slug).toBe('metlink-auth');
+		expect(err.status).toBe(500);
+		expect(err.logLevel).toBe('error');
+		expect(err.upstreamDetail).toBe('Unauthorized');
+	});
+
+	it('throws a Fatal metlink-bad-request on a Metlink 4xx config fault, naming the stop', async () => {
+		const fetchFn: typeof fetch = async () => new Response('{"message":"Stop not found"}', { status: 404 });
+
+		const err = await renderError(ctxWith(fetchFn));
+
+		expect(err).toBeInstanceOf(FatalError);
+		expect(err.slug).toBe('metlink-bad-request');
+		expect(err.detail).toContain('stop 3234');
 	});
 
 	it.each([
-		[429, 'rate_limited'],
-		[500, 'upstream'],
-	])('logs metlink.fetch_failed at warn for HTTP %i (%s)', async (status, kind) => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		[429, 'metlink-rate-limited'],
+		[500, 'metlink-unavailable'],
+	])('throws a Retryable %s problem on Metlink HTTP %i', async (status, slug) => {
 		const fetchFn: typeof fetch = async () => new Response('nope', { status });
 
-		await render(ctxWith(fetchFn));
+		const err = await renderError(ctxWith(fetchFn));
 
-		expect(warnSpy).toHaveBeenCalledTimes(1);
-		expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toMatchObject({
-			level: 'warn',
-			event: 'metlink.fetch_failed',
-			kind,
-		});
+		expect(err).toBeInstanceOf(RetryableError);
+		expect(err.slug).toBe(slug);
+		expect(err.status).toBe(502);
+		expect(err.logLevel).toBe('warn');
 	});
 
-	it('logs a thrown fetch (network failure) at warn with kind network', async () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	it('throws a Retryable metlink-unavailable on a network failure', async () => {
 		const fetchFn: typeof fetch = async () => {
 			throw new TypeError('connection refused');
 		};
 
-		await render(ctxWith(fetchFn));
+		const err = await renderError(ctxWith(fetchFn));
 
-		expect(warnSpy).toHaveBeenCalledTimes(1);
-		expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toMatchObject({
-			level: 'warn',
-			event: 'metlink.fetch_failed',
-			kind: 'network',
-		});
+		expect(err).toBeInstanceOf(RetryableError);
+		expect(err.slug).toBe('metlink-unavailable');
+		expect(err.upstreamDetail).toBeUndefined();
 	});
 
-	it('carries the truncated upstream body in detail', async () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const fetchFn: typeof fetch = async () => new Response('boom detail', { status: 503 });
+	it('still renders a normal frame for a legitimate closed/empty-feed stop (no throw)', async () => {
+		const fetchFn: typeof fetch = async () =>
+			new Response(JSON.stringify({ closed: true, departures: [] }), { status: 200 });
 
-		await render(ctxWith(fetchFn));
+		const result = await render(ctxWith(fetchFn));
 
-		expect(JSON.parse(warnSpy.mock.calls[0][0] as string)).toMatchObject({
-			kind: 'upstream',
-			status: 503,
-			detail: 'boom detail',
-		});
+		expect((result.viewModel as { columns: unknown[] }).columns).toHaveLength(1);
 	});
 });

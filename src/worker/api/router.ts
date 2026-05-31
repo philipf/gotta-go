@@ -20,5 +20,5 @@ export async function route(
       ? handleTestFrame(request, env, now)
       : handleFrame(request, env, now);
   }
-  return notFound();
+  return notFound(request.method, url.pathname);
 }

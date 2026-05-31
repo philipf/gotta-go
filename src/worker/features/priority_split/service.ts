@@ -7,18 +7,52 @@
 
 import type { RenderContext, RenderResult } from '../registry';
 import { fetchArrivals, type StopState } from '../../gateways/metlink/metlink';
-import { log } from '../../shared/log';
+import type { GatewayError } from '../../gateways/metlink/metlink';
+import type { TransitTarget } from '../../config/types';
+import {
+	type AppError,
+	metlinkAuth,
+	metlinkBadRequest,
+	metlinkRateLimited,
+	metlinkUnavailable,
+} from '../../shared/errors';
 import { buildViewModel, toJsonView } from './viewmodel';
 import { renderBmp, renderSvg } from './view';
+
+// Maps a classified gateway failure onto its problem type (ADR-0011). The
+// gateway stays a typed-Result bulkhead (ADR-0005); this is where kind becomes
+// policy and the error is thrown — a config fault (auth / bad id) backs off hard
+// and logs `error`, a transient blip retries at the phase cadence and logs
+// `warn`. Note a `closed:true` envelope is a *successful* fetch (the stop is
+// shut), not an error — it never reaches here, so it still renders normally.
+function toAppError(error: GatewayError, target: TransitTarget): AppError {
+	switch (error.kind) {
+		case 'auth':
+			return metlinkAuth(error.status, error.detail);
+		case 'client_error':
+			return metlinkBadRequest(error.status, target.stopId, error.detail);
+		case 'rate_limited':
+			return metlinkRateLimited(error.detail);
+		case 'upstream':
+			return metlinkUnavailable(
+				`Metlink is unavailable (HTTP ${error.status}). The radiator will retry on its next wake cycle.`,
+				error.detail,
+			);
+		case 'network':
+			return metlinkUnavailable(
+				'Metlink is unreachable (network error). The radiator will retry on its next wake cycle.',
+			);
+	}
+}
 
 export async function render(ctx: RenderContext): Promise<RenderResult> {
 	const targets = ctx.phase.transitTargets ?? [];
 
-	// One gateway call per target. A failed fetch still degrades to a closed stop
-	// so the column renders dashes rather than throwing (the failure-policy
-	// redesign is deferred to #56) — but the failure is no longer silent (#55).
-	// auth = a broken/expired API key (a config error a human must fix) → error;
-	// transient kinds (network/rate_limited/upstream) → warn.
+	// One gateway call per target. A failed fetch now short-circuits the render by
+	// throwing the mapped problem type (#59) rather than silently degrading to a
+	// closed stop — the renderFrame boundary turns the throw into a problem+json
+	// response. A successful fetch (including a legitimate `closed`/empty-feed
+	// stop) still flows through to the view model and renders a normal frame.
 	const states: StopState[] = await Promise.all(
 		targets.map(async (t) => {
 			const result = await fetchArrivals({
@@ -29,20 +63,7 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
 				limit: ctx.stopPredictionLimit,
 			});
 			if (result.ok) return result.data;
-
-			const { error } = result;
-			const fields = {
-				kind: error.kind,
-				// Every kind but network carries the HTTP status + body snippet.
-				status: error.kind === 'network' ? undefined : error.status,
-				detail: error.kind === 'network' ? undefined : error.detail,
-				stopId: t.stopId,
-				serviceId: t.serviceId,
-				radiatorSlug: ctx.radiator.slug,
-			};
-			if (error.kind === 'auth') log.error('metlink.fetch_failed', fields);
-			else log.warn('metlink.fetch_failed', fields);
-			return { kind: 'closed' };
+			throw toAppError(result.error, t);
 		}),
 	);
 

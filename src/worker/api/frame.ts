@@ -13,8 +13,14 @@ import { layouts } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
 import { gzip } from '../shared/gzip';
 import { log } from '../shared/log';
+import {
+	AppError,
+	internalError,
+	unauthorizedError,
+	unknownRadiatorError,
+} from '../shared/errors';
 import { buildFrameEnvelope } from './envelope';
-import { unauthorized, unknownRadiator } from './errors';
+import { problemResponse } from './errors';
 import { resolveResponseFormat } from './format';
 import { frameJson, frameOk, frameSvg } from './response';
 
@@ -54,18 +60,24 @@ export async function renderFrame(
 	const hardwareId = request.headers.get('X-Radiator-Hardware-Id') ?? undefined;
 	const requestId = request.headers.get('X-Request-Id') ?? undefined;
 
+	// The active phase cadence and key, captured once resolved so the failure
+	// boundary can derive a Retryable sleep and the X-Profile-Phase header. They
+	// stay undefined / 'none' for any error thrown before phase resolution.
+	let phaseCadence: number | undefined;
+	let resolvedPhase = 'none';
+
 	try {
 		// 1. Request — authenticate & parse
 		const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
 		if (!auth.ok) {
 			log.warn('frame.unauthorized', { hardwareId, requestId, slug });
-			return unauthorized();
+			return problemResponse(unauthorizedError(), { requestId });
 		}
 
 		const radiator = resolve(slug);
 		if (!radiator) {
 			log.warn('frame.unknown_radiator', { hardwareId, requestId, slug });
-			return unknownRadiator();
+			return problemResponse(unknownRadiatorError(slug), { requestId });
 		}
 
 		const format = resolveResponseFormat(request.headers.get('Accept'));
@@ -78,6 +90,8 @@ export async function renderFrame(
 
 		// 2. Endpoint — resolve domain inputs & render
 		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
+		phaseCadence = sleepSeconds;
+		resolvedPhase = profilePhase;
 		const rendered = await layouts[layout]({
 			radiator,
 			phase,
@@ -141,18 +155,34 @@ export async function renderFrame(
 		});
 		return response;
 	} catch (err) {
-		// Log structured context, then re-throw so CF also captures the uncaught
-		// exception. Response shaping / back-off on failure is GH #47 (firmware).
-		const error =
-			err instanceof Error
-				? { name: err.name, message: err.message, stack: err.stack }
-				: { message: String(err) };
-		log.error('frame.error', {
+		// Failure boundary (ADR-0011). Map any throw to a problem type — known
+		// AppErrors pass through, anything else becomes `internal` — then log it
+		// and return the problem+json response. No re-throw: the contract owns the
+		// status, sleep, and body, so CF never sees a bare 500.
+		const error = err instanceof AppError ? err : internalError();
+		const fields: Record<string, unknown> = {
 			hardwareId,
 			requestId,
 			slug,
-			error,
+			problemType: error.slug,
+			status: error.status,
+			detail: error.detail,
+			upstreamDetail: error.upstreamDetail,
+		};
+		// An unknown (non-AppError) throw also carries the raw stack for triage.
+		if (!(err instanceof AppError)) {
+			fields.error =
+				err instanceof Error
+					? { name: err.name, message: err.message, stack: err.stack }
+					: { message: String(err) };
+		}
+		if (error.logLevel === 'error') log.error('frame.error', fields);
+		else log.warn('frame.error', fields);
+
+		return problemResponse(error, {
+			phaseCadence,
+			requestId,
+			profilePhase: resolvedPhase,
 		});
-		throw err;
 	}
 }
