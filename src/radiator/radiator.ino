@@ -43,7 +43,7 @@
 #include <Arduino.h>
 
 #include "epd_driver.h"  // epd_init() — panel bring-up
-#include "net.h"         // connectWiFi, fetchFrame, inflateGzip, HttpResponse
+#include "net.h"         // connectWiFi, fetchFrame, inflateGzip, decodeBodyText, HttpResponse, BodyText
 #include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
 #include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
 #include "sleep.h"       // CycleResult, SleepHeader, sleepFor
@@ -98,33 +98,15 @@ static CycleResult handleFrameResponse(const HttpResponse &r) {
                                                        : CycleResult::BmpInvalid;
 }
 
-// Reachable non-2xx: parse the problem+json body (inflating it first if the edge
-// gzipped it in transit, Decision 2) and render the error screen. An empty or
+// Reachable non-2xx: decode the body (inflating iff the edge gzipped it in
+// transit, Decision 2) via net and render the error screen. An empty or
 // unparseable body leaves the doc empty, which resolveErrorScreen() turns into
 // the generic screen using the HTTP status (ADR-0011, Decision 8).
 static void renderWorkerError(const HttpResponse &r) {
     Serial.printf("worker-error: reachable status=%d — rendering error screen\n", r.status);
-
-    // Select the JSON bytes to parse: inflate first if the edge gzipped the body
-    // in transit (Decision 2). A failed inflate yields an empty body, which
-    // renderProblemScreen() resolves to the generic screen (Decision 8).
-    const char *json = (const char *)compressedBuf;
-    size_t jsonLen = r.bodyLen;
-    if (r.gzipped) {
-        const long produced = inflateGzip(compressedBuf, r.bodyLen, inflatedBuf,
-                                          EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
-        if (produced < 0) {
-            Serial.println("problem: gzip inflate failed — generic fallback");
-            json = "";
-            jsonLen = 0;
-        } else {
-            Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
-            json = (const char *)inflatedBuf;
-            jsonLen = (size_t)produced;
-        }
-    }
-
-    renderProblemScreen(json, jsonLen, r.status, RADIATOR_VERBOSE);
+    const BodyText body = decodeBodyText(r, compressedBuf, inflatedBuf,
+                                         EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
+    renderProblemScreen(body.ptr, body.len, r.status, RADIATOR_VERBOSE);
 }
 
 // Map a fetched response onto the ADR-0003 / ADR-0011 outcome table: render the

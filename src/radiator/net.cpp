@@ -111,6 +111,21 @@ long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap,
     return (long)(d.dest - dst);
 }
 
+BodyText decodeBodyText(const HttpResponse &r, const uint8_t *body,
+                        uint8_t *scratch, size_t scratchCap,
+                        uint8_t *dict, size_t dictCap) {
+    if (!r.gzipped) {
+        return { (const char *)body, r.bodyLen };
+    }
+    const long produced = inflateGzip(body, r.bodyLen, scratch, scratchCap, dict, dictCap);
+    if (produced < 0) {
+        Serial.println("problem: gzip inflate failed — generic fallback");
+        return { "", 0 };
+    }
+    Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
+    return { (const char *)scratch, (size_t)produced };
+}
+
 // ---------- HTTP fetch ----------
 
 HttpResponse fetchFrame(uint8_t *buf, size_t cap) {

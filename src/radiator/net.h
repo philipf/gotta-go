@@ -58,3 +58,21 @@ HttpResponse fetchFrame(uint8_t *buf, size_t cap);
 // by the frame path and the error path (ADR-0008 one-shot inflate).
 long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap,
                  uint8_t *dict, size_t dictCap);
+
+// A response body as text ready to parse. ptr aliases either body (identity —
+// the body wasn't gzipped) or the caller's scratch (inflated). len is 0 with
+// ptr = "" on an inflate failure, so the caller renders its generic fallback
+// (ADR-0011 Decision 8).
+struct BodyText {
+    const char *ptr;
+    size_t      len;
+};
+
+// Return the response body as text ready to parse: identity bytes when the body
+// wasn't gzip-encoded, else inflated into scratch[0..scratchCap) using dict.
+// Owns the "inflate iff r.gzipped" decision (Decision 2) so the orchestrator
+// doesn't. body is the buffer fetchFrame drained into. On inflate failure
+// returns {"", 0}.
+BodyText decodeBodyText(const HttpResponse &r, const uint8_t *body,
+                        uint8_t *scratch, size_t scratchCap,
+                        uint8_t *dict, size_t dictCap);
