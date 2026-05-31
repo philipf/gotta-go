@@ -18,9 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-
 #include "sleep.h"  // SleepHeader, parseSleepSecondsValue
 
 // Compressed body sanity bound. Headroom over the ~525 B observed on
@@ -51,10 +48,10 @@ bool connectWiFi();
 // Drop the radio before sleeping.
 void disconnectWiFi();
 
-// Perform one wake request, draining the body into buf (capacity cap). See
-// HttpResponse for the returned facts. Calls https.end() before returning.
-HttpResponse fetchFrame(HTTPClient &https, WiFiClientSecure &client,
-                        uint8_t *buf, size_t cap);
+// Perform one wake request, draining the body into buf (capacity cap). Owns the
+// TLS client and HTTP session for the call's duration. See HttpResponse for the
+// returned facts.
+HttpResponse fetchFrame(uint8_t *buf, size_t cap);
 
 // Inflate a gzip stream src[0..srcLen) into dst[0..dstCap) using the caller's
 // dictionary scratch. Returns bytes produced, or -1 on any uzlib error. Shared

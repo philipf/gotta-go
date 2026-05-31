@@ -127,11 +127,30 @@ static void renderWorkerError(const HttpResponse &r) {
     renderProblemScreen(json, jsonLen, r.status, RADIATOR_VERBOSE);
 }
 
+// Map a fetched response onto the ADR-0003 / ADR-0011 outcome table: render the
+// error screen or flush the frame as a side effect, and return the outcome that
+// drives the sleep policy.
+static CycleResult dispatchResponse(const HttpResponse &r) {
+    if (r.status <= 0) {
+        return CycleResult::HttpError;            // transport failure — panel untouched (#47)
+    }
+    if (r.status < 200 || r.status >= 300) {
+        renderWorkerError(r);                     // reachable non-2xx — error screen
+        return CycleResult::WorkerError;
+    }
+    if (r.truncated) {
+        Serial.printf("body: exceeds %u byte cap\n", (unsigned)MAX_COMPRESSED_BYTES);
+        return CycleResult::BodyTooLarge;
+    }
+    return handleFrameResponse(r);                // 200 OK — frame to panel
+}
+
 // ---------- Wake path ----------
 
-void setup() {
-    const uint32_t wakeStart = millis();
-
+// Bring up the serial link and log the wake banner. The CDC delay lets the host
+// re-attach after the wake re-enumeration; the wake counter (RTC-backed) bumps
+// here so the banner reports it.
+static void announceWake() {
     Serial.begin(115200);
     delay(1000);  // let the host re-attach the CDC after the wake re-enumeration
 
@@ -140,13 +159,26 @@ void setup() {
     Serial.printf("=== GottaGo wake cycle #%lu — wake reason: %s ===\n",
                   (unsigned long)wakeCount,
                   wakeReasonStr(esp_sleep_get_wakeup_cause()));
+}
 
-    // Allocate PSRAM scratch up front. If any of these fail there's no
-    // recovery — sleep on the firmware fallback and try again next wake.
+// Allocate the per-cycle PSRAM scratch. False on exhaustion — the caller then
+// sleeps on the firmware fallback and retries next wake. Re-allocated every
+// cycle because deep sleep wipes the heap on wake anyway.
+static bool allocateScratchBuffers() {
     compressedBuf = (uint8_t *)heap_caps_malloc(MAX_COMPRESSED_BYTES, MALLOC_CAP_SPIRAM);
     inflatedBuf   = (uint8_t *)heap_caps_malloc(EXPECTED_BMP_BYTES,   MALLOC_CAP_SPIRAM);
     uzlibDict     = (uint8_t *)heap_caps_malloc(UZLIB_DICT_BYTES,     MALLOC_CAP_SPIRAM);
-    if (!compressedBuf || !inflatedBuf || !uzlibDict) {
+    return compressedBuf && inflatedBuf && uzlibDict;
+}
+
+void setup() {
+    const uint32_t wakeStart = millis();
+
+    announceWake();
+
+    // No recovery if scratch can't be allocated — sleep on the firmware
+    // fallback and try again next wake.
+    if (!allocateScratchBuffers()) {
         Serial.println("PSRAM alloc failed — sleeping on firmware fallback");
         sleepFor(CycleResult::HttpError, {false, 0}, millis() - wakeStart, wakeCount);
     }
@@ -157,23 +189,9 @@ void setup() {
     CycleResult outcome = CycleResult::HttpError;
 
     if (connectWiFi()) {
-        WiFiClientSecure client;
-        HTTPClient https;
-        const HttpResponse r = fetchFrame(https, client, compressedBuf, MAX_COMPRESSED_BYTES);
+        const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES);
         sleep = r.sleep;
-
-        // ADR-0003 / ADR-0011 response-handling table.
-        if (r.status <= 0) {
-            outcome = CycleResult::HttpError;             // transport failure — panel untouched (#47)
-        } else if (r.status < 200 || r.status >= 300) {
-            renderWorkerError(r);                         // reachable non-2xx — error screen
-            outcome = CycleResult::WorkerError;
-        } else if (r.truncated) {
-            Serial.printf("body: exceeds %u byte cap\n", (unsigned)MAX_COMPRESSED_BYTES);
-            outcome = CycleResult::BodyTooLarge;
-        } else {
-            outcome = handleFrameResponse(r);             // 200 OK — frame to panel
-        }
+        outcome = dispatchResponse(r);
     }
     disconnectWiFi();  // drop the radio before sleeping
 

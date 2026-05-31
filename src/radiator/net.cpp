@@ -1,7 +1,9 @@
 #include "net.h"
 
 #include <Arduino.h>
+#include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 
 extern "C" {
 #include "src/uzlib/uzlib.h"
@@ -111,9 +113,14 @@ long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap,
 
 // ---------- HTTP fetch ----------
 
-HttpResponse fetchFrame(HTTPClient &https, WiFiClientSecure &client,
-                        uint8_t *buf, size_t cap) {
+HttpResponse fetchFrame(uint8_t *buf, size_t cap) {
     HttpResponse r = {0, 0, false, false, {false, 0}};
+
+    // The TLS client and HTTP session live only for this request — constructed
+    // here, torn down on return (https.end() below; client frees its TLS buffers
+    // as it leaves scope). The orchestrator never sees them.
+    WiFiClientSecure client;
+    HTTPClient https;
 
     // Spike-grade TLS: skip server-cert validation. Production radiator would
     // pin or bundle the CA for the Worker host — out of scope for this tracer,
