@@ -1,6 +1,7 @@
 # GH #60 — Firmware: render the `problem+json` error screen
 
-> Status: 🟡 planned (not started). Branch `feat/60-firmware-problem-json-error-screen` off `main`.
+> Status: ✅ implemented (commits A–E on branch `feat/60-firmware-problem-json-error-screen` off `main`).
+> Code compiles clean at every commit; the on-panel human-verification steps (Commits B/C/D) remain to be run on the physical device — see the `👤 HUMAN STEP` markers below.
 > Scope: `src/radiator/` only — `radiator.ino`, `settings.example.h`, `settings.h.prod`,
 > the (gitignored, local) `settings.h`, and `README.md`. **No worker changes** — the
 > worker already emits `problem+json` (landed in #59, commit `c387c3d`).

@@ -37,6 +37,7 @@ If you already filled in `poc/lilygo/wake-cycle-32/secrets.h` for PoC #32, the `
 - `FRAME_URL` is the Worker's `/v1/frame` endpoint — for local dev, this is the cloudflared quick-tunnel URL (see _Reach the Worker_ below).
 - `RADIATOR_TOKEN` must equal the Worker's `RADIATOR_SHARED_TOKEN` (otherwise the Worker returns `401`).
 - `RADIATOR_SLUG` must resolve to an entry in the Worker's `radiators:` config (otherwise `404`).
+- `RADIATOR_VERBOSE` (default `0`) gates the verbose error screen — set to `1` to render the raw `upstream_detail` snippet beneath the error body (see _Error screen_ below).
 
 ## Install libraries
 
@@ -116,19 +117,25 @@ Cycle #1: outcome=ok, awake 4870 ms, sleeping 300 s (X-Sleep-Seconds)
 
 The `wake-to-sleep` window (logged on the `Cycle #N:` line) is the per-cycle active duration that drives battery accounting — same baseline as PoC #32, now including BMP decode + panel flush time.
 
-## How firmware response-handling maps to ADR-0003
+## How firmware response-handling maps to ADR-0003 / ADR-0011
 
-ADR-0003's table tells the radiator how to react to every Worker response. The sketch encodes that table as the `CycleResult` enum + `sleepFor()` dispatch:
+ADR-0003's table tells the radiator how to react to every Worker response; [ADR-0011](../../docs/adr/0011-error-contract-problem-details.md) refines the error path so a reachable Worker error is shown on-panel instead of held silently. The sketch encodes that as the `CycleResult` enum + `sleepFor()` dispatch:
 
-| ADR-0003 row                                        | `CycleResult`                           | Panel touched?      | Sleep source                                         |
-| --------------------------------------------------- | --------------------------------------- | ------------------- | ---------------------------------------------------- |
-| 200 OK with valid gzipped BMP + `X-Sleep-Seconds`   | `Ok`                                    | Yes — frame flushed | `X-Sleep-Seconds`                                    |
-| 200 OK but inflate/parse fails                      | `InflateFailed` / `BmpInvalid`          | No                  | `X-Sleep-Seconds` if present, else firmware fallback |
-| Non-2xx with `X-Sleep-Seconds`                      | `HttpError`                             | No                  | `X-Sleep-Seconds`                                    |
-| Non-2xx without `X-Sleep-Seconds`                   | `HttpError`                             | No                  | Firmware fallback (300 s)                            |
-| No response (Wi-Fi fail, DNS fail, TCP/TLS timeout) | `HttpError` (early exit from `setup()`) | No                  | Firmware fallback (300 s)                            |
+| ADR-0003 / ADR-0011 row                                        | `CycleResult`                           | Panel touched?       | Sleep source                                         |
+| -------------------------------------------------------------- | --------------------------------------- | -------------------- | ---------------------------------------------------- |
+| 200 OK with valid gzipped BMP + `X-Sleep-Seconds`              | `Ok`                                    | Yes — frame flushed  | `X-Sleep-Seconds`                                    |
+| 200 OK but inflate/parse fails                                 | `InflateFailed` / `BmpInvalid`          | No                   | `X-Sleep-Seconds` if present, else firmware fallback |
+| Reachable non-2xx (`problem+json`) with `X-Sleep-Seconds`      | `WorkerError`                           | Yes — error screen   | `X-Sleep-Seconds`                                    |
+| Reachable non-2xx (`problem+json`) without `X-Sleep-Seconds`   | `WorkerError`                           | Yes — error screen   | Firmware fallback (300 s)                            |
+| Transport failure / no response (Wi-Fi/DNS/TCP/TLS timeout)    | `HttpError` (early exit from `setup()`) | No                   | Firmware fallback (300 s)                            |
 
 `BodyTooLarge` is an extra row not in ADR-0003 itself: if the compressed body exceeds `MAX_COMPRESSED_BYTES` (8 KiB, ~16× the observed minimal_clock body) the radiator treats it as a parse failure. The bound surfaces a future content-profile shift early — see ADR-0008's reversal trigger about switching to streaming inflate.
+
+### Error screen
+
+On a **reachable** non-2xx the Worker returns an `application/problem+json` body (RFC 9457; see [`docs/api/errors.md`](../../docs/api/errors.md)). `fetchAndInflate()` drains it, inflates it if the edge gzipped it in transit (`Content-Encoding: gzip`), and parses it with ArduinoJson; `renderErrorScreen()` then draws the problem's `title` as the heading and `detail` as the body to the panel — so a wrong `RADIATOR_TOKEN` (`401` "Radiator not authorised") or a Metlink outage (`502` "Transit data unavailable") is visible rather than masquerading as a quiet frame. An empty or unparseable body still renders a generic `"Unexpected error"` screen with the HTTP status — never a blank or stale panel.
+
+Set `RADIATOR_VERBOSE 1` in `settings.h` to also render the raw `upstream_detail` snippet (carried on `metlink-*` errors) beneath the body — a debugging aid, off by default. The renderer takes neutral strings, not an HTTP object, so [#47](https://github.com/philipf/gotta-go/issues/47) can reuse it for the worker-unreachable case. A **transport** failure (Wi-Fi/DNS/TCP/TLS dead, no response) is *not* a Worker error: it stays `HttpError` and leaves the panel untouched — that stale-frame / unreachable indicator is #47's domain.
 
 ## Acceptance criteria (GH #4 firmware)
 

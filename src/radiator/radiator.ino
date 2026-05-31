@@ -10,11 +10,16 @@
  *   poc/lilygo/show-bmp-31   — 1-bit BMP byte array → 4bpp framebuffer → panel
  *   ADR-0008 (uzlib)         — inflate Content-Encoding: gzip in firmware
  *
- * Firmware response handling follows ADR-0003 §Radiator firmware behaviour —
- * non-2xx and parse failures never touch the panel; X-Sleep-Seconds dictates
- * the next wake; a 300 s firmware fallback covers the cases where the radiator
- * can't extract a usable header (no response, missing header, value out of
- * range [1, 86400]).
+ * Firmware response handling follows ADR-0003 §Radiator firmware behaviour and
+ * ADR-0011 §error screen. A reachable Worker error — a non-2xx carrying an
+ * RFC 9457 application/problem+json body — now renders a generic on-panel error
+ * screen (its title as heading, detail as body) instead of silently holding the
+ * last frame, so a bad token or a Metlink outage is visible (CycleResult::
+ * WorkerError). A transport failure / no response (Wi-Fi/DNS/TCP/TLS dead)
+ * still leaves the panel untouched (CycleResult::HttpError, #47's arm), as do
+ * 200-OK inflate/parse failures. X-Sleep-Seconds dictates the next wake; a
+ * 300 s firmware fallback covers the cases where the radiator can't extract a
+ * usable header (no response, missing header, value out of range [1, 86400]).
  *
  * Toolchain pinned by ADR-0006: arduino-cli + esp32:esp32@2.0.15 +
  * LilyGo-EPD47@1.0.1 + uzlib. FQBN lives in sketch.yaml.
