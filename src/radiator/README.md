@@ -21,21 +21,28 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 | `problem.{h,cpp}`   | Error-screen module (ADR-0011): problem+json parse, fallback resolution, on-panel render. Neutral `renderErrorScreen()` reusable by #47. |
 | `sleep.h`           | `SleepHeader` + pure `parseSleepSecondsValue()` (ADR-0003); host-tested. Seed of the #5 sleep module. |
 | `test/`             | Host-native unit tests (CMake + doctest) for the pure logic — see [`test/README.md`](test/README.md) and [ADR-0012](../../docs/adr/0012-radiator-host-native-tests.md). |
-| `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.h` (gitignored). |
+| `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.h.dev` / `settings.h.prod` (gitignored). |
+| `settings.h.dev` / `settings.h.prod` | Per-environment settings. `./flash.sh <env>` copies the chosen one onto the generated `settings.h`. |
+| `flash.sh`          | `./flash.sh {dev\|prod}` — apply the env variant, compile, upload, then watch the serial monitor. |
 | `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
 | `mise.toml`         | Tool pin (python for esptool).                                                          |
-| `.gitignore`        | Excludes `settings.h` and build artefacts.                                               |
+| `.gitignore`        | Excludes `settings.h*` and build artefacts.                                              |
 
 ## Configure settings
 
+Settings are per-environment. Copy the template once per environment and fill in real values:
+
 ```sh
-cp settings.example.h settings.h
-$EDITOR settings.h    # WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
+cp settings.example.h settings.h.dev     # local Worker (cloudflared quick tunnel)
+cp settings.example.h settings.h.prod    # deployed Worker (*.workers.dev)
+$EDITOR settings.h.dev settings.h.prod   # WIFI_SSID, WIFI_PASSWORD, FRAME_URL, RADIATOR_TOKEN, RADIATOR_SLUG
 ```
 
-`settings.h` is gitignored. The sketch `#include`s it, so it will not compile until that file exists.
+`./flash.sh <env>` (see _Build, flash, watch_) copies the chosen variant onto `settings.h` — the file the sketch `#include`s. **`settings.h` is generated and throwaway; edit `settings.h.dev` / `settings.h.prod`, never `settings.h` directly.**
 
-> Renamed from `secrets.h` in [#52](https://github.com/philipf/gotta-go/issues/52). If you have a pre-existing gitignored `secrets.h`, rename it: `git mv`-free — just `mv secrets.h settings.h`.
+`settings.h*` are all gitignored. The sketch `#include`s `settings.h`, so it will not compile until `./flash.sh <env>` has generated it (or you `cp` a variant onto it by hand).
+
+> Renamed from `secrets.h` in [#52](https://github.com/philipf/gotta-go/issues/52). If you have a pre-existing gitignored `secrets.h`, rename it: `git mv`-free — just `mv secrets.h settings.h.dev`.
 
 If you already filled in `poc/lilygo/wake-cycle-32/secrets.h` for PoC #32, the `WIFI_SSID` and `WIFI_PASSWORD` values can be copied straight from it — it's the same network.
 
@@ -63,7 +70,16 @@ If `arduino-cli lib search uzlib` returns nothing, the registry name may have sh
 
 ## Build, flash, watch
 
-Same toolchain as `poc/lilygo/wake-cycle-32` (arduino-cli + esp32 core 2.0.15 + LilyGo-EPD47 + uzlib). With `sketch.yaml` present:
+Same toolchain as `poc/lilygo/wake-cycle-32` (arduino-cli + esp32 core 2.0.15 + LilyGo-EPD47 + uzlib). The easiest path is `flash.sh`, which selects an environment, compiles, walks you through the ROM-download-mode button dance, uploads, and opens the serial monitor:
+
+```sh
+./flash.sh dev      # apply settings.h.dev,  compile, upload, watch
+./flash.sh prod     # apply settings.h.prod, compile, upload, watch
+```
+
+`flash.sh` compiles _before_ prompting for the button dance, so a bad arg or a broken build fails before you touch the board. It prints the target `FRAME_URL` for an eyeball check; the token is never printed.
+
+Or run the steps by hand (with `sketch.yaml` present, after `cp settings.h.dev settings.h`):
 
 ```sh
 arduino-cli compile .
@@ -95,7 +111,7 @@ yay -S cloudflared            # AUR; cloudflared-bin works too. Not in core/extr
 cloudflared tunnel --url http://localhost:8787
 ```
 
-cloudflared prints a banner ending with a `*.trycloudflare.com` URL — paste `https://<that>/v1/frame` into `FRAME_URL` in `settings.h`, then re-flash. The URL is throwaway: each `cloudflared tunnel --url` invocation gets a fresh subdomain and is dropped when the process exits.
+cloudflared prints a banner ending with a `*.trycloudflare.com` URL — paste `https://<that>/v1/frame` into `FRAME_URL` in `settings.h.dev`, then re-flash with `./flash.sh dev`. The URL is throwaway: each `cloudflared tunnel --url` invocation gets a fresh subdomain and is dropped when the process exits.
 
 **Why a quick tunnel rather than `wrangler deploy`.** Per the Worker AC comment on #4, production deploy is intentionally deferred to #12 ("Multi-radiator rollout"). The quick tunnel exercises the same HTTPS surface as a deployed Worker without pulling deploy / DNS / KV-namespace scope into this slice.
 

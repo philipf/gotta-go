@@ -1,11 +1,16 @@
 #pragma once
 
-// Copy this file to settings.h and fill in real values:
+// Copy this file to the per-environment variants and fill in real values:
 //
-//   cp settings.example.h settings.h
+//   cp settings.example.h settings.h.dev    # local Worker (cloudflared tunnel)
+//   cp settings.example.h settings.h.prod   # deployed Worker (*.workers.dev)
 //
-// settings.h is gitignored. The sketch #includes it, so it will not compile
-// until that file exists.
+// Then flash a chosen environment with `./flash.sh dev` (or `prod`), which
+// copies the variant onto settings.h — the file the sketch #includes. That
+// settings.h is generated/throwaway; edit the .dev/.prod variants, not it.
+//
+// settings.h* are all gitignored. The sketch #includes settings.h, so it will
+// not compile until `./flash.sh <env>` has generated it (or you cp one by hand).
 //
 // The WIFI_SSID and WIFI_PASSWORD here are the same ones used by the
 // wake-cycle PoC; if poc/lilygo/wake-cycle-32/secrets.h already exists on
