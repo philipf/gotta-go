@@ -255,6 +255,25 @@ Diagnostic headers the Worker sets on every meaningful response. The radiator's 
 | `X-Metlink-Fetched-At` | When the Metlink data was fetched (ISO 8601 UTC). |
 | `X-Cache-Status` | `hit` / `miss` / `stale-served`. **Vestigial** — there is no caching layer ([ADR-0010](adr/0010-no-metlink-cache-layer.md)); retiring or repurposing this header is part of the failure-policy work in [#56](https://github.com/philipf/gotta-go/issues/56). |
 
+### Problem document
+The `application/problem+json` body returned on **every** error response ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)), regardless of the negotiated success format. Members: `type` (the **problem type** URL), `title` (the firmware error-screen heading), `status`, `detail` (per-occurrence prose), an optional `instance` (`urn:gotta-go:request:<requestId>`, omitted when no `X-Request-Id`), and the `upstream_detail` extension. The firmware renders one generic error screen from it (replacing the old "hold the last frame on non-2xx" rule).
+- **Appears as:** the error response body; `Content-Type: application/problem+json`.
+- **Defined by:** [ADR-0011](adr/0011-error-contract-problem-details.md); catalogued in [`api/errors.md`](api/errors.md).
+- **Not to be confused with:** ~~plain-text error body~~ (deprecated — was one lowercase string the radiator ignored, superseded by ADR-0011).
+
+### Problem type
+A named, catalogued failure (`metlink-auth`, `metlink-unavailable`, `unauthorized`, `unknown-radiator`, `internal`, …) identified by a stable `type` URL that dereferences to its anchor in [`api/errors.md`](api/errors.md). Two orthogonal axes classify each: **`status`** (whose fault — `500` ours / `502` upstream's) and **class** (**Fatal / Retryable**).
+- **Appears as:** the `type` member of a **problem document**; one `## <slug>` section per type in `api/errors.md`.
+
+### Fatal / Retryable
+The self-heal axis of a **problem type**. **Fatal** — a human must act; the Worker backs off hard (`X-Sleep-Seconds: 3600`) and logs at `error` (config errors) or `warn` (auth/slug). **Retryable** — transient; the next **wake cycle** may succeed, so the Worker sleeps at the active **profile phase** cadence and logs at `warn` (or `error` for `internal`).
+- **Appears as:** prose, `api/errors.md` per-type entries, [ADR-0011](adr/0011-error-contract-problem-details.md).
+- **Not to be confused with:** **mode** / **profile phase** (unrelated axes).
+
+### `upstream_detail`
+The extension member of a **problem document** carrying the raw upstream snippet (e.g. Metlink's error body), capped at **2 KB** — the same cap the structured logs use. Present only on problem types with an upstream cause (`metlink-*`). The firmware renders it **only under its `verbose` flag**; other clients ignore unknown extension members.
+- **Appears as:** the `upstream_detail` member; firmware `verbose` flag in `setting.h`.
+
 ### Diagnostics view
 The diagnostics surface the Worker returns from `/v1/frame` instead of the rendered BMP, selected by the request's `Accept` header (ADR-0004). Two variants: `Accept: application/json` returns the JSON **view model**; `Accept: image/svg+xml` returns the intermediate Satori SVG — the exact document the BMP encoder rasterises for this render, gzipped per ADR-0001 so a human can open it in a browser. Same auth, slug resolution, sleep duration, and informational headers as the BMP path — only the body and `Content-Type` differ. The radiator never negotiates either; it is a surface for humans and tests running `curl`.
 - **`?include_bmp`** — a query param on the JSON diagnostics view only. `?include_bmp=1` adds a `frame_bmp_base64` field decoding to the exact BMP an `Accept: image/bmp` sibling call would have returned at the same instant. Default off, so the common diagnostics response stays small.
@@ -301,6 +320,7 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 | DEVICE_SHARED_TOKEN | RADIATOR_SHARED_TOKEN |
 | devices: (config block) | radiators: |
 | 4 MIN (unlabelled hero) | label every number — hero is `LEAVE IN` followed by the value |
+| plain-text error body (one lowercase string, radiator-ignored) | problem document (`application/problem+json`, RFC 9457 — ADR-0011) |
 
 ---
 

@@ -6,6 +6,8 @@
 - **Wire specification:** [`../api/openapi.yaml`](../api/openapi.yaml) — the authoritative *what* (paths, headers, status codes, response shapes, value ranges). This ADR is the *why*.
 - **Language reference:** [`../glossary.md`](../glossary.md) — every term used here is defined there.
 
+> **Superseded in part by [ADR-0011](0011-error-contract-problem-details.md).** The error model below — specifically the "plain-text bodies, never JSON" rule and the "hold the last frame on any non-2xx" firmware rule — is replaced by the RFC 9457 `problem+json` contract and the firmware error screen. The inline notes mark each superseded passage. Everything else in this ADR (endpoint shape, header-based auth/identity, the `401`-no-oracle and `404`-unknown-slug choices, sleep authority and bounds, the idle profile, the `X-Radiator-*` namespace) still stands. The separate `stale-served`/cache cleanup is tracked apart from ADR-0011.
+
 ## Context
 
 PRD v0.4 §8 and glossary §8 sketch the wire surface between the **radiator** and the **Worker** but leave several decisions unmade:
@@ -70,7 +72,7 @@ The status-code split is in the OpenAPI; here are the decisions behind it:
 
 - **No "no active profile phase" error.** When server time falls outside every configured phase, the Worker falls through to the **idle profile** and returns `200` with a frame. Treating an unscheduled overnight as an error would mean the radiator's nightly behaviour is driven by an error path, which inverts the relationship.
 - **Metlink staleness preferred over 502.** If Metlink is unreachable but the **KV cache** has any entry — even past its 30 s TTL — the Worker serves the stale frame as `200` with `X-Cache-Status: stale-served`. The panel keeps showing recent transit data instead of a black-screen "outage" event. PRD §7 says the panel retains its last valid frame for ambient reasons; serving a slightly-old frame is the same idea, one layer up. A `502` only fires when there is no cache at all to fall back to.
-- **Plain-text bodies, never JSON.** Error responses carry one short lowercase string. The body is for a human reading `curl` output; the radiator's firmware ignores it. No schema, no encoding, no parser.
+- **Plain-text bodies, never JSON.** ~~Error responses carry one short lowercase string. The body is for a human reading `curl` output; the radiator's firmware ignores it. No schema, no encoding, no parser.~~ **Superseded by [ADR-0011](0011-error-contract-problem-details.md):** every error is now an `application/problem+json` document (RFC 9457). The #56 grill found the radiator-ignored body let config errors (a bad `METLINK_API_KEY`) decay into silent dashes; errors must be visible and machine-readable instead.
 
 ### Worker observability response headers
 
@@ -88,6 +90,8 @@ The actual layout used by the idle profile, the content source (quote, joke, dat
 
 The firmware's loop is fixed by PRD §7 ("the panel retains its last valid frame indefinitely without power"). The Worker's wire contract is in OpenAPI; the radiator's response-handling spec is here, because it's a firmware design decision that does not appear on the wire:
 
+> **The two `Any non-2xx` rows are superseded by [ADR-0011](0011-error-contract-problem-details.md).** Instead of "do not touch panel", the radiator now parses the `problem+json` body and renders a generic error screen (heading = `title`, body = `detail`; `upstream_detail` under the `verbose` flag), then sleeps for `X-Sleep-Seconds` (or the `300 s` fallback if absent). The `200 OK` rows and the "no response at all" row are unchanged.
+
 | Response received | Firmware action |
 |---|---|
 | `200 OK` with valid gzipped BMP + `X-Sleep-Seconds` | Decompress, flush frame to panel, deep-sleep for `X-Sleep-Seconds` |
@@ -96,7 +100,7 @@ The firmware's loop is fixed by PRD §7 ("the panel retains its last valid frame
 | Any non-2xx without `X-Sleep-Seconds` | Do not touch panel. Deep-sleep for firmware fallback (300 s) |
 | **No response at all** (Wi-Fi fail, DNS fail, TCP timeout, TLS fail, HTTP timeout) | Do not touch panel. Deep-sleep for firmware fallback (300 s) |
 
-The radiator MUST NOT log to flash, MUST NOT alter the panel on any non-2xx, and MUST NOT escalate retry frequency between wake cycles. The wake cadence is the retry cadence.
+The radiator MUST NOT log to flash, ~~MUST NOT alter the panel on any non-2xx,~~ and MUST NOT escalate retry frequency between wake cycles. The wake cadence is the retry cadence. (Per [ADR-0011](0011-error-contract-problem-details.md) the radiator now *does* alter the panel on a non-2xx — it renders the generic error screen; the no-flash-logging and no-retry-escalation rules still hold.)
 
 ---
 

@@ -54,6 +54,7 @@ info:
     ## Cross-references
 
     - **Rationale & rejected alternatives:** [ADR-0003](../adr/0003-radiator-worker-contract.md).
+    - **Error contract (`problem+json`):** [ADR-0011](../adr/0011-error-contract-problem-details.md) and [errors.md](errors.md).
     - **Terminology:** [glossary](../glossary.md).
     - **Frame compression:** [ADR-0001](../adr/0001-frame-transport-compression.md).
     - **Metlink upstream contract:** [ADR-0002](../adr/0002-metlink-stop-predictions-field-mapping.md).
@@ -140,6 +141,25 @@ paths:
         `Content-Type` differ. With `Accept: application/json`, adding
         `?include_bmp=1` appends a `frame_bmp_base64` field decoding to the
         exact BMP an `Accept: image/bmp` sibling call would have returned.
+
+        ### Error responses (RFC 9457)
+
+        Every non-2xx response is an `application/problem+json` **problem
+        document** (RFC 9457) — *regardless of the negotiated success format
+        above*. A radiator that asked for `image/bmp` still receives
+        `problem+json` on failure; the status code, not the body, drives the
+        firmware's "flush a frame or show the error screen" decision. Each
+        document carries a `type` URL that dereferences to the matching anchor
+        in [errors.md](errors.md) (`metlink-auth`, `unauthorized`, …), a `title`
+        (the firmware error-screen heading), the `status`, a per-occurrence
+        `detail`, an optional `instance`, and — for upstream failures — a
+        verbose-gated `upstream_detail` snippet (≤ 2 KB). `X-Sleep-Seconds`
+        stays a **header** on these responses, never a body member. The
+        full failure-policy rationale and the status×class taxonomy behind the
+        per-type status codes, sleeps, and log levels live in
+        [ADR-0011](../adr/0011-error-contract-problem-details.md). Unknown paths
+        (a human with `curl`, never a radiator) return a `404` `not-found`
+        problem document.
       parameters:
         - $ref: '#/components/parameters/RadiatorSlug'
         - $ref: '#/components/parameters/AcceptEncodingGzip'
@@ -152,11 +172,11 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          $ref: '#/components/responses/UnknownRadiator'
+          $ref: '#/components/responses/NotFound'
         '500':
-          $ref: '#/components/responses/InternalError'
+          $ref: '#/components/responses/ServerError'
         '502':
-          $ref: '#/components/responses/UpstreamUnavailable'
+          $ref: '#/components/responses/UpstreamError'
         '503':
           $ref: '#/components/responses/Maintenance'
 
@@ -334,72 +354,169 @@ components:
 
     Unauthorized:
       description: |
-        `X-Radiator-Token` was missing or did not match the configured
-        `RADIATOR_SHARED_TOKEN`. The two cases are indistinguishable by
-        design.
+        **Problem type `unauthorized`** (Fatal). `X-Radiator-Token` was missing
+        or did not match the configured `RADIATOR_SHARED_TOKEN`. The two cases
+        are indistinguishable by design. Logged at `warn`; sleep `3600`.
       headers:
+        Content-Type:
+          $ref: '#/components/headers/ContentTypeProblemJson'
         X-Sleep-Seconds:
           $ref: '#/components/headers/SleepSecondsAuthError'
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            $ref: '#/components/schemas/PlainTextError'
-          example: unauthorized
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#unauthorized
+            title: Radiator not authorised
+            status: 401
+            detail: The X-Radiator-Token header was missing or did not match the configured shared token.
+            instance: urn:gotta-go:request:01HFV0Q3K8N2W7E6R5T4Y3U2I1
 
-    UnknownRadiator:
+    NotFound:
       description: |
-        `X-Radiator-Slug` did not match any key under `radiators:` in
-        `config.yaml`. See the parameter description for why this is a
-        `404`, not a `401`.
+        A `404`, one of two problem types:
+
+        - **`unknown-radiator`** (Fatal) — `X-Radiator-Slug` matched no key under
+          `radiators:` in `config.yaml`. See the `X-Radiator-Slug` parameter for
+          why an unknown slug is a `404`, not a `401`. Logged at `warn`; sleep
+          `3600`.
+        - **`not-found`** — the request path matched no route (a human with
+          `curl`, never a radiator). No `X-Sleep-Seconds`; the firmware's `300 s`
+          fallback covers the theoretical case.
       headers:
+        Content-Type:
+          $ref: '#/components/headers/ContentTypeProblemJson'
         X-Sleep-Seconds:
           $ref: '#/components/headers/SleepSecondsAuthError'
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            $ref: '#/components/schemas/PlainTextError'
-          example: unknown radiator
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            unknown-radiator:
+              summary: Slug not configured (sleep 3600)
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#unknown-radiator
+                title: Radiator not recognised
+                status: 404
+                detail: No radiator is configured for slug 'bedroom-attic'.
+            not-found:
+              summary: Unknown path (no X-Sleep-Seconds)
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#not-found
+                title: Not found
+                status: 404
+                detail: No route matches GET /v1/frames.
 
-    InternalError:
+    ServerError:
       description: |
-        Unhandled Worker exception. The radiator backs off briefly and
-        retries on the next wake cycle.
+        A `500` — the fault is **ours** (config or bug). One of three problem
+        types:
+
+        - **`metlink-auth`** (Fatal) — Metlink returned `401`/`403`; the
+          `METLINK_API_KEY` is bad or expired. Logged at `error`; sleep `3600`.
+        - **`metlink-bad-request`** (Fatal) — Metlink returned a `4xx` other than
+          `429`; a stop or service id in `config.yaml` is wrong. Logged at
+          `error`; sleep `3600`.
+        - **`internal`** (Retryable) — any unknown thrown error. Logged at
+          `error`; sleep at the active phase cadence, or the firmware `300 s`
+          fallback (no `X-Sleep-Seconds`) when the throw happened before a
+          profile phase was resolved.
+
+        The `metlink-*` types carry a verbose-gated `upstream_detail` snippet.
       headers:
+        Content-Type:
+          $ref: '#/components/headers/ContentTypeProblemJson'
         X-Sleep-Seconds:
-          $ref: '#/components/headers/SleepSecondsInternalError'
+          $ref: '#/components/headers/SleepSecondsServerError'
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            $ref: '#/components/schemas/PlainTextError'
-          example: internal error
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            metlink-auth:
+              summary: Bad METLINK_API_KEY (Fatal, sleep 3600)
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#metlink-auth
+                title: Transit data unavailable
+                status: 500
+                detail: Metlink rejected the configured API key (HTTP 403). Check METLINK_API_KEY.
+                upstream_detail: '{"error":"Access denied due to invalid subscription key."}'
+            metlink-bad-request:
+              summary: Bad stop id in config (Fatal, sleep 3600)
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#metlink-bad-request
+                title: Transit target misconfigured
+                status: 500
+                detail: Metlink returned HTTP 404 for stop 9999 — check the transit target stop id in config.yaml.
+                upstream_detail: '{"message":"Stop not found"}'
+            internal:
+              summary: Unknown thrown error (Retryable, phase cadence)
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#internal
+                title: Unexpected error
+                status: 500
+                detail: An unexpected error occurred while rendering the frame.
 
-    UpstreamUnavailable:
+    UpstreamError:
       description: |
-        Metlink is unreachable AND the **KV cache** has no entry for the
-        configured stops. When *any* cache entry exists — even past its
-        30 s TTL — the Worker prefers `200` + `X-Cache-Status: stale-served`
-        over emitting this error.
+        A `502` — the fault is **upstream's** (Metlink). Both types are
+        Retryable: the radiator simply retries on its next wake cycle, so sleep
+        is the active phase cadence and the log level is `warn`.
+
+        - **`metlink-unavailable`** — Metlink `5xx`, network failure, or timeout.
+        - **`metlink-rate-limited`** — Metlink `429`.
+
+        Both carry a verbose-gated `upstream_detail` snippet.
       headers:
+        Content-Type:
+          $ref: '#/components/headers/ContentTypeProblemJson'
         X-Sleep-Seconds:
           $ref: '#/components/headers/SleepSecondsUpstream'
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            $ref: '#/components/schemas/PlainTextError'
-          example: upstream unavailable
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            metlink-unavailable:
+              summary: Metlink down or unreachable
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#metlink-unavailable
+                title: Transit data unavailable
+                status: 502
+                detail: Metlink is unreachable (HTTP 503). The radiator will retry on its next wake cycle.
+                upstream_detail: 'upstream connect error or disconnect/reset before headers'
+            metlink-rate-limited:
+              summary: Metlink 429
+              value:
+                type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#metlink-rate-limited
+                title: Transit data unavailable
+                status: 502
+                detail: Metlink returned HTTP 429 (rate limited). The radiator will retry on its next wake cycle.
+                upstream_detail: '{"message":"Rate limit is exceeded. Try again in 12 seconds."}'
 
     Maintenance:
       description: |
-        Operator-triggered maintenance mode. The sleep duration is
-        operator-chosen within the standard `[30, 14400]` range.
+        **Problem type `maintenance`.** Operator-triggered maintenance mode. Not
+        part of the failure-policy catalog (ADR-0011) — an operator action, not a
+        failure — but carried in the same `problem+json` envelope for
+        consistency. The sleep duration is operator-chosen within the standard
+        `[30, 14400]` range.
       headers:
+        Content-Type:
+          $ref: '#/components/headers/ContentTypeProblemJson'
         X-Sleep-Seconds:
           $ref: '#/components/headers/SleepSeconds'
       content:
-        text/plain:
+        application/problem+json:
           schema:
-            $ref: '#/components/schemas/PlainTextError'
-          example: maintenance
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#maintenance
+            title: Under maintenance
+            status: 503
+            detail: GottaGo is in operator-triggered maintenance mode.
 
   # -----------------------------------------------------------------------
   # Reusable headers
@@ -414,6 +531,14 @@ components:
       schema:
         type: string
         enum: [gzip]
+
+    ContentTypeProblemJson:
+      description: |
+        Always `application/problem+json` on error responses (RFC 9457),
+        regardless of the negotiated success format (ADR-0011).
+      schema:
+        type: string
+        enum: [application/problem+json]
 
     SleepSeconds:
       description: |
@@ -445,23 +570,30 @@ components:
         $ref: '#/components/schemas/SleepSeconds'
       example: 3600
 
-    SleepSecondsInternalError:
+    SleepSecondsServerError:
       description: |
-        On `500`, sleep is `120` (2 min). Worker deploys are short, so a
-        quick retry is fine; the `30 s` rate-limit floor already caps the
-        worst case if something pathological happens.
+        On a `500` the value depends on the problem type (ADR-0011):
+
+        - **`metlink-auth`, `metlink-bad-request`** (Fatal) — `3600` (1 h). A
+          config error a human must fix; a tight retry loop against it is noise.
+        - **`internal`** (Retryable) — the active **profile phase** cadence (the
+          same value a `200` would have used). Omitted entirely when the error
+          was thrown before a phase could be resolved, in which case the
+          firmware's `300 s` fallback applies.
       schema:
         $ref: '#/components/schemas/SleepSeconds'
-      example: 120
+      example: 3600
 
     SleepSecondsUpstream:
       description: |
-        On `502`, sleep is `60` (1 min). Metlink outages are typically
-        brief; a tight retry helps a radiator recover quickly once Metlink
-        returns.
+        On a `502` (`metlink-unavailable`, `metlink-rate-limited`) sleep is the
+        active **profile phase** cadence — the same value a `200` would have
+        used. Both types are Retryable: Metlink outages are typically brief, so
+        the radiator just retries on its next regular wake cycle rather than
+        backing off (ADR-0011).
       schema:
         $ref: '#/components/schemas/SleepSeconds'
-      example: 60
+      example: 180
 
     ServerTime:
       description: |
@@ -689,15 +821,66 @@ components:
         Whole-second sleep duration. See the `X-Sleep-Seconds` header for
         full semantics and bounds rationale.
 
-    PlainTextError:
-      type: string
+    ProblemDetails:
+      type: object
       description: |
-        A single short lowercase string (no JSON, no trailing newline). The
-        body is for human debugging via `curl`; the radiator's firmware
-        ignores it entirely — the status code drives behaviour.
-      examples:
-        - unauthorized
-        - unknown radiator
-        - internal error
-        - upstream unavailable
-        - maintenance
+        An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem document —
+        the `application/problem+json` body returned on **every** non-2xx
+        response, regardless of the negotiated success format (ADR-0011). The
+        firmware renders one generic error screen from it (heading = `title`,
+        body = `detail`); `upstream_detail` is shown only under the firmware's
+        `verbose` flag. `X-Sleep-Seconds` is a response **header**, never a
+        member of this body.
+
+        The `type` URL is the stable identity of the problem and dereferences to
+        the matching anchor in [errors.md](errors.md). The catalogued
+        slugs are `metlink-auth`, `metlink-bad-request`, `metlink-unavailable`,
+        `metlink-rate-limited`, `internal`, `unauthorized`, `unknown-radiator`,
+        `not-found`, and `maintenance`.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: |
+            HTTPS URL identifying the problem type; dereferences to the matching
+            anchor in `errors.md`. Clients match on this value, so it is stable
+            across occurrences.
+          example: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#metlink-auth
+        title:
+          type: string
+          description: |
+            Short, human-readable summary of the problem *type* — stable across
+            occurrences. Doubles as the firmware error-screen heading.
+          example: Transit data unavailable
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: |
+            The HTTP status code, duplicated in the body (RFC 9457 §3.1) so the
+            document is self-describing when logged or forwarded.
+          example: 500
+        detail:
+          type: string
+          description: |
+            Human-readable explanation specific to *this* occurrence (which
+            stop, which upstream status, …).
+          example: Metlink rejected the configured API key (HTTP 403). Check METLINK_API_KEY.
+        instance:
+          type: string
+          format: uri
+          description: |
+            `urn:gotta-go:request:<requestId>`, where `<requestId>` is the
+            inbound `X-Request-Id`. Omitted when no `X-Request-Id` was supplied.
+          example: urn:gotta-go:request:01HFV0Q3K8N2W7E6R5T4Y3U2I1
+        upstream_detail:
+          type: string
+          maxLength: 2048
+          description: |
+            Extension member (RFC 9457 §3.2): the raw upstream snippet (e.g.
+            Metlink's error body), capped at 2 KB — the same cap the structured
+            logs use. Present only on problem types with an upstream cause
+            (`metlink-*`). The firmware renders it only under its `verbose` flag;
+            other clients ignore unknown extension members.
+          example: '{"error":"Access denied due to invalid subscription key."}'
