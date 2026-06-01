@@ -17,7 +17,20 @@ static const uint32_t WIFI_TIMEOUT_MS = 15000;
 
 // ---------- Wi-Fi ----------
 
-bool connectWiFi() {
+// Map the wl_status_t observed when association gives up onto a short, panel-
+// ready cause. The common timeout cases (idle / still-disconnected) collapse to
+// "timed out"; the distinct ones (AP missing, auth rejected) get their own line
+// so a wrong SSID or password reads differently from a flaky signal.
+static const char *wifiStatusReason(wl_status_t status) {
+    switch (status) {
+        case WL_NO_SSID_AVAIL:   return "Network not found.";
+        case WL_CONNECT_FAILED:  return "Wrong password or authentication failed.";
+        case WL_CONNECTION_LOST: return "Connection lost.";
+        default:                 return "Connection timed out.";
+    }
+}
+
+WifiResult connectWiFi() {
     Serial.printf("Wi-Fi: connecting to \"%s\"\n", WIFI_SSID);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -26,14 +39,17 @@ bool connectWiFi() {
     while (WiFi.status() != WL_CONNECTED && (millis() - t0) < WIFI_TIMEOUT_MS) {
         delay(100);
     }
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.printf("Wi-Fi: FAILED within %lu ms\n", (unsigned long)WIFI_TIMEOUT_MS);
-        return false;
+    const wl_status_t status = WiFi.status();
+    if (status != WL_CONNECTED) {
+        const char *reason = wifiStatusReason(status);
+        Serial.printf("Wi-Fi: FAILED within %lu ms (status=%d: %s)\n",
+                      (unsigned long)WIFI_TIMEOUT_MS, (int)status, reason);
+        return {false, WIFI_SSID, reason};
     }
     Serial.printf("Wi-Fi: connected in %lu ms — IP %s, RSSI %d dBm\n",
                   (unsigned long)(millis() - t0),
                   WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    return true;
+    return {true, WIFI_SSID, nullptr};
 }
 
 void disconnectWiFi() {

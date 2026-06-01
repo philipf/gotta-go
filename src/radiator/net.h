@@ -41,9 +41,21 @@ struct HttpResponse {
     SleepHeader sleep;
 };
 
-// Associate with the configured AP, or return false within WIFI_TIMEOUT_MS so a
-// flaky AP can never wedge the cycle.
-bool connectWiFi();
+// The outcome of one Wi-Fi association attempt. ssid is the AP we tried (always
+// set, aliasing the configured credential — valid for the program's lifetime).
+// On failure connected is false and reason is a short human-readable cause (a
+// static string) for the on-panel error screen; on success reason is nullptr.
+struct WifiResult {
+    bool        connected;
+    const char *ssid;
+    const char *reason;
+};
+
+// Associate with the configured AP, or give up within WIFI_TIMEOUT_MS so a flaky
+// AP can never wedge the cycle. On failure the result carries the SSID and a
+// human-readable reason so the orchestrator can render a local error screen
+// (GH #66) instead of silently holding the panel.
+WifiResult connectWiFi();
 
 // Drop the radio before sleeping.
 void disconnectWiFi();

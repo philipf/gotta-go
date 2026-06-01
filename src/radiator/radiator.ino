@@ -43,7 +43,7 @@
 #include <Arduino.h>
 
 #include "epd_driver.h"  // epd_init() — panel bring-up
-#include "net.h"         // connectWiFi, fetchFrame, inflateGzip, decodeBodyText, HttpResponse, BodyText
+#include "net.h"         // connectWiFi, WifiResult, fetchFrame, inflateGzip, decodeBodyText, HttpResponse, BodyText
 #include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
 #include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
 #include "sleep.h"       // CycleResult, SleepHeader, sleepFor
@@ -109,6 +109,19 @@ static void renderWorkerError(const HttpResponse &r) {
     renderProblemScreen(body.ptr, body.len, r.status, RADIATOR_VERBOSE);
 }
 
+// Wi-Fi never associated: render a local error screen naming the AP and the
+// failure reason — the ADR-0011 renderErrorScreen() primitive fed locally-sourced
+// strings (Decision 10), so a dead AP / wrong password is visible instead of the
+// panel silently holding while the cycle repeats (GH #66). The outcome stays
+// HttpError, so the sleep/retry policy is unchanged.
+static void renderWifiErrorScreen(const WifiResult &wifi) {
+    Serial.printf("wifi-error: \"%s\" — %s\n", wifi.ssid, wifi.reason);
+    char detail[PROBLEM_DETAIL_CAP];
+    snprintf(detail, sizeof(detail), "Could not connect to \"%s\".\n%s",
+             wifi.ssid, wifi.reason);
+    renderErrorScreen("No Wi-Fi connection", detail, nullptr);
+}
+
 // Map a fetched response onto the ADR-0003 / ADR-0011 outcome table: render the
 // error screen or flush the frame as a side effect, and return the outcome that
 // drives the sleep policy.
@@ -170,10 +183,13 @@ void setup() {
     SleepHeader sleep = {false, 0};
     CycleResult outcome = CycleResult::HttpError;
 
-    if (connectWiFi()) {
+    const WifiResult wifi = connectWiFi();
+    if (wifi.connected) {
         const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES);
         sleep = r.sleep;
         outcome = dispatchResponse(r);
+    } else {
+        renderWifiErrorScreen(wifi);  // show why, instead of silently holding (#66)
     }
     disconnectWiFi();  // drop the radio before sleeping
 
