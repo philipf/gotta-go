@@ -26,7 +26,8 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 | `flash.sh`          | `./flash.sh {dev\|prod}` — apply the env variant, compile, upload, then watch the serial monitor. |
 | `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
 | `mise.toml`         | Tool pin (python for esptool).                                                          |
-| `.gitignore`        | Excludes `settings.h*` and build artefacts.                                              |
+| `gen_compile_commands.py` | Regenerates `compile_commands.json` with real source paths so `clangd` can navigate the firmware in an editor. See _Editor / LSP_. |
+| `.gitignore`        | Excludes `settings.h*`, `compile_commands.json`, and build artefacts.                    |
 
 ## Configure settings
 
@@ -171,6 +172,19 @@ Verify F3 by:
 1. Start the Worker + tunnel per _Reach the Worker_.
 2. Flash + watch serial.
 3. Read the wall-clock on the panel; confirm it's within 1 minute of the host clock at the moment the `panel: frame latched` line printed.
+
+## Editor / LSP (clangd)
+
+Cross-file navigation (Go to Definition from `radiator.ino` into `net.cpp`, `sleep.cpp`, …) is handled by **clangd**, not `arduino-language-server` — the latter can't resolve definitions across a sketch's sibling `.cpp` files. clangd needs a `compile_commands.json` with **real** source paths; `arduino-cli` only emits one using build-cache paths, so `gen_compile_commands.py` translates it back:
+
+```sh
+arduino-cli compile             # populate the build cache (or ./flash.sh dev)
+python3 gen_compile_commands.py # write compile_commands.json with real paths
+```
+
+Run `gen_compile_commands.py` **once after a build-configuration change** — adding a library, changing board options in `sketch.yaml`, or bumping the ESP32 core. Editing or adding source files does **not** need a re-run: clangd applies the cached flags to every file in the sketch. `compile_commands.json` is a derived artifact and is gitignored.
+
+The matching Neovim config lives outside this repo (`~/.config/nvim/...`); it routes a `.ino` to clangd **only when a `compile_commands.json` is present**, so simple `.ino`-only sketches elsewhere keep using `arduino-language-server`. The full investigation and the exact `lspconfig` snippet are in [`../../docs/arduino-lsp-nvim.md`](../../docs/arduino-lsp-nvim.md).
 
 ## Troubleshooting
 
