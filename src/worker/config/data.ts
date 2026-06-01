@@ -38,30 +38,64 @@ export const PROFILES: Record<string, Profile> = {
 			// so its window wins over the all-day fallback during 06:30–09:00.
 			{
 				key: 'morning_commute',
-				startTime: '06:30',
+				startTime: '05:45',
 				endTime: '09:00',
 				layout: 'priority_split',
-				refreshIntervalMinutes: 2,
+				refreshIntervalMinutes: 1,
 				transitTargets: [
 					{
 						mode: 'bus',
 						stopId: '3234',
 						serviceId: '1',
-						timeToStopMins: 7,
-						comfortBuffer: 3,
+						timeToStopMins: 4,
+						comfortBuffer: 1.5,
 					},
 					{
 						mode: 'train',
 						stopId: 'TAKA1',
 						serviceId: 'KPL',
-						timeToStopMins: 15,
-						comfortBuffer: 4,
+						timeToStopMins: 7,
+						comfortBuffer: 1.5,
 					},
 				],
 			},
-			// Daytime clock after the commute window. Bounded at 21:00 (not
-			// all-day) so the 21:00–06:30 overnight gap falls through to the idle
-			// profile → idle_jokes (#17) instead of ticking a clock nobody reads.
+			// Afternoon commute home from the city (the reverse of morning).
+			// priority_split over two targets: bus 5012 (Lambton Central Stop A)
+			// route 1 outbound → Churton Park, and the KPL line boarding at
+			// Wellington Station (WELL) outbound → Waikanae, alighting at Takapu
+			// Road. Stop/service IDs live-validated against /stop-predictions.
+			// Listed before daytime_clock so its 15:15–21:00 window wins over the
+			// all-day clock during the evening commute (resolver picks the first
+			// matching phase — see schedule/resolve.ts).
+			{
+				key: 'afternoon_commute',
+				startTime: '15:15',
+				endTime: '21:00',
+				layout: 'priority_split',
+				refreshIntervalMinutes: 1,
+				transitTargets: [
+					{
+						mode: 'bus',
+						stopId: '5012',
+						serviceId: '1',
+						timeToStopMins: 10,
+						comfortBuffer: 1.5,
+					},
+					{
+						mode: 'train',
+						stopId: 'WELL',
+						serviceId: 'KPL',
+						timeToStopMins: 10,
+						comfortBuffer: 1.5,
+					},
+				],
+			},
+			// Daytime clock between the morning and afternoon commute windows.
+			// Window stays 09:00–21:00 but afternoon_commute precedes it in the
+			// array, so 15:15–21:00 resolves to the commute; this clock only wins
+			// 09:00–15:15. Bounded at 21:00 (not all-day) so the 21:00–05:45
+			// overnight gap falls through to the idle profile → idle_jokes (#17)
+			// instead of ticking a clock nobody reads.
 			{
 				key: 'daytime_clock',
 				startTime: '09:00',
