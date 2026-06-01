@@ -34,11 +34,12 @@ usage() {
   echo "Usage: $0 {dev|prod}" >&2
   echo >&2
   echo "  dev   flash against the local Worker (settings.h.dev)" >&2
+  echo "  f5    flash against the F5 environment (settings.h.f5)" >&2
   echo "  prod  flash against the deployed Worker (settings.h.prod)" >&2
 }
 
 case "$ENV" in
-  dev|prod) ;;
+  dev|prod|f5) ;;
   "")
     echo "Error: no environment given." >&2
     usage
