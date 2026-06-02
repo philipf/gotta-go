@@ -11,7 +11,7 @@ export const GLOBAL: Global = {
   defaultRefreshIntervalMinutes: 3,
   // High by design: Metlink truncates server-side, and a generous window keeps
   // a watched service visible at busy shared stops (see Global.stopPredictionLimit).
-  stopPredictionLimit: 20,
+  stopPredictionLimit: 1000,
 };
 
 // The system-wide default idle profile (ADR-0003 / #17). The resolver falls
