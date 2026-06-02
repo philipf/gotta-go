@@ -78,6 +78,10 @@ export const PROFILES: Record<string, Profile> = {
             mode: "bus",
             stopId: "5012",
             serviceId: "1",
+            // Route 1 branches at this stop (Churton Park / Grenada Village /
+            // Johnsonville West); pin to the Churton Park terminus so only the
+            // wanted buses surface (#68). Live-validated 2026-06-02.
+            destinationStopId: "3281",
             timeToStopMins: 10,
             comfortBuffer: 1.5,
           },

@@ -150,6 +150,57 @@ export const schoolBusMultiRoute: WireResponse = {
 	],
 };
 
+// Stop 5012 (Lambton Central Stop A) returning route 1 branching to three
+// distinct termini in one response — Churton Park (3281), Grenada Village
+// (3451) and Johnsonville West (3040). All share service_id "1", so the
+// service filter alone passes all three; exercises the destinationStopId
+// filter that narrows to a wanted terminus (#68). Live shape validated
+// 2026-06-02 against /stop-predictions?stop_id=5012.
+export const churtonParkBranchingBus: WireResponse = {
+	closed: false,
+	departures: [
+		{
+			stop_id: '5012',
+			service_id: '1',
+			trip_id: '1__2__301__TZM__301__301_20260601',
+			destination: { stop_id: '3281', name: 'Churton Park' },
+			trip_headsign: 'Churton Park',
+			name: 'Lambton Central Stop A',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { aimed: '2026-06-02T18:05:00+12:00', expected: null },
+			departure: { aimed: '2026-06-02T18:05:00+12:00', expected: null },
+		},
+		{
+			stop_id: '5012',
+			service_id: '1',
+			trip_id: '1__2__345__TZM__345__345_20260601',
+			destination: { stop_id: '3451', name: 'Grenada Vlg' },
+			trip_headsign: 'Grenada Village',
+			name: 'Lambton Central Stop A',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { aimed: '2026-06-02T18:09:00+12:00', expected: null },
+			departure: { aimed: '2026-06-02T18:09:00+12:00', expected: null },
+		},
+		{
+			stop_id: '5012',
+			service_id: '1',
+			trip_id: '1__2__304__TZM__304__304_20260601',
+			destination: { stop_id: '3040', name: "J'ville West" },
+			trip_headsign: 'Johnsonville West',
+			name: 'Lambton Central Stop A',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { aimed: '2026-06-02T18:14:00+12:00', expected: null },
+			departure: { aimed: '2026-06-02T18:14:00+12:00', expected: null },
+		},
+	],
+};
+
 // Scheduled-only train departure: status null, monitored false, no live
 // data yet (arrival.expected null). Source is ADR-0002's sample payload,
 // augmented with trip_id/trip_headsign/name/departure fields that real

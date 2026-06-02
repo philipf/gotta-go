@@ -60,6 +60,7 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
 				apiKey: ctx.env.METLINK_API_KEY,
 				stopId: t.stopId,
 				serviceId: t.serviceId,
+				destinationStopId: t.destinationStopId,
 				limit: ctx.stopPredictionLimit,
 			});
 			if (result.ok) return result.data;

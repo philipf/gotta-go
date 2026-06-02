@@ -80,6 +80,11 @@ The upstream Metlink `service_id` — a route identifier used inside the gateway
 - **Appears as:** the leading part of the column-header **service name** (e.g. `1` in `1·Island Bay`), wire field `service_id`, code symbol `serviceId`.
 - **Not to be confused with:** ~~route code~~ (legacy, deprecated).
 
+### Destination stop id
+An optional second filter on a **transit target**: the upstream Metlink `destination.stop_id` of the terminus a departure runs to. When a single route branches to several termini at a shared stop, the **service id** filter alone passes all branches; setting a destination stop id narrows the target to the wanted terminus (e.g. Churton Park `3281` at stop 5012). Accepts a single id or an any-of array, mirroring **service id**; absent means no destination filter. Internal to the gateway — not shown to the user.
+- **Appears as:** config key `destinationStopId` under a transit target, wire field `destination.stop_id`, code symbol `destinationStopId`.
+- **Not to be confused with:** **trip headsign** (the human-readable destination *label* shown in the header; the destination stop id is a stable identifier used only for filtering).
+
 ### Tier 1 / Tier 2 / Tier 3
 The three weight bands within a column. Each tier must be visibly lighter than the one above.
 - **Tier 1** — the **Leave In** hero. Largest, heaviest.

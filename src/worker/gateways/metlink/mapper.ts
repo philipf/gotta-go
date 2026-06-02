@@ -5,14 +5,31 @@
 import type { WireDeparture, WireResponse } from './types';
 import type { Arrival, StopState } from './metlink';
 
-// `closed: true` dominates regardless of the departures array. The
-// serviceId filter is intentionally not applied in that branch.
-export function toStopState(raw: WireResponse, serviceId: string | string[]): StopState {
+// `closed: true` dominates regardless of the departures array. The serviceId
+// and destinationStopId filters are intentionally not applied in that branch.
+// `destinationStopId` (when set) is a second filter applied after serviceId:
+// only departures bound for a matching `destination.stop_id` survive, so a
+// route that branches to several termini at a shared stop is narrowed to the
+// wanted terminus (#68). Absent → no destination filter (unchanged behaviour).
+export function toStopState(
+	raw: WireResponse,
+	serviceId: string | string[],
+	destinationStopId?: string | string[],
+): StopState {
 	if (raw.closed) return { kind: 'closed' };
-	const ids = Array.isArray(serviceId) ? serviceId : [serviceId];
+	const serviceIds = Array.isArray(serviceId) ? serviceId : [serviceId];
+	const destIds =
+		destinationStopId === undefined
+			? undefined
+			: Array.isArray(destinationStopId)
+				? destinationStopId
+				: [destinationStopId];
 	return {
 		kind: 'open',
-		arrivals: raw.departures.filter((d) => ids.includes(d.service_id)).map(toArrival),
+		arrivals: raw.departures
+			.filter((d) => serviceIds.includes(d.service_id))
+			.filter((d) => destIds === undefined || destIds.includes(d.destination?.stop_id ?? ''))
+			.map(toArrival),
 	};
 }
 

@@ -7,6 +7,11 @@ export type WireDeparture = {
 	stop_id: string;
 	service_id: string;
 	trip_id: string;
+	// Terminus this departure runs to. A single route number can branch to
+	// several termini at a shared stop, so `destination.stop_id` is the
+	// discriminator the mapper filters on when a target sets destinationStopId
+	// (#68). Optional because abridged payloads (e.g. scheduled-only) omit it.
+	destination?: { stop_id: string; name?: string };
 	trip_headsign?: string;
 	name?: string;
 	delay: string; // ISO 8601 duration, e.g. "PT0S", "PT6M12S"

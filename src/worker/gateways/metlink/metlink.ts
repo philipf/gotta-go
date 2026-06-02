@@ -15,6 +15,7 @@ export type FetchArrivalsRequest = {
 	apiKey: string;
 	stopId: string;
 	serviceId: string | string[];
+	destinationStopId?: string | string[];
 	limit?: number;
 };
 
@@ -99,5 +100,5 @@ export async function fetchArrivals(req: FetchArrivalsRequest): Promise<FetchRes
 	} catch {
 		return { ok: false, error: { kind: 'upstream', status: response.status } };
 	}
-	return { ok: true, data: toStopState(json, req.serviceId) };
+	return { ok: true, data: toStopState(json, req.serviceId, req.destinationStopId) };
 }

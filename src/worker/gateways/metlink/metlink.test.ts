@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchArrivals } from './metlink';
 import {
+	churtonParkBranchingBus,
 	closedStop,
 	delayedTrain,
 	multiRouteBus,
@@ -131,6 +132,70 @@ describe('fetchArrivals', () => {
 		expect(result.data.kind).toBe('open');
 		if (result.data.kind !== 'open') return;
 		expect(result.data.arrivals.map((a) => a.serviceId)).toEqual(['634', '635']);
+	});
+
+	it('omitted destinationStopId returns every departure for the matched service', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(churtonParkBranchingBus), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: '5012',
+			serviceId: '1',
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		// All three termini for route 1 pass through unfiltered.
+		expect(result.data.arrivals.map((a) => a.tripHeadsign)).toEqual([
+			'Churton Park',
+			'Grenada Village',
+			'Johnsonville West',
+		]);
+	});
+
+	it('single destinationStopId keeps only departures bound for that terminus', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(churtonParkBranchingBus), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: '5012',
+			serviceId: '1',
+			destinationStopId: '3281',
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		expect(result.data.arrivals.map((a) => a.tripHeadsign)).toEqual(['Churton Park']);
+	});
+
+	it('array destinationStopId keeps departures bound for any listed terminus', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(churtonParkBranchingBus), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: '5012',
+			serviceId: '1',
+			destinationStopId: ['3281', '3040'],
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		expect(result.data.arrivals.map((a) => a.tripHeadsign)).toEqual([
+			'Churton Park',
+			'Johnsonville West',
+		]);
 	});
 
 	it('surfaces a malformed JSON body on a 2xx as upstream with the actual status', async () => {
