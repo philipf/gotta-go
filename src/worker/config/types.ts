@@ -14,12 +14,18 @@ export type { LayoutKey };
 // branches to several termini at a shared stop down to the wanted terminus —
 // when set, only departures bound for a matching `destination.stop_id` survive
 // (#68). Mirrors `serviceId`: a single id or an any-of array; absent means no
-// destination filter.
+// destination filter. `destinationNameIncludes` requires `destination.name`
+// to contain one of the given substrings (case-insensitive) — it excludes
+// express runs that share route *and* terminus with stopping trains but skip
+// the rider's station (#77). A require-substring filter fails closed if the
+// upstream rewording drops the suffix: no trains shown beats suggesting one
+// that sails past the stop. Same single-or-any-of shape; absent → no filter.
 export type TransitTarget = {
 	mode: Mode;
 	stopId: string;
 	serviceId: string | string[];
 	destinationStopId?: string | string[];
+	destinationNameIncludes?: string | string[];
 	timeToStopMins: number;
 	comfortBuffer: number;
 };

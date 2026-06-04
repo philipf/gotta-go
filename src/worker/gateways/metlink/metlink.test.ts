@@ -9,6 +9,7 @@ import {
 	churtonParkBranchingBus,
 	closedStop,
 	delayedTrain,
+	kapitiExpressMix,
 	multiRouteBus,
 	originStop,
 	scheduledTrain,
@@ -196,6 +197,107 @@ describe('fetchArrivals', () => {
 			'Churton Park',
 			'Johnsonville West',
 		]);
+	});
+
+	it('omitted destinationNameIncludes returns every departure, expresses included', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(kapitiExpressMix), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'WELL',
+			serviceId: 'KPL',
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		expect(result.data.arrivals.map((a) => a.tripId)).toEqual([
+			'KPL__0__6340__RAIL__Rail_MTuWThF-XHol_20260524',
+			'KPL__0__8222__RAIL__Rail_MTuWThF-XHol_20260524',
+			'KPL__0__6344__RAIL__Rail_MTuWThF-XHol_20260524',
+		]);
+	});
+
+	it('destinationNameIncludes drops the express and keeps all-stops runs to either terminus', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(kapitiExpressMix), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'WELL',
+			serviceId: 'KPL',
+			destinationNameIncludes: 'All stops',
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		// "WAIK - Express" is gone; both "PORI - All stops" and "WAIK - All
+		// stops" survive — terminus alone could not express this filter (#77).
+		expect(result.data.arrivals.map((a) => a.tripId)).toEqual([
+			'KPL__0__8222__RAIL__Rail_MTuWThF-XHol_20260524',
+			'KPL__0__6344__RAIL__Rail_MTuWThF-XHol_20260524',
+		]);
+	});
+
+	it('destinationNameIncludes matches case-insensitively', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(kapitiExpressMix), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'WELL',
+			serviceId: 'KPL',
+			destinationNameIncludes: 'ALL STOPS',
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		expect(result.data.arrivals).toHaveLength(2);
+	});
+
+	it('destinationNameIncludes excludes departures missing destination.name (fail closed)', async () => {
+		// scheduledTrain's departure carries no destination at all — with the
+		// name filter set it must drop out rather than slip through.
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(scheduledTrain), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'TAKA1',
+			serviceId: 'KPL',
+			destinationNameIncludes: 'All stops',
+		});
+
+		expect(result).toEqual({ ok: true, data: { kind: 'open', arrivals: [] } });
+	});
+
+	it('array destinationNameIncludes keeps departures matching any listed substring', async () => {
+		const stubFetch: typeof fetch = async () =>
+			new Response(JSON.stringify(kapitiExpressMix), { status: 200 });
+
+		const result = await fetchArrivals({
+			fetch: stubFetch,
+			apiKey: 'test-key',
+			stopId: 'WELL',
+			serviceId: 'KPL',
+			destinationNameIncludes: ['All stops', 'Express'],
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.kind).toBe('open');
+		if (result.data.kind !== 'open') return;
+		expect(result.data.arrivals).toHaveLength(3);
 	});
 
 	it('surfaces a malformed JSON body on a 2xx as upstream with the actual status', async () => {

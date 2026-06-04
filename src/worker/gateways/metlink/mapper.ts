@@ -5,30 +5,44 @@
 import type { WireDeparture, WireResponse } from './types';
 import type { Arrival, StopState } from './metlink';
 
+// Normalises the single-or-any-of config shape shared by the target filters;
+// undefined stays undefined (filter absent).
+function toAnyOf(value?: string | string[]): string[] | undefined {
+	if (value === undefined) return undefined;
+	return Array.isArray(value) ? value : [value];
+}
+
 // `closed: true` dominates regardless of the departures array. The serviceId
-// and destinationStopId filters are intentionally not applied in that branch.
+// and destination filters are intentionally not applied in that branch.
 // `destinationStopId` (when set) is a second filter applied after serviceId:
 // only departures bound for a matching `destination.stop_id` survive, so a
 // route that branches to several termini at a shared stop is narrowed to the
-// wanted terminus (#68). Absent → no destination filter (unchanged behaviour).
+// wanted terminus (#68). `destinationNameIncludes` (when set) is a third:
+// only departures whose `destination.name` contains one of the substrings
+// (case-insensitive) survive — drops express runs that share route and
+// terminus with stopping trains (#77). It *requires* a match, so a departure
+// missing `destination.name` entirely is excluded (fail closed). Either
+// filter absent → not applied (unchanged behaviour).
 export function toStopState(
 	raw: WireResponse,
 	serviceId: string | string[],
 	destinationStopId?: string | string[],
+	destinationNameIncludes?: string | string[],
 ): StopState {
 	if (raw.closed) return { kind: 'closed' };
-	const serviceIds = Array.isArray(serviceId) ? serviceId : [serviceId];
-	const destIds =
-		destinationStopId === undefined
-			? undefined
-			: Array.isArray(destinationStopId)
-				? destinationStopId
-				: [destinationStopId];
+	const serviceIds = toAnyOf(serviceId)!;
+	const destIds = toAnyOf(destinationStopId);
+	const destNames = toAnyOf(destinationNameIncludes)?.map((n) => n.toLowerCase());
 	return {
 		kind: 'open',
 		arrivals: raw.departures
 			.filter((d) => serviceIds.includes(d.service_id))
 			.filter((d) => destIds === undefined || destIds.includes(d.destination?.stop_id ?? ''))
+			.filter(
+				(d) =>
+					destNames === undefined ||
+					destNames.some((n) => (d.destination?.name ?? '').toLowerCase().includes(n)),
+			)
 			.map(toArrival),
 	};
 }

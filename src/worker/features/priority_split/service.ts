@@ -61,6 +61,7 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
 				stopId: t.stopId,
 				serviceId: t.serviceId,
 				destinationStopId: t.destinationStopId,
+				destinationNameIncludes: t.destinationNameIncludes,
 				limit: ctx.stopPredictionLimit,
 			});
 			if (result.ok) return result.data;

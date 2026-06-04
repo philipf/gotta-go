@@ -201,6 +201,58 @@ export const churtonParkBranchingBus: WireResponse = {
 	],
 };
 
+// Wellington Station (WELL) returning KPL trains with mixed stopping
+// patterns in one response — a Waikanae express (skips Takapu Road), a
+// Porirua all-stops and a Waikanae all-stops (both call at Takapu Road).
+// The express shares service_id *and* (for Waikanae runs) terminus with the
+// stopping trains, so only the `destination.name` suffix discriminates;
+// exercises the destinationNameIncludes filter (#77). Live shape recorded
+// 2026-06-04 against /stop-predictions?stop_id=WELL.
+export const kapitiExpressMix: WireResponse = {
+	closed: false,
+	departures: [
+		{
+			stop_id: 'WELL9',
+			service_id: 'KPL',
+			trip_id: 'KPL__0__6340__RAIL__Rail_MTuWThF-XHol_20260524',
+			destination: { stop_id: 'WAIK', name: 'WAIK - Express' },
+			trip_headsign: 'Waikanae',
+			name: 'WgtnStn',
+			delay: 'PT14S',
+			status: 'ontime',
+			monitored: true,
+			arrival: { expected: null },
+			departure: { aimed: '2026-06-04T17:35:00+12:00', expected: '2026-06-04T17:35:14+12:00' },
+		},
+		{
+			stop_id: 'WELL7',
+			service_id: 'KPL',
+			trip_id: 'KPL__0__8222__RAIL__Rail_MTuWThF-XHol_20260524',
+			destination: { stop_id: 'PORI2', name: 'PORI - All stops' },
+			trip_headsign: 'Porirua Station',
+			name: 'WgtnStn',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { expected: null },
+			departure: { aimed: '2026-06-04T17:41:00+12:00', expected: null },
+		},
+		{
+			stop_id: 'WELL8',
+			service_id: 'KPL',
+			trip_id: 'KPL__0__6344__RAIL__Rail_MTuWThF-XHol_20260524',
+			destination: { stop_id: 'WAIK', name: 'WAIK - All stops' },
+			trip_headsign: 'Waikanae',
+			name: 'WgtnStn',
+			delay: 'PT0S',
+			status: null,
+			monitored: false,
+			arrival: { expected: null },
+			departure: { aimed: '2026-06-04T18:14:00+12:00', expected: null },
+		},
+	],
+};
+
 // Scheduled-only train departure: status null, monitored false, no live
 // data yet (arrival.expected null). Source is ADR-0002's sample payload,
 // augmented with trip_id/trip_headsign/name/departure fields that real

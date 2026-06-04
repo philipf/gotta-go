@@ -89,6 +89,13 @@ export const PROFILES: Record<string, Profile> = {
             mode: "train",
             stopId: "WELL",
             serviceId: "KPL",
+            // Peak KPL expresses run WELL → Porirua nonstop, skipping Takapu
+            // Road — same route and (for Waikanae runs) same terminus as the
+            // stopping trains, so only the destination-name suffix tells them
+            // apart ("WAIK - Express" vs "WAIK/PORI - All stops"). Require
+            // "All stops" so expresses drop out (#77). Live-validated
+            // 2026-06-04.
+            destinationNameIncludes: "All stops",
             timeToStopMins: 10,
             comfortBuffer: 1.5,
           },
