@@ -1,7 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildColumn, buildViewModel, toJsonView } from './viewmodel';
 import type { ServiceColumn } from './viewmodel';
-import { render } from './service';
+import { layout } from './service';
 import { serviceName } from './service-name';
 import type { RenderContext } from '../registry';
 import type { TransitTarget } from '../../config/types';
@@ -377,13 +377,13 @@ describe('priority_split.buildColumn - Marker', () => {
 	});
 });
 
-// Drives the public render() through a stubbed fetch (format: 'json',
-// includeBmp: false) so the sandbox-blocked BMP pipeline is skipped while the
-// gateway + caller error path runs for real. Asserts the #59 failure policy:
-// a gateway error short-circuits the render by throwing the mapped problem type
-// (the renderFrame boundary, tested in router.test.ts, turns it into
-// problem+json) rather than degrading silently to dashes.
-describe('priority_split.render - gateway failure → throws problem type (#59)', () => {
+// Drives the public buildViewModel phase (#72) through a stubbed fetch so the
+// sandbox-blocked BMP pipeline is never reached while the gateway + caller
+// error path runs for real. Asserts the #59 failure policy: a gateway error
+// short-circuits the frame by throwing the mapped problem type (the
+// renderFrame boundary, tested in router.test.ts, turns it into problem+json)
+// rather than degrading silently to dashes.
+describe('priority_split.buildViewModel - gateway failure → throws problem type (#59)', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
@@ -409,21 +409,22 @@ describe('priority_split.render - gateway failure → throws problem type (#59)'
 		};
 	}
 
-	// Captures the AppError render() throws, failing loudly if it unexpectedly
-	// resolves — keeps the return type a clean AppError (not AppError | Result).
-	async function renderError(ctx: RenderContext): Promise<AppError> {
+	// Captures the AppError buildViewModel() throws, failing loudly if it
+	// unexpectedly resolves — keeps the return type a clean AppError (not
+	// AppError | ViewModel).
+	async function buildError(ctx: RenderContext): Promise<AppError> {
 		try {
-			await render(ctx);
+			await layout.buildViewModel(ctx);
 		} catch (e) {
 			return e as AppError;
 		}
-		throw new Error('expected render() to throw');
+		throw new Error('expected buildViewModel() to throw');
 	}
 
 	it('throws a Fatal metlink-auth on a Metlink 401, carrying the upstream snippet', async () => {
 		const fetchFn: typeof fetch = async () => new Response('Unauthorized', { status: 401 });
 
-		const err = await renderError(ctxWith(fetchFn));
+		const err = await buildError(ctxWith(fetchFn));
 
 		expect(err).toBeInstanceOf(FatalError);
 		expect(err.slug).toBe('metlink-auth');
@@ -435,7 +436,7 @@ describe('priority_split.render - gateway failure → throws problem type (#59)'
 	it('throws a Fatal metlink-bad-request on a Metlink 4xx config fault, naming the stop', async () => {
 		const fetchFn: typeof fetch = async () => new Response('{"message":"Stop not found"}', { status: 404 });
 
-		const err = await renderError(ctxWith(fetchFn));
+		const err = await buildError(ctxWith(fetchFn));
 
 		expect(err).toBeInstanceOf(FatalError);
 		expect(err.slug).toBe('metlink-bad-request');
@@ -448,7 +449,7 @@ describe('priority_split.render - gateway failure → throws problem type (#59)'
 	])('throws a Retryable %s problem on Metlink HTTP %i', async (status, slug) => {
 		const fetchFn: typeof fetch = async () => new Response('nope', { status });
 
-		const err = await renderError(ctxWith(fetchFn));
+		const err = await buildError(ctxWith(fetchFn));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe(slug);
@@ -461,19 +462,19 @@ describe('priority_split.render - gateway failure → throws problem type (#59)'
 			throw new TypeError('connection refused');
 		};
 
-		const err = await renderError(ctxWith(fetchFn));
+		const err = await buildError(ctxWith(fetchFn));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe('metlink-unavailable');
 		expect(err.upstreamDetail).toBeUndefined();
 	});
 
-	it('still renders a normal frame for a legitimate closed/empty-feed stop (no throw)', async () => {
+	it('still builds a normal view model for a legitimate closed/empty-feed stop (no throw)', async () => {
 		const fetchFn: typeof fetch = async () =>
 			new Response(JSON.stringify({ closed: true, departures: [] }), { status: 200 });
 
-		const result = await render(ctxWith(fetchFn));
+		const vm = await layout.buildViewModel(ctxWith(fetchFn));
 
-		expect((result.viewModel as { columns: unknown[] }).columns).toHaveLength(1);
+		expect(vm.columns).toHaveLength(1);
 	});
 });

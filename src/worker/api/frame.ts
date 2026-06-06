@@ -1,15 +1,18 @@
 // Orchestrator for GET /v1/frame. Validates the shared token, resolves the
-// radiator slug → radiator and the active profile phase, dispatches to the
-// layout's renderer, then shapes the response for the negotiated format: a
-// gzipped BMP for the radiator (ADR-0003), or — on the diagnostics path
-// (ADR-0004) — a JSON view-model envelope or the intermediate Satori SVG. Auth,
-// slug resolution, sleep duration, and the observability headers are identical
+// radiator slug → radiator and the active profile phase, drives the layout's
+// two phases (#72) — buildViewModel(ctx) for the fetch + view model, then
+// render(vm, ctx) for the artefacts — and shapes the response for the
+// negotiated format: a gzipped BMP for the radiator (ADR-0003), or — on the
+// diagnostics path (ADR-0004) — a JSON view-model envelope or the intermediate
+// Satori SVG, each projected from the same view model as the BMP. Auth, slug
+// resolution, sleep duration, and the observability headers are identical
 // across every format.
 
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
 import type { Radiator } from '../config/lookup';
 import { layouts } from '../features/registry';
+import type { Layout, RenderContext } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
 import { gzip } from '../shared/gzip';
 import { log } from '../shared/log';
@@ -90,11 +93,16 @@ export async function renderFrame(
 			'gzip',
 		);
 
-		// 2. Endpoint — resolve domain inputs & render
+		// 2. Endpoint — resolve domain inputs & drive the layout's two phases
+		// (#72). Phase 1 owns the external fetch and yields the view model; the
+		// orchestrator holds it before phase 2 rasterises — the interception point
+		// the ETag/304 skip (ADR-0013) will use. Widened to Layout<unknown> so the
+		// view model stays an opaque token passed between the layout's own phases.
 		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
 		phaseCadence = sleepSeconds;
 		resolvedPhase = profilePhase;
-		const rendered = await layouts[layout]({
+		const layoutImpl: Layout = layouts[layout];
+		const ctx: RenderContext = {
 			radiator,
 			phase,
 			timezone: GLOBAL.timezone,
@@ -108,7 +116,9 @@ export async function renderFrame(
 			// it is passed around and called as a method (e.g. `req.fetch(...)` in
 			// the Metlink client). Tests inject a plain mock fn so never hit this.
 			fetchFn: fetch.bind(globalThis),
-		});
+		};
+		const vm = await layoutImpl.buildViewModel(ctx);
+		const rendered = await layoutImpl.render(vm, ctx);
 
 		// 3. Response — encode & shape. The observability inputs are identical
 		// across every format; only the body shape and Content-Type differ.
@@ -118,7 +128,7 @@ export async function renderFrame(
 				profilePhase,
 				layout,
 				serverTime: now,
-				viewModel: rendered.viewModel,
+				viewModel: layoutImpl.toJsonView(vm),
 				bmp: rendered.frame,
 			});
 			response = frameJson(envelope, { sleepSeconds, serverTime: now, profilePhase });

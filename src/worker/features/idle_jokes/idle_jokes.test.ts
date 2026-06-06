@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildViewModel, toJsonView } from './viewmodel';
-import { render } from './service';
+import { layout } from './service';
 import type { RenderContext } from '../registry';
 import { type AppError, RetryableError } from '../../shared/errors';
 
@@ -29,10 +29,11 @@ describe('idle_jokes.buildViewModel', () => {
 	});
 });
 
-// Drives the public render() through a stubbed fetch on the diagnostics path
-// (format: 'json', includeBmp: false) so it never enters the sandbox-blocked
-// Satori/resvg rasteriser.
-describe('idle_jokes.render', () => {
+// Drives the public two-phase entry (#72) through a stubbed fetch on the
+// diagnostics path (format: 'json', includeBmp: false) so it never enters the
+// sandbox-blocked Satori/resvg rasteriser. The fetch + error mapping live in
+// buildViewModel; render is pure view-model → artefacts.
+describe('idle_jokes.layout', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
@@ -57,30 +58,32 @@ describe('idle_jokes.render', () => {
 		};
 	}
 
-	async function renderError(ctx: RenderContext): Promise<AppError> {
+	async function buildError(ctx: RenderContext): Promise<AppError> {
 		try {
-			await render(ctx);
+			await layout.buildViewModel(ctx);
 		} catch (e) {
 			return e as AppError;
 		}
-		throw new Error('expected render() to throw');
+		throw new Error('expected buildViewModel() to throw');
 	}
 
-	it('renders a joke view model on a successful fetch', async () => {
+	it('builds a joke view model on a successful fetch; render skips both artefacts', async () => {
 		const fetchFn: typeof fetch = async () =>
 			new Response(JSON.stringify({ id: 'abc', joke: 'A wee joke.', status: 200 }), { status: 200 });
+		const ctx = ctxWith(fetchFn);
 
-		const result = await render(ctxWith(fetchFn));
+		const vm = await layout.buildViewModel(ctx);
+		const result = await layout.render(vm, ctx);
 
 		expect(result.frame).toBeNull();
 		expect(result.svg).toBeNull();
-		expect(result.viewModel).toEqual({ joke: 'A wee joke.', jokeId: 'abc' });
+		expect(layout.toJsonView(vm)).toEqual({ joke: 'A wee joke.', jokeId: 'abc' });
 	});
 
 	it('throws a Retryable joke-source-unavailable 502 on a non-2xx, carrying the snippet', async () => {
 		const fetchFn: typeof fetch = async () => new Response('boom', { status: 503 });
 
-		const err = await renderError(ctxWith(fetchFn));
+		const err = await buildError(ctxWith(fetchFn));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe('joke-source-unavailable');
@@ -94,7 +97,7 @@ describe('idle_jokes.render', () => {
 			throw new TypeError('connection refused');
 		};
 
-		const err = await renderError(ctxWith(fetchFn));
+		const err = await buildError(ctxWith(fetchFn));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe('joke-source-unavailable');
