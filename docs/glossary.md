@@ -241,6 +241,11 @@ Stable per-board identifier (typically the ESP32-S3 MAC address) — survives **
 - **Appears as:** HTTP request header `X-Radiator-Hardware-Id` (optional).
 - **Not to be confused with:** **radiator slug** (the logical identifier, hardcoded at flash time).
 
+### Battery level
+The radiator's raw battery voltage in **millivolts**, sampled once per **wake cycle** (before Wi-Fi starts — the ADC and the radio share hardware) and sent to the Worker, which logs it as telemetry. Deliberately raw and uninterpreted: the discharge curve, any percentage mapping, and charging detection are server-side concerns, deferred to the fast follow (GH #80).
+- **Appears as:** HTTP request header `X-Radiator-Battery-Mv` (optional; omitted on a failed read), log field `batteryMv`, code symbol `readBatteryMv`.
+- **Not to be confused with:** a battery *percentage* (no discharge curve exists yet — the PoC's linear 3.30 V → 4.20 V map was display-only, not a contract).
+
 ### Sleep duration
 The number of seconds the radiator should deep-sleep before its next **wake cycle**. Set by the Worker on every response (including errors). Allowed range `30 ≤ n ≤ 14400`.
 - **Appears as:** HTTP response header `X-Sleep-Seconds`, code symbol `sleep_seconds`.
@@ -249,7 +254,7 @@ The number of seconds the radiator should deep-sleep before its next **wake cycl
 One iteration of: panel wakes → radiator fetches frame from Worker → panel flushes new frame → radiator deep-sleeps for **sleep duration**.
 
 ### `X-Radiator-*` request-header namespace
-Reserved prefix for any future radiator-side telemetry header (e.g. `X-Radiator-Battery-Pct`, `X-Radiator-Firmware-Version`, `X-Radiator-Wifi-Rssi`). The Worker MUST ignore unknown headers in this namespace so firmware can add telemetry without a Worker change.
+Reserved prefix for radiator-side telemetry headers. Realized: `X-Radiator-Hardware-Id` (**hardware id**), `X-Radiator-Battery-Mv` (**battery level**); future candidates: `X-Radiator-Firmware-Version`, `X-Radiator-Wifi-Rssi`. The Worker MUST ignore unknown headers in this namespace so firmware can add telemetry without a Worker change.
 
 ### Worker informational response headers
 Diagnostic headers the Worker sets on every meaningful response. The radiator's firmware ignores them; they exist for humans running `curl` and for future polling tools. Adding new ones is free — no contract bump, no firmware change.

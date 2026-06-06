@@ -46,10 +46,12 @@ info:
 
     ## Reserved header namespace
 
-    The `X-Radiator-*` request-header prefix is reserved for future
-    radiator-side telemetry (battery, firmware version, Wi-Fi RSSI, …). The
-    Worker MUST ignore unknown headers in this namespace so firmware can add
-    telemetry without a Worker change or a contract version bump.
+    The `X-Radiator-*` request-header prefix is reserved for radiator-side
+    telemetry. Realized so far: `X-Radiator-Hardware-Id` and
+    `X-Radiator-Battery-Mv`; future candidates include firmware version and
+    Wi-Fi RSSI. The Worker MUST ignore unknown headers in this namespace so
+    firmware can add telemetry without a Worker change or a contract version
+    bump.
 
     ## Cross-references
 
@@ -158,6 +160,7 @@ paths:
         - $ref: '#/components/parameters/AcceptVariant'
         - $ref: '#/components/parameters/IncludeBmp'
         - $ref: '#/components/parameters/RadiatorHardwareId'
+        - $ref: '#/components/parameters/RadiatorBatteryMv'
       responses:
         '200':
           $ref: '#/components/responses/FrameOk'
@@ -278,14 +281,34 @@ components:
         survives slug reassignment, so the Worker can track which physical
         board carries which slug across re-flashes.
 
-        Optional; radiators MAY omit it. It is the first entry in the
-        reserved `X-Radiator-*` namespace — future telemetry headers
-        (battery, firmware version, Wi-Fi RSSI, …) will join it without a
-        contract version bump.
+        Optional; radiators MAY omit it. It was the first entry in the
+        reserved `X-Radiator-*` namespace — `X-Radiator-Battery-Mv` has since
+        joined it, and future telemetry headers (firmware version, Wi-Fi
+        RSSI, …) will do the same without a contract version bump.
       schema:
         type: string
         maxLength: 64
       example: 24:6F:28:AA:BB:CC
+
+    RadiatorBatteryMv:
+      name: X-Radiator-Battery-Mv
+      in: header
+      required: false
+      description: |
+        The **battery level** — the radiator's raw battery voltage in
+        millivolts, sampled once per **wake cycle** before Wi-Fi starts.
+        Deliberately raw and uninterpreted: the discharge curve, any
+        percentage mapping, and charging detection live server-side so they
+        stay tweakable without reflashing firmware.
+
+        Optional; radiators MAY omit it (older firmware, or a failed read —
+        firmware omits the header rather than sending a zero). The Worker
+        only logs the value as the numeric `batteryMv` field; it never
+        influences the response.
+      schema:
+        type: integer
+        minimum: 0
+      example: 3942
 
   # -----------------------------------------------------------------------
   # Reusable responses

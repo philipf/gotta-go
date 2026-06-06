@@ -116,6 +116,71 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 	});
 });
 
+// Battery telemetry (#78): X-Radiator-Battery-Mv rides every frame log event as
+// the numeric batteryMv field; garbage is dropped silently, never rejected. The
+// success path uses a test- slug (offline minimal_clock, no Metlink fetch) so
+// frame.completed fires for real without the Satori → BMP pipeline.
+describe('renderFrame observability — battery telemetry', () => {
+	function loggedEvent(spy: ReturnType<typeof vi.spyOn>, event: string): Record<string, unknown> {
+		const line = spy.mock.calls
+			.map((c) => JSON.parse(c[0] as string) as Record<string, unknown>)
+			.find((entry) => entry.event === event);
+		expect(line, `expected a ${event} log line`).toBeDefined();
+		return line as Record<string, unknown>;
+	}
+
+	it('logs a numeric batteryMv on frame.completed when the header is valid', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		const res = await route(
+			frameReq({ 'X-Radiator-Slug': 'test-daytime_clock', 'X-Radiator-Battery-Mv': '3942' }),
+			env,
+			NOW,
+		);
+
+		expect(res.status).toBe(200);
+		expect(loggedEvent(logSpy, 'frame.completed').batteryMv).toBe(3942);
+	});
+
+	it('omits batteryMv when the header is absent', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		const res = await route(frameReq({ 'X-Radiator-Slug': 'test-daytime_clock' }), env, NOW);
+
+		expect(res.status).toBe(200);
+		expect(loggedEvent(logSpy, 'frame.completed')).not.toHaveProperty('batteryMv');
+	});
+
+	it('drops an unparseable value silently — request handling unchanged', async () => {
+		for (const garbage of ['abc', '-5', '39.5', '']) {
+			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+			const res = await route(
+				frameReq({ 'X-Radiator-Slug': 'test-daytime_clock', 'X-Radiator-Battery-Mv': garbage }),
+				env,
+				NOW,
+			);
+
+			expect(res.status).toBe(200);
+			expect(loggedEvent(logSpy, 'frame.completed')).not.toHaveProperty('batteryMv');
+			vi.restoreAllMocks();
+		}
+	});
+
+	it('carries batteryMv on the failure-path events too (frame.unauthorized)', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		const res = await route(
+			frameReq({ 'X-Radiator-Token': 'wrong-token', 'X-Radiator-Battery-Mv': '3310' }),
+			env,
+			NOW,
+		);
+
+		expect(res.status).toBe(401);
+		expect(loggedEvent(warnSpy, 'frame.unauthorized').batteryMv).toBe(3310);
+	});
+});
+
 describe('renderFrame boundary — unknown throw → internal', () => {
 	it('maps an unexpected throw to a 500 internal, logged at error', async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

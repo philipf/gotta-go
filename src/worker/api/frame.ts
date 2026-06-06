@@ -52,13 +52,15 @@ export async function renderFrame(
 ): Promise<Response> {
 	// Observability context (GH #25). hardwareId (the firmware-sent MAC) and the
 	// optional client-supplied requestId give per-device / cross-system
-	// correlation; CF's per-invocation grouping ties the rest together. Undefined
-	// values are dropped by JSON.stringify, so they need no conditional spread.
+	// correlation; batteryMv (GH #78) is the per-wake battery telemetry. CF's
+	// per-invocation grouping ties the rest together. Undefined values are
+	// dropped by JSON.stringify, so they need no conditional spread.
 	// Timing is owned by CF trace spans (observability.traces), not logged here —
 	// workerd freezes Date.now() between I/O so an in-script delta misleads (#54).
 	const slug = request.headers.get('X-Radiator-Slug') ?? '';
 	const hardwareId = request.headers.get('X-Radiator-Hardware-Id') ?? undefined;
 	const requestId = request.headers.get('X-Request-Id') ?? undefined;
+	const batteryMv = parseBatteryMv(request.headers.get('X-Radiator-Battery-Mv'));
 
 	// The active phase cadence and key, captured once resolved so the failure
 	// boundary can derive a Retryable sleep and the X-Profile-Phase header. They
@@ -70,13 +72,13 @@ export async function renderFrame(
 		// 1. Request — authenticate & parse
 		const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
 		if (!auth.ok) {
-			log.warn('frame.unauthorized', { hardwareId, requestId, slug });
+			log.warn('frame.unauthorized', { batteryMv, hardwareId, requestId, slug });
 			return problemResponse(unauthorizedError(), { requestId });
 		}
 
 		const radiator = resolve(slug);
 		if (!radiator) {
-			log.warn('frame.unknown_radiator', { hardwareId, requestId, slug });
+			log.warn('frame.unknown_radiator', { batteryMv, hardwareId, requestId, slug });
 			return problemResponse(unknownRadiatorError(slug), { requestId });
 		}
 
@@ -146,6 +148,7 @@ export async function renderFrame(
 		// Single completion log covering the full critical path (auth → render →
 		// encode). Timing lives in the trace span, not a logged field (#54).
 		log.info('frame.completed', {
+			batteryMv,
 			hardwareId,
 			requestId,
 			slug,
@@ -161,6 +164,7 @@ export async function renderFrame(
 		// status, sleep, and body, so CF never sees a bare 500.
 		const error = err instanceof AppError ? err : internalError();
 		const fields: Record<string, unknown> = {
+			batteryMv,
 			hardwareId,
 			requestId,
 			slug,
@@ -185,4 +189,15 @@ export async function renderFrame(
 			profilePhase: resolvedPhase,
 		});
 	}
+}
+
+// Battery telemetry (GH #78): X-Radiator-Battery-Mv carries the radiator's raw
+// battery voltage in millivolts. Parsed to a number so CF Workers Logs can
+// range-query it (e.g. batteryMv < 3500); anything absent, non-integer, or
+// negative becomes undefined — the field is silently dropped from the log line,
+// never a request rejection, per the X-Radiator-* reserved-namespace rule.
+function parseBatteryMv(raw: string | null): number | undefined {
+	if (raw === null || raw.trim() === '') return undefined;
+	const n = Number(raw);
+	return Number.isInteger(n) && n >= 0 ? n : undefined;
 }
