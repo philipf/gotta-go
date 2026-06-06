@@ -15,6 +15,7 @@
  *   frame.{h,cpp}   — 1bpp BMP decode + panel flush
  *   problem.{h,cpp} — problem+json parse + error-screen render (ADR-0011)
  *   sleep.{h,cpp}   — X-Sleep-Seconds parse + sleep policy + deep sleep (ADR-0003)
+ *   battery.{h,cpp} — battery-voltage sample → X-Radiator-Battery-Mv (GH #79)
  * This file is the wake-cycle orchestrator: it allocates scratch, drives one
  * request via net, and maps the response onto the ADR-0003/0011 table below.
  *
@@ -43,6 +44,7 @@
 #include <Arduino.h>
 
 #include "epd_driver.h"  // epd_init() — panel bring-up
+#include "battery.h"     // sampleBatteryMv — must run before connectWiFi (ADC2)
 #include "net.h"         // connectWiFi, WifiResult, fetchFrame, inflateGzip, decodeBodyText, HttpResponse, BodyText
 #include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
 #include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
@@ -180,12 +182,16 @@ void setup() {
 
     epd_init();
 
+    // Sample the battery every wake, strictly before Wi-Fi: GPIO 14 is ADC2,
+    // which the radio owns once up (GH #79). ~10 ms of already-awake CPU.
+    const uint32_t batteryMv = sampleBatteryMv();
+
     SleepHeader sleep = {false, 0};
     CycleResult outcome = CycleResult::HttpError;
 
     const WifiResult wifi = connectWiFi();
     if (wifi.connected) {
-        const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES);
+        const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES, batteryMv);
         sleep = r.sleep;
         outcome = dispatchResponse(r);
     } else {

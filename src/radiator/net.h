@@ -61,9 +61,12 @@ WifiResult connectWiFi();
 void disconnectWiFi();
 
 // Perform one wake request, draining the body into buf (capacity cap). Owns the
-// TLS client and HTTP session for the call's duration. See HttpResponse for the
-// returned facts.
-HttpResponse fetchFrame(uint8_t *buf, size_t cap);
+// TLS client and HTTP session for the call's duration. batteryMv is the wake's
+// battery sample in raw millivolts, sent as X-Radiator-Battery-Mv; 0 means "no
+// reading" and omits the header (GH #79 — sampled pre-Wi-Fi by the orchestrator
+// because GPIO 14 is ADC2, which the radio owns once up). See HttpResponse for
+// the returned facts.
+HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv);
 
 // Inflate a gzip stream src[0..srcLen) into dst[0..dstCap) using the caller's
 // dictionary scratch. Returns bytes produced, or -1 on any uzlib error. Shared

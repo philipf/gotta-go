@@ -144,7 +144,7 @@ BodyText decodeBodyText(const HttpResponse &r, const uint8_t *body,
 
 // ---------- HTTP fetch ----------
 
-HttpResponse fetchFrame(uint8_t *buf, size_t cap) {
+HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv) {
     HttpResponse r = {0, 0, false, false, {false, 0}};
 
     // The TLS client and HTTP session live only for this request — constructed
@@ -179,6 +179,13 @@ HttpResponse fetchFrame(uint8_t *buf, size_t cap) {
     const String mac = WiFi.macAddress();
     if (mac.length() > 0) {
         https.addHeader("X-Radiator-Hardware-Id", mac);
+    }
+
+    // Battery telemetry (GH #79): the wake's pre-Wi-Fi sample in raw mV. 0
+    // means "no reading" — omit entirely, mirroring the hardware-id guard
+    // (the spec marks the header optional).
+    if (batteryMv > 0) {
+        https.addHeader("X-Radiator-Battery-Mv", String(batteryMv));
     }
 
     // Dev-only: when settings.h defines DEBUG_NOW, send it so the Worker resolves

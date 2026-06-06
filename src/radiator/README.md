@@ -20,6 +20,7 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 | `frame.{h,cpp}`     | 1bpp BMP decode + panel flush (`flushToPanel`). `decodeBmpToFramebuffer` validation is host-tested. |
 | `problem.{h,cpp}`   | Error-screen module (ADR-0011): problem+json parse, fallback resolution, on-panel render. Neutral `renderErrorScreen()` reusable by #47. |
 | `sleep.h`           | `SleepHeader` + pure `parseSleepSecondsValue()` (ADR-0003); host-tested. Seed of the #5 sleep module. |
+| `battery.{h,cpp}`   | Battery-voltage sample (GH #79): `sampleBatteryMv()` — pre-Wi-Fi ADC2 power pulse, avg of 8 reads → `X-Radiator-Battery-Mv`. Device-only. |
 | `test/`             | Host-native unit tests (CMake + doctest) for the pure logic — see [`test/README.md`](test/README.md) and [ADR-0012](../../docs/adr/0012-radiator-host-native-tests.md). |
 | `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.h.dev` / `settings.h.prod` (gitignored). |
 | `settings.h.dev` / `settings.h.prod` | Per-environment settings. `./flash.sh <env>` copies the chosen one onto the generated `settings.h`. |
@@ -203,5 +204,5 @@ The matching Neovim config lives outside this repo (`~/.config/nvim/...`); it ro
 - **TLS certificate pinning.** `client.setInsecure()` — same as PoC #32. Production radiator would pin or bundle the CA for the Worker's host.
 - **Wi-Fi provisioning UI.** Credentials are hardcoded in `settings.h`; no captive portal.
 - **OTA updates.** Re-flash over USB only.
-- **Telemetry beyond `X-Radiator-Hardware-Id`.** ADR-0003 reserves the `X-Radiator-*` namespace for future fields (battery, RSSI, firmware version); none of those are set yet.
+- **Telemetry beyond `X-Radiator-Hardware-Id` and `X-Radiator-Battery-Mv`.** ADR-0003 reserves the `X-Radiator-*` namespace for further fields (RSSI, firmware version); none of those are set yet. Battery telemetry (GH #79) sends raw mV only — interpretation (discharge curve, wall-power detection) is the Worker's job.
 - **Partial / region refreshes on the panel.** Full-frame flush only — same shape as #31. Faster refresh is a follow-up if battery accounting demands it.
