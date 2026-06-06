@@ -18,6 +18,11 @@ import type {
 	PrioritySplitViewModel,
 } from './viewmodel';
 
+// Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
+// rendered appearance without changing the view model — sizing, spacing,
+// styling — so radiators holding a matching ETag redraw on their next wake.
+export const LAYOUT_VERSION = 1;
+
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
 const WHITE = '#fff';

@@ -4,9 +4,11 @@
 // render(vm, ctx) for the artefacts — and shapes the response for the
 // negotiated format: a gzipped BMP for the radiator (ADR-0003), or — on the
 // diagnostics path (ADR-0004) — a JSON view-model envelope or the intermediate
-// Satori SVG, each projected from the same view model as the BMP. Auth, slug
-// resolution, sleep duration, and the observability headers are identical
-// across every format.
+// Satori SVG, each projected from the same view model as the BMP. Between the
+// phases sits the conditional frame check (ADR-0013): on the image/bmp path a
+// matching If-None-Match answers 304 Not Modified without ever rendering.
+// Auth, slug resolution, sleep duration, and the observability headers are
+// identical across every format.
 
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
@@ -24,8 +26,9 @@ import {
 } from '../shared/errors';
 import { buildFrameEnvelope } from './envelope';
 import { problemResponse } from './errors';
+import { ifNoneMatchSatisfied, weakEtag } from './etag';
 import { resolveResponseFormat } from './format';
-import { frameJson, frameOk, frameSvg } from './response';
+import { frameJson, frameNotModified, frameOk, frameSvg } from './response';
 
 // Maps a radiator slug to a fully-populated radiator, or undefined when the
 // slug is unknown (fail closed → 404). handleFrame injects the production
@@ -118,6 +121,33 @@ export async function renderFrame(
 			fetchFn: fetch.bind(globalThis),
 		};
 		const vm = await layoutImpl.buildViewModel(ctx);
+		const view = layoutImpl.toJsonView(vm);
+		const etag = weakEtag(view, layoutImpl.version);
+
+		// Conditional frame request (ADR-0013 / #73): only the image/bmp path
+		// participates — a human on the JSON/SVG diagnostics surface came to see
+		// the data, so those always answer 200. The check sits after
+		// buildViewModel (the answer to "did the content change?" lives there)
+		// and before render, so a matching validator skips the entire Satori →
+		// resvg → BMP pipeline. Error paths never reach here: a buildViewModel
+		// throw hits the failure boundary regardless of any If-None-Match.
+		if (
+			format === 'bmp' &&
+			ifNoneMatchSatisfied(request.headers.get('If-None-Match'), etag)
+		) {
+			log.info('frame.completed', {
+				batteryMv,
+				hardwareId,
+				requestId,
+				slug,
+				layoutKey: layout,
+				profilePhase,
+				format,
+				notModified: true,
+			});
+			return frameNotModified({ sleepSeconds, serverTime: now, profilePhase, etag });
+		}
+
 		const rendered = await layoutImpl.render(vm, ctx);
 
 		// 3. Response — encode & shape. The observability inputs are identical
@@ -128,10 +158,10 @@ export async function renderFrame(
 				profilePhase,
 				layout,
 				serverTime: now,
-				viewModel: layoutImpl.toJsonView(vm),
+				viewModel: view,
 				bmp: rendered.frame,
 			});
-			response = frameJson(envelope, { sleepSeconds, serverTime: now, profilePhase });
+			response = frameJson(envelope, { sleepSeconds, serverTime: now, profilePhase, etag });
 		} else if (format === 'svg') {
 			// The renderer always produces the SVG for `format: 'svg'`. Gzipped per
 			// ADR-0001 like the BMP body, honouring Accept-Encoding the same way.
@@ -142,6 +172,7 @@ export async function renderFrame(
 				sleepSeconds,
 				serverTime: now,
 				profilePhase,
+				etag,
 			});
 		} else {
 			// BMP path — the renderer always rasterises a frame for `format: 'bmp'`.
@@ -152,6 +183,7 @@ export async function renderFrame(
 				sleepSeconds,
 				serverTime: now,
 				profilePhase,
+				etag,
 			});
 		}
 

@@ -17,7 +17,7 @@ import {
 	metlinkUnavailable,
 } from '../../shared/errors';
 import { buildViewModel, toJsonView, type PrioritySplitViewModel } from './viewmodel';
-import { renderBmp, renderSvg } from './view';
+import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 
 // Maps a classified gateway failure onto its problem type (ADR-0011). The
 // gateway stays a typed-Result bulkhead (ADR-0005); this is where kind becomes
@@ -46,6 +46,7 @@ function toAppError(error: GatewayError, target: TransitTarget): AppError {
 }
 
 export const layout: Layout<PrioritySplitViewModel> = {
+	version: LAYOUT_VERSION,
 	async buildViewModel(ctx) {
 		const targets = ctx.phase.transitTargets ?? [];
 

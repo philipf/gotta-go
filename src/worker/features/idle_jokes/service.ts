@@ -14,7 +14,7 @@ import type { Layout } from '../registry';
 import { fetchJoke, type GatewayError } from '../../gateways/icanhazdadjoke/icanhazdadjoke';
 import { type AppError, jokeSourceUnavailable } from '../../shared/errors';
 import { buildViewModel, toJsonView, type ViewModel } from './viewmodel';
-import { renderBmp, renderSvg } from './view';
+import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 
 // Maps a classified gateway failure onto the one idle problem type (ADR-0011).
 // Both kinds are Retryable 502s — an overnight blip retries on the next idle
@@ -34,6 +34,7 @@ function toAppError(error: GatewayError): AppError {
 }
 
 export const layout: Layout<ViewModel> = {
+	version: LAYOUT_VERSION,
 	async buildViewModel(ctx) {
 		const result = await fetchJoke({ fetch: ctx.fetchFn });
 		if (!result.ok) throw toAppError(result.error);

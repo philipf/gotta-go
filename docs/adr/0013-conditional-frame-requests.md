@@ -65,7 +65,7 @@ ETag storage must survive deep sleep (RTC memory) but need not survive power los
 
 ### What a `304` carries
 
-Per RFC 9110 §15.4.5 a `304` repeats the headers a `200` would have carried: the `ETag` itself, plus `X-Sleep-Seconds`, `X-Server-Time`, and `X-Profile-Phase`. The firmware only reads `X-Sleep-Seconds` (it keeps its stored ETag — rule 2 above says new ETags are stored only on a `200`); the rest exist for humans running `curl`, as ever. No body, no `Content-Type`, no `Content-Encoding`.
+Per RFC 9110 §15.4.5 a `304` repeats the headers a `200` would have carried: the `ETag` itself, plus `X-Sleep-Seconds`, `X-Server-Time`, and `X-Profile-Phase`. The firmware only reads `X-Sleep-Seconds` (it keeps its stored ETag — rule 2 above says new ETags are stored only on a `200`); the rest exist for humans running `curl`, as ever. No body, no `Content-Type`. One wire reality discovered in #73: the Workers runtime's encoding negotiation appends an incidental `Content-Encoding: gzip` header to even this bodiless response when the request advertised `Accept-Encoding: gzip` (the same automatic-encoding behaviour GH #13 documented; `encodeBody: 'manual'` does not suppress it on a null body). There is no body to decode, so clients ignore it — RFC 9110 permits representation metadata on a `304`.
 
 The conditional check sits *after* auth, slug resolution, phase resolution, and `buildViewModel` — a `304` only ever replaces a would-be `200`. Every error path is untouched: a non-2xx returns its `problem+json` document (ADR-0011) regardless of any `If-None-Match` on the request.
 
@@ -116,7 +116,7 @@ The following terms are added to [`../glossary.md`](../glossary.md):
 When #73 (Worker) and #74 (firmware) implement this contract, the following must hold:
 
 1. `GET /v1/frame` (BMP path, no `If-None-Match`) → `200` with a weak `ETag` header (`W/"…"`).
-2. Repeat with `If-None-Match: <that ETag>` and unchanged content → `304`, empty body, no `Content-Type`/`Content-Encoding`, `X-Sleep-Seconds` and `ETag` present.
+2. Repeat with `If-None-Match: <that ETag>` and unchanged content → `304`, empty body, no `Content-Type`, `X-Sleep-Seconds` and `ETag` present (an incidental runtime-appended `Content-Encoding` is tolerated — see §What a `304` carries).
 3. Same conditional request with `Accept: application/json` or `Accept: image/svg+xml` → `200` with the full diagnostics body (diagnostics never `304`).
 4. Change the view model (cross midnight for the calendar) → the same `If-None-Match` now returns `200` with a *new* `ETag`.
 5. Bump the layout's `LAYOUT_VERSION` only → the same `If-None-Match` returns `200` (code changes bust the validator).

@@ -63,6 +63,12 @@ export type Layout<VM = unknown> = {
 	render(vm: VM, ctx: RenderContext): Promise<RenderResult>;
 	// Projects the view model for the JSON diagnostics envelope (ADR-0004).
 	toJsonView(vm: VM): Record<string, unknown>;
+	// The layout's LAYOUT_VERSION (declared in its view.tsx, beside the
+	// appearance it versions). Folded into the weak ETag (ADR-0013) so a
+	// visual-only change — same view model, different pixels — busts every
+	// radiator's cached validator. Forgetting the bump is the review failure
+	// mode: a deployed visual change that never appears on matching panels.
+	version: number;
 };
 
 export const layouts = {

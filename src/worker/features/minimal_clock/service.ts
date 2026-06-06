@@ -6,9 +6,10 @@
 
 import type { Layout } from '../registry';
 import { buildViewModel, toJsonView, type ViewModel } from './viewmodel';
-import { renderBmp, renderSvg } from './view';
+import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 
 export const layout: Layout<ViewModel> = {
+	version: LAYOUT_VERSION,
 	async buildViewModel(ctx) {
 		return buildViewModel(ctx.radiator, ctx.timezone, ctx.now);
 	},

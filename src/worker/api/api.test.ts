@@ -104,6 +104,7 @@ describe('api.response.frameOk', () => {
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
 			profilePhase: 'daytime_clock',
+			etag: 'W/"feedfacecafebeef"',
 		});
 
 		expect(res.status).toBe(200);
@@ -112,6 +113,8 @@ describe('api.response.frameOk', () => {
 		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T06:48:12.000Z');
 		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
+		// The conditional-request validator rides every 200 (ADR-0013).
+		expect(res.headers.get('ETag')).toBe('W/"feedfacecafebeef"');
 	});
 
 	it('omits Content-Encoding when gzip is false (uncompressed BMP body)', () => {
@@ -121,6 +124,7 @@ describe('api.response.frameOk', () => {
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
 			profilePhase: 'daytime_clock',
+			etag: 'W/"feedfacecafebeef"',
 		});
 
 		expect(res.status).toBe(200);
@@ -142,6 +146,7 @@ describe('api.response.frameSvg', () => {
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
 			profilePhase: 'daytime_clock',
+			etag: 'W/"feedfacecafebeef"',
 		});
 
 		expect(res.status).toBe(200);
@@ -159,6 +164,7 @@ describe('api.response.frameSvg', () => {
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
 			profilePhase: 'daytime_clock',
+			etag: 'W/"feedfacecafebeef"',
 		});
 
 		expect(res.status).toBe(200);

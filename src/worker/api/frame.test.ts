@@ -181,6 +181,101 @@ describe('renderFrame observability — battery telemetry', () => {
 	});
 });
 
+// Conditional frame requests (ADR-0013 / #73). Driven through route() against
+// the offline minimal_clock daytime_clock phase, whose view model is fully
+// determined by the fixed `now` — so the ETag a JSON response carries is the
+// ETag the image/bmp path derives for the same instant. The 304 path is the
+// only bmp-path outcome testable in the workers-pool sandbox, and that is the
+// point: the Satori → resvg pipeline is blocked here (ADR-0005), so a clean
+// 304 *proves* the render never ran — reaching it would fail the test. The
+// stale-validator → 200 + new-ETag flow is exercised live per ADR-0013
+// §Verification (`pnpm dev` + curl).
+describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () => {
+	const NOON = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_clock
+	const clockReq = (extra: Record<string, string> = {}): Request =>
+		frameReq({ 'X-Radiator-Slug': 'bedroom-philip-tania', ...extra });
+
+	async function learnEtag(): Promise<string> {
+		const res = await route(clockReq(), env, NOON);
+		expect(res.status).toBe(200);
+		const etag = res.headers.get('ETag');
+		expect(etag).not.toBeNull();
+		return etag as string;
+	}
+
+	it('carries a weak ETag on every 200, derived from the view model', async () => {
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		const etag = await learnEtag();
+
+		expect(etag).toMatch(/^W\/"[0-9a-f]{16}"$/);
+		// Deterministic: the same content inputs at the same instant re-derive
+		// the same validator on a fresh request.
+		expect(await learnEtag()).toBe(etag);
+	});
+
+	it('answers 304 with no body on the bmp path when If-None-Match matches — render skipped', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const etag = await learnEtag();
+
+		const res = await route(
+			clockReq({ Accept: 'image/bmp', 'If-None-Match': etag }),
+			env,
+			NOON,
+		);
+
+		expect(res.status).toBe(304);
+		expect(await res.text()).toBe('');
+		expect(res.headers.get('Content-Type')).toBeNull();
+		// The shaper sets no Content-Encoding. On the wire, workerd's encoding
+		// negotiation appends an incidental `Content-Encoding: gzip` for
+		// gzip-advertising clients — bodiless, ignorable, documented in
+		// ADR-0013 §What a 304 carries.
+		expect(res.headers.get('Content-Encoding')).toBeNull();
+		// Sleep authority rides every response (ADR-0003); the ETag is repeated
+		// per RFC 9110 §15.4.5. daytime_clock refreshes every 5 min → 300s.
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
+		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
+		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T00:00:00.000Z');
+		expect(res.headers.get('ETag')).toBe(etag);
+		// The completion log marks the skip.
+		const completed = logSpy.mock.calls
+			.map((c) => JSON.parse(c[0] as string) as Record<string, unknown>)
+			.find((entry) => entry.event === 'frame.completed' && entry.format === 'bmp');
+		expect(completed).toMatchObject({ notModified: true });
+	});
+
+	it('always answers 200 on the JSON diagnostics variant, even with a matching If-None-Match', async () => {
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const etag = await learnEtag();
+
+		const res = await route(clockReq({ 'If-None-Match': etag }), env, NOON);
+
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as Record<string, unknown>;
+		expect(body.layout).toBe('minimal_clock');
+		expect(res.headers.get('ETag')).toBe(etag);
+	});
+
+	it('returns the problem document on an error path regardless of If-None-Match', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		stubFetch(503, 'upstream connect error');
+
+		// bedroom-daughter at NOW → morning_school_run priority_split; the
+		// Metlink failure throws inside buildViewModel, before the conditional
+		// check is ever reached.
+		const res = await route(
+			frameReq({ Accept: 'image/bmp', 'If-None-Match': 'W/"feedfacecafebeef"' }),
+			env,
+			NOW,
+		);
+
+		expect(res.status).toBe(502);
+		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
+		expect(res.headers.get('ETag')).toBeNull();
+	});
+});
+
 describe('renderFrame boundary — unknown throw → internal', () => {
 	it('maps an unexpected throw to a 500 internal, logged at error', async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

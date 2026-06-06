@@ -417,7 +417,12 @@ components:
         The frame's content inputs are unchanged since the ETag the request
         presented in `If-None-Match` — the radiator's panel already shows
         this frame, so there is nothing to redraw (ADR-0013). **No body**, no
-        `Content-Type`, no `Content-Encoding`; the render pipeline never ran.
+        `Content-Type`; the render pipeline never ran. The Workers runtime's
+        encoding negotiation appends an incidental `Content-Encoding: gzip`
+        header when the request advertised `Accept-Encoding: gzip` (the same
+        runtime behaviour GH #13 documented); there is no body to decode, so
+        clients ignore it — RFC 9110 permits representation metadata on a
+        `304`.
 
         `X-Sleep-Seconds` is still set — sleep authority rides every
         response (ADR-0003) — and the firmware performs an
