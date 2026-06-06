@@ -8,6 +8,8 @@
 
 > **Superseded in part by [ADR-0011](0011-error-contract-problem-details.md).** The error model below is replaced on three counts: (1) the "plain-text bodies, never JSON" rule → RFC 9457 `problem+json`; (2) the "hold the last frame on any non-2xx" firmware rule → the firmware renders a generic error screen; (3) the "Metlink staleness preferred over 502 / `stale-served`" rule → there is no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)), so a Metlink failure now returns a `502` (`metlink-unavailable` / `metlink-rate-limited`) problem document. The associated `X-Cache-Status` and `X-Metlink-Fetched-At` observability headers are likewise retired. Inline notes mark each superseded passage. Everything else (endpoint shape, header-based auth/identity, the `401`-no-oracle and `404`-unknown-slug choices, sleep authority and bounds, the idle profile, the `X-Radiator-*` namespace) still stands.
 
+> **Amended by [ADR-0013](0013-conditional-frame-requests.md) — conditional frame requests.** The firmware-behaviour table below gains a `304 Not Modified` row: the Worker derives a weak `ETag` from the render's content inputs, the radiator echoes it as `If-None-Match` on each wake, and a match returns `304` (no body, `X-Sleep-Seconds` still set) so the firmware skips the panel flush. A new ETag is stored only on a successfully flushed `200`. Only the `image/bmp` path participates; the diagnostics variants always return `200`. The "exactly two response artefacts" and "binary firmware decision" framings below are likewise amended (the ETag is a third — opaque, never inspected — artefact, and the decision is now ternary: flush / skip / error screen).
+
 ## Context
 
 PRD v0.4 §8 and glossary §8 sketch the wire surface between the **radiator** and the **Worker** but leave several decisions unmade:
@@ -91,6 +93,8 @@ The actual layout used by the idle profile, the content source (quote, joke, dat
 The firmware's loop is fixed by PRD §7 ("the panel retains its last valid frame indefinitely without power"). The Worker's wire contract is in OpenAPI; the radiator's response-handling spec is here, because it's a firmware design decision that does not appear on the wire:
 
 > **The two `Any non-2xx` rows are superseded by [ADR-0011](0011-error-contract-problem-details.md).** Instead of "do not touch panel", the radiator now parses the `problem+json` body and renders a generic error screen (heading = `title`, body = `detail`; `upstream_detail` under the `verbose` flag), then sleeps for `X-Sleep-Seconds` (or the `300 s` fallback if absent). The `200 OK` rows and the "no response at all" row are unchanged.
+
+> **Amended by [ADR-0013](0013-conditional-frame-requests.md).** The table gains a `304 Not Modified` row — parse `X-Sleep-Seconds`, do **not** touch the panel, keep the stored ETag — plus the ETag-handling rules: send `If-None-Match` when an ETag is stored, store a new ETag only after a successfully flushed `200`, and clear it when the error screen is rendered. See ADR-0013 for the full row and rules.
 
 | Response received | Firmware action |
 |---|---|

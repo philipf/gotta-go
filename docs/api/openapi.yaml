@@ -28,10 +28,13 @@ info:
     Per PRD §8 the radiator performs zero data processing. This contract keeps
     that invariant:
 
-    - The radiator parses exactly two response artefacts: the gzipped BMP body
-      (mechanical decompress + flush) and the integer `X-Sleep-Seconds` header.
-    - All status codes collapse to a single firmware decision: "got a frame to
-      flush? yes/no." Everything else is sleep.
+    - The radiator parses exactly three response artefacts: the gzipped BMP
+      body (mechanical decompress + flush), the integer `X-Sleep-Seconds`
+      header, and the opaque `ETag` string (stored and echoed back as
+      `If-None-Match`, never inspected — ADR-0013).
+    - All status codes collapse to a mechanical firmware decision: flush
+      (`200`), skip (`304`), or error screen (non-2xx). Everything else is
+      sleep.
     - Sleep authority lives entirely on the Worker whenever the radiator
       reaches it; the firmware's 300 s fallback is a recovery floor, not a
       participant in normal operation.
@@ -57,6 +60,7 @@ info:
 
     - **Rationale & rejected alternatives:** [ADR-0003](../adr/0003-radiator-worker-contract.md).
     - **Error contract (`problem+json`):** [ADR-0011](../adr/0011-error-contract-problem-details.md) and [errors.md](errors.md).
+    - **Conditional frame requests (`ETag`/`304`):** [ADR-0013](../adr/0013-conditional-frame-requests.md).
     - **Terminology:** [glossary](../glossary.md).
     - **Frame compression:** [ADR-0001](../adr/0001-frame-transport-compression.md).
     - **Metlink upstream contract:** [ADR-0002](../adr/0002-metlink-stop-predictions-field-mapping.md).
@@ -99,8 +103,12 @@ paths:
         3. Resolves the active **profile phase** for the server's current
            time; if no configured phase matches, falls through to the
            **idle profile** — the response is still `200`.
-        4. Renders the **frame**, gzips it, returns it with the next
-           **sleep duration** in `X-Sleep-Seconds`.
+        4. Builds the **view model** and derives the weak **ETag** from it;
+           if the request's `If-None-Match` matches (`image/bmp` path only),
+           returns `304 Not Modified` with no body — the render pipeline
+           never runs (ADR-0013).
+        5. Otherwise renders the **frame**, gzips it, returns it with the
+           `ETag` and the next **sleep duration** in `X-Sleep-Seconds`.
 
         ### Idle-profile behaviour
 
@@ -136,6 +144,24 @@ paths:
         `?include_bmp=1` appends a `frame_bmp_base64` field decoding to the
         exact BMP an `Accept: image/bmp` sibling call would have returned.
 
+        ### Conditional frame requests (ADR-0013)
+
+        The `200` carries a **weak `ETag`** derived from the render's content
+        inputs — the layout's serialised view model plus its `LAYOUT_VERSION`
+        constant — never from the rendered bytes, so an unchanged frame is
+        detected without running the render pipeline. The radiator stores the
+        ETag (only after a successfully flushed `200`) and sends it back as
+        `If-None-Match` on its next wake; on a match the Worker returns
+        `304 Not Modified` with no body and the usual `X-Sleep-Seconds`, and
+        the firmware performs an **unchanged-frame skip**: it does not touch
+        the panel and deep-sleeps.
+
+        **Only the `image/bmp` path participates.** The JSON and SVG
+        diagnostics variants always return `200`, even when the request
+        carries a matching `If-None-Match` — a human on the diagnostics
+        surface came to see the data. Error paths are likewise unaffected: a
+        non-2xx returns its problem document regardless of `If-None-Match`.
+
         ### Error responses (RFC 9457)
 
         Every non-2xx response is an `application/problem+json` **problem
@@ -158,12 +184,15 @@ paths:
         - $ref: '#/components/parameters/RadiatorSlug'
         - $ref: '#/components/parameters/AcceptEncodingGzip'
         - $ref: '#/components/parameters/AcceptVariant'
+        - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/IncludeBmp'
         - $ref: '#/components/parameters/RadiatorHardwareId'
         - $ref: '#/components/parameters/RadiatorBatteryMv'
       responses:
         '200':
           $ref: '#/components/responses/FrameOk'
+        '304':
+          $ref: '#/components/responses/FrameNotModified'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -255,6 +284,25 @@ components:
         type: string
       example: application/json
 
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: |
+        The **conditional frame request** validator (ADR-0013): the weak
+        **ETag** the radiator stored from its last successfully flushed `200`,
+        echoed back verbatim. When it matches the ETag the Worker derives for
+        this render's content inputs, the response is `304 Not Modified` with
+        no body and the firmware performs an **unchanged-frame skip**.
+
+        Only meaningful on the `image/bmp` path — the JSON and SVG
+        diagnostics variants always return `200`. Absent on first boot, after
+        a re-flash, or after the firmware rendered an error screen (which
+        clears the stored ETag); the response is then a normal `200`.
+      schema:
+        $ref: '#/components/schemas/WeakETag'
+      example: W/"9f3a51c87b20e6d4"
+
     IncludeBmp:
       name: include_bmp
       in: query
@@ -332,6 +380,8 @@ components:
       headers:
         Content-Encoding:
           $ref: '#/components/headers/ContentEncodingGzip'
+        ETag:
+          $ref: '#/components/headers/FrameETag'
         X-Sleep-Seconds:
           $ref: '#/components/headers/SleepSeconds'
         X-Server-Time:
@@ -361,6 +411,33 @@ components:
               960×540 geometry. Returned only for `Accept: image/svg+xml`. On
               the wire the body is gzipped like the BMP (`Content-Encoding:
               gzip` per ADR-0001); gunzip it to a browser-openable `.svg`.
+
+    FrameNotModified:
+      description: |
+        The frame's content inputs are unchanged since the ETag the request
+        presented in `If-None-Match` — the radiator's panel already shows
+        this frame, so there is nothing to redraw (ADR-0013). **No body**, no
+        `Content-Type`, no `Content-Encoding`; the render pipeline never ran.
+
+        `X-Sleep-Seconds` is still set — sleep authority rides every
+        response (ADR-0003) — and the firmware performs an
+        **unchanged-frame skip**: parse `X-Sleep-Seconds`, do not touch the
+        panel, keep the stored ETag, deep-sleep. The `ETag` is repeated per
+        RFC 9110 §15.4.5; the firmware ignores it (a new ETag is stored only
+        on a successfully flushed `200`).
+
+        Returned only on the `image/bmp` path. The JSON and SVG diagnostics
+        variants always answer `200`; error paths return their problem
+        document regardless of `If-None-Match`.
+      headers:
+        ETag:
+          $ref: '#/components/headers/FrameETag'
+        X-Sleep-Seconds:
+          $ref: '#/components/headers/SleepSeconds'
+        X-Server-Time:
+          $ref: '#/components/headers/ServerTime'
+        X-Profile-Phase:
+          $ref: '#/components/headers/ProfilePhase'
 
     Unauthorized:
       description: |
@@ -542,6 +619,20 @@ components:
         type: string
         enum: [gzip]
 
+    FrameETag:
+      description: |
+        The weak **ETag** identifying this frame's content inputs (ADR-0013):
+        a hash of the layout's serialised **view model** plus its
+        `LAYOUT_VERSION` constant — never the rendered bytes, so a `304` can
+        be answered without running the render pipeline. Weak (`W/"…"`)
+        because it asserts semantic equivalence, not byte identity.
+
+        The radiator stores it only after a successfully flushed `200` and
+        echoes it as `If-None-Match` on its next wake. Set on every `200`
+        and repeated on `304` (RFC 9110 §15.4.5).
+      schema:
+        $ref: '#/components/schemas/WeakETag'
+
     ContentTypeProblemJson:
       description: |
         Always `application/problem+json` on error responses (RFC 9457),
@@ -635,6 +726,7 @@ components:
         examples:
           - morning_commute
           - evening_return
+          - daytime_calendar
           - idle_profile
           - none
 
@@ -682,13 +774,14 @@ components:
             the `X-Profile-Phase` header.
           examples:
             - morning_school_run
-            - all_day_clock
+            - daytime_calendar
             - idle_profile
         layout:
           type: string
           description: The **layout** that produced this render.
           examples:
             - priority_split
+            - dual_month_calendar
             - minimal_clock
         server_time:
           type: string
@@ -785,6 +878,17 @@ components:
       description: |
         Whole-second sleep duration. See the `X-Sleep-Seconds` header for
         full semantics and bounds rationale.
+
+    WeakETag:
+      type: string
+      pattern: '^W/"[^"]+"$'
+      description: |
+        An RFC 9110 weak entity tag (`W/"…"`). Opaque to the radiator — it
+        stores and echoes the string verbatim, never inspecting it. See the
+        `ETag` response header and the `If-None-Match` request parameter for
+        semantics (ADR-0013).
+      examples:
+        - W/"9f3a51c87b20e6d4"
 
     ProblemDetails:
       type: object

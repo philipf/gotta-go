@@ -43,10 +43,11 @@ A single rendered 960×540 1-bit BMP image, produced by the Worker, flushed to t
 - **Not to be confused with:** **layout** (the structural template), **screen** (a named example scenario in the UI doc), ~~canvas~~, ~~image stream~~.
 
 ### Layout
-The structural template a frame uses. Three layouts exist:
+The structural template a frame uses. Four layouts exist:
 - `priority_split` — global header + one or two columns of transit content.
 - `minimal_clock` — full-screen wall-clock time.
 - `idle_jokes` — the **idle profile**'s ambient content: a dad joke beside a meme, no wall-clock. Rendered overnight when no **profile phase** is active.
+- `dual_month_calendar` — current-date header above two Monday-start month grids: this month (left) and next month (right), today's cell inverted. Pure date math, no external data; its content changes at most once a day, so it pairs with the **unchanged-frame skip**.
 - **Appears as:** config key `layout:`, prose, code.
 
 ### Screen
@@ -206,8 +207,13 @@ A system-wide default profile that takes over when server time falls outside eve
 
 ### Profile phase
 A named time-of-day phase inside a profile. Each phase has a `start_time`, an `end_time`, a **layout**, and (for `priority_split`) one or more **transit targets**.
-- **Appears as:** config keys e.g. `morning_commute`, `workday_focus`, `morning_school_run`, `afternoon_idle`, `evening_return`.
+- **Appears as:** config keys e.g. `morning_commute`, `workday_focus`, `morning_school_run`, `daytime_calendar`, `evening_return`.
 - **Not to be confused with:** ~~state~~ (overloaded with state-machine talk), ~~mode~~ (overloaded with transport mode — see **mode**).
+
+### `daytime_calendar`
+The office radiator's full-day **profile phase**: it runs the `dual_month_calendar` **layout** across the whole day (so the **idle profile** never engages there) at the 4 h **sleep duration** cap. Replaces the radiator's earlier all-day clock phase; with the **unchanged-frame skip**, the only visible panel flash is the daily date rollover.
+- **Appears as:** config key `daytime_calendar`, `X-Profile-Phase: daytime_calendar`.
+- **Not to be confused with:** `dual_month_calendar` (the **layout** the phase runs — content vs schedule), ~~all_day_clock~~ (the predecessor phase, deprecated).
 
 ### Transit target
 One configured stop or station that the radiator watches inside a profile phase. A profile phase using `priority_split` has one or two transit targets.
@@ -251,7 +257,22 @@ The number of seconds the radiator should deep-sleep before its next **wake cycl
 - **Appears as:** HTTP response header `X-Sleep-Seconds`, code symbol `sleep_seconds`.
 
 ### Wake cycle
-One iteration of: panel wakes → radiator fetches frame from Worker → panel flushes new frame → radiator deep-sleeps for **sleep duration**.
+One iteration of: panel wakes → radiator fetches frame from Worker → panel flushes new frame (skipped on an **unchanged-frame skip**) → radiator deep-sleeps for **sleep duration**.
+
+### Conditional frame request
+A frame request carrying `If-None-Match` with the radiator's stored **ETag**. When the Worker's freshly derived ETag matches, the response is `304 Not Modified` — no body, no render — with `X-Sleep-Seconds` still set, and the firmware performs an **unchanged-frame skip**. Only the `image/bmp` path participates; the JSON/SVG **diagnostics view** variants always return `200`, and error paths return their **problem document** regardless.
+- **Appears as:** HTTP request header `If-None-Match`, response status `304`.
+- **Defined by:** [ADR-0013](adr/0013-conditional-frame-requests.md).
+
+### ETag
+The weak validator (`W/"…"`) identifying a frame's *content inputs*: a hash of the layout's serialised **view model** plus its `LAYOUT_VERSION` constant — never the rendered bytes, so a `304` is answered without running the render pipeline. Opaque to the radiator, which stores it only after a successfully flushed `200`, echoes it as `If-None-Match` on the next **wake cycle**, and clears it after rendering the error screen.
+- **Appears as:** HTTP response header `ETag`, HTTP request header `If-None-Match`, code constant `LAYOUT_VERSION`.
+- **Not to be confused with:** a frame *checksum* (the ETag hashes the inputs that drive pixels, not the BMP bytes).
+
+### Unchanged-frame skip
+The firmware behaviour on a `304 Not Modified`: parse `X-Sleep-Seconds`, do **not** touch the panel (it already shows this frame — no flush, no eye-pull), keep the stored **ETag**, deep-sleep. The third firmware decision beside flush (`200`) and error screen (non-2xx).
+- **Appears as:** prose ("the daytime wakes answer 304 and skip"), [ADR-0013](adr/0013-conditional-frame-requests.md)'s `304` row in the ADR-0003 firmware-behaviour table.
+- **Not to be confused with:** the old ~~hold the last frame on any non-2xx~~ rule (an *error* behaviour, superseded by ADR-0011 — the skip is a *success* behaviour: the content is confirmed current).
 
 ### `X-Radiator-*` request-header namespace
 Reserved prefix for radiator-side telemetry headers. Realized: `X-Radiator-Hardware-Id` (**hardware id**), `X-Radiator-Battery-Mv` (**battery level**); future candidates: `X-Radiator-Firmware-Version`, `X-Radiator-Wifi-Rssi`. The Worker MUST ignore unknown headers in this namespace so firmware can add telemetry without a Worker change.
@@ -330,6 +351,7 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 | devices: (config block) | radiators: |
 | 4 MIN (unlabelled hero) | label every number — hero is `LEAVE IN` followed by the value |
 | plain-text error body (one lowercase string, radiator-ignored) | problem document (`application/problem+json`, RFC 9457 — ADR-0011) |
+| all_day_clock | daytime_calendar (the phase) / dual_month_calendar (the layout it runs) — the clock-era phase is gone |
 
 ---
 
