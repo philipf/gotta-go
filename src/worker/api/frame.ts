@@ -1,14 +1,12 @@
 // Orchestrator for GET /v1/frame. Validates the shared token, resolves the
 // radiator slug → radiator and the active profile phase, drives the layout's
 // two phases (#72) — buildViewModel(ctx) for the fetch + view model, then
-// render(vm, ctx) for the artefacts — and shapes the response for the
-// negotiated format: a gzipped BMP for the radiator (ADR-0003), or — on the
-// diagnostics path (ADR-0004) — a JSON view-model envelope or the intermediate
-// Satori SVG, each projected from the same view model as the BMP. Between the
-// phases sits the conditional frame check (ADR-0013): on the image/bmp path a
-// matching If-None-Match answers 304 Not Modified without ever rendering.
-// Auth, slug resolution, sleep duration, and the observability headers are
-// identical across every format.
+// render(vm, ctx) for the artefacts — and hands the result to shapeFrame
+// (response.ts) for the negotiated format. Between the phases sits the
+// conditional frame check (ADR-0013): on the image/bmp path a matching
+// If-None-Match answers 304 Not Modified without ever rendering. Auth, slug
+// resolution, sleep duration, and the observability headers are identical
+// across every format.
 
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
@@ -16,7 +14,6 @@ import type { Radiator } from '../config/lookup';
 import { layouts } from '../features/registry';
 import type { Layout, RenderContext } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
-import { gzip } from '../shared/gzip';
 import { log } from '../shared/log';
 import {
 	AppError,
@@ -24,11 +21,12 @@ import {
 	unauthorizedError,
 	unknownRadiatorError,
 } from '../shared/errors';
-import { buildFrameEnvelope } from './envelope';
 import { problemResponse } from './errors';
 import { ifNoneMatchSatisfied, weakEtag } from './etag';
 import { resolveResponseFormat } from './format';
-import { frameJson, frameNotModified, frameOk, frameSvg } from './response';
+import type { ResponseFormat } from './format';
+import { frameNotModified, shapeFrame } from './response';
+import type { FrameMeta } from './response';
 
 // Maps a radiator slug to a fully-populated radiator, or undefined when the
 // slug is unknown (fail closed → 404). handleFrame injects the production
@@ -56,17 +54,21 @@ export async function renderFrame(
 	now: Date,
 	resolve: RadiatorResolver,
 ): Promise<Response> {
-	// Observability context (GH #25). hardwareId (the firmware-sent MAC) and the
-	// optional client-supplied requestId give per-device / cross-system
-	// correlation; batteryMv (GH #78) is the per-wake battery telemetry. CF's
-	// per-invocation grouping ties the rest together. Undefined values are
-	// dropped by JSON.stringify, so they need no conditional spread.
-	// Timing is owned by CF trace spans (observability.traces), not logged here —
-	// workerd freezes Date.now() between I/O so an in-script delta misleads (#54).
-	const slug = request.headers.get('X-Radiator-Slug') ?? '';
-	const hardwareId = request.headers.get('X-Radiator-Hardware-Id') ?? undefined;
-	const requestId = request.headers.get('X-Request-Id') ?? undefined;
-	const batteryMv = parseBatteryMv(request.headers.get('X-Radiator-Battery-Mv'));
+	const req = parseFrameRequest(request);
+
+	// Observability context (GH #25), assembled once and spread into every log
+	// event: hardwareId (the firmware-sent MAC) and the optional client-supplied
+	// requestId give per-device / cross-system correlation; batteryMv (GH #78)
+	// is the per-wake battery telemetry. Undefined values are dropped by
+	// JSON.stringify, so they need no conditional spread. Timing is owned by CF
+	// trace spans (observability.traces), not logged here — workerd freezes
+	// Date.now() between I/O so an in-script delta misleads (#54).
+	const obs = {
+		batteryMv: req.batteryMv,
+		hardwareId: req.hardwareId,
+		requestId: req.requestId,
+		slug: req.slug,
+	};
 
 	// The active phase cadence and key, captured once resolved so the failure
 	// boundary can derive a Retryable sleep and the X-Profile-Phase header. They
@@ -75,35 +77,28 @@ export async function renderFrame(
 	let resolvedPhase = 'none';
 
 	try {
-		// 1. Request — authenticate & parse
+		// 1. Request — authenticate & resolve the radiator
 		const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
 		if (!auth.ok) {
-			log.warn('frame.unauthorized', { batteryMv, hardwareId, requestId, slug });
-			return problemResponse(unauthorizedError(), { requestId });
+			log.warn('frame.unauthorized', obs);
+			return problemResponse(unauthorizedError(), { requestId: req.requestId });
 		}
 
-		const radiator = resolve(slug);
+		const radiator = resolve(req.slug);
 		if (!radiator) {
-			log.warn('frame.unknown_radiator', { batteryMv, hardwareId, requestId, slug });
-			return problemResponse(unknownRadiatorError(slug), { requestId });
+			log.warn('frame.unknown_radiator', obs);
+			return problemResponse(unknownRadiatorError(req.slug), { requestId: req.requestId });
 		}
 
-		const format = resolveResponseFormat(request.headers.get('Accept'));
-		const includeBmp =
-			format === 'json' &&
-			new URL(request.url).searchParams.get('include_bmp') === '1';
-		const acceptsGzip = (request.headers.get('Accept-Encoding') ?? '').includes(
-			'gzip',
-		);
-
-		// 2. Endpoint — resolve domain inputs & drive the layout's two phases
-		// (#72). Phase 1 owns the external fetch and yields the view model; the
-		// orchestrator holds it before phase 2 rasterises — the interception point
-		// the ETag/304 skip (ADR-0013) will use. Widened to Layout<unknown> so the
-		// view model stays an opaque token passed between the layout's own phases.
+		// 2. Endpoint — resolve the phase & drive the layout's two phases (#72).
+		// Phase 1 owns the external fetch and yields the view model; the
+		// orchestrator holds it before phase 2 rasterises — the interception
+		// point the ETag/304 skip uses. Widened to Layout<unknown> so the view
+		// model stays an opaque token passed between the layout's own phases.
 		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
 		phaseCadence = sleepSeconds;
 		resolvedPhase = profilePhase;
+
 		const layoutImpl: Layout = layouts[layout];
 		const ctx: RenderContext = {
 			radiator,
@@ -111,8 +106,8 @@ export async function renderFrame(
 			timezone: GLOBAL.timezone,
 			stopPredictionLimit: GLOBAL.stopPredictionLimit,
 			now,
-			format,
-			includeBmp,
+			format: req.format,
+			includeBmp: req.includeBmp,
 			env,
 			// Bind to globalThis: workerd's `fetch` throws "Illegal invocation" if
 			// invoked with a `this` other than the global scope, which happens once
@@ -122,115 +117,131 @@ export async function renderFrame(
 		};
 		const vm = await layoutImpl.buildViewModel(ctx);
 		const view = layoutImpl.toJsonView(vm);
-		const etag = weakEtag(view, layoutImpl.version);
+		const meta: FrameMeta = {
+			sleepSeconds,
+			serverTime: now,
+			profilePhase,
+			etag: weakEtag(view, layoutImpl.version),
+		};
 
-		// Conditional frame request (ADR-0013 / #73): only the image/bmp path
-		// participates — a human on the JSON/SVG diagnostics surface came to see
-		// the data, so those always answer 200. The check sits after
-		// buildViewModel (the answer to "did the content change?" lives there)
-		// and before render, so a matching validator skips the entire Satori →
-		// resvg → BMP pipeline. Error paths never reach here: a buildViewModel
-		// throw hits the failure boundary regardless of any If-None-Match.
-		if (
-			format === 'bmp' &&
-			ifNoneMatchSatisfied(request.headers.get('If-None-Match'), etag)
-		) {
+		if (isUnchangedFrame(req, meta.etag)) {
 			log.info('frame.completed', {
-				batteryMv,
-				hardwareId,
-				requestId,
-				slug,
+				...obs,
 				layoutKey: layout,
 				profilePhase,
-				format,
+				format: req.format,
 				notModified: true,
 			});
-			return frameNotModified({ sleepSeconds, serverTime: now, profilePhase, etag });
+			return frameNotModified(meta);
 		}
 
+		// 3. Response — render the artefacts and encode & shape the negotiated
+		// format from the same view model the ETag was derived from.
 		const rendered = await layoutImpl.render(vm, ctx);
-
-		// 3. Response — encode & shape. The observability inputs are identical
-		// across every format; only the body shape and Content-Type differ.
-		let response: Response;
-		if (format === 'json') {
-			const envelope = buildFrameEnvelope({
-				profilePhase,
-				layout,
-				serverTime: now,
-				viewModel: view,
-				bmp: rendered.frame,
-			});
-			response = frameJson(envelope, { sleepSeconds, serverTime: now, profilePhase, etag });
-		} else if (format === 'svg') {
-			// The renderer always produces the SVG for `format: 'svg'`. Gzipped per
-			// ADR-0001 like the BMP body, honouring Accept-Encoding the same way.
-			const svgBytes = new TextEncoder().encode(rendered.svg as string);
-			const body = acceptsGzip ? await gzip(svgBytes) : svgBytes;
-			response = frameSvg(body, {
-				gzip: acceptsGzip,
-				sleepSeconds,
-				serverTime: now,
-				profilePhase,
-				etag,
-			});
-		} else {
-			// BMP path — the renderer always rasterises a frame for `format: 'bmp'`.
-			const frame = rendered.frame as Uint8Array;
-			const body = acceptsGzip ? await gzip(frame) : frame;
-			response = frameOk(body, {
-				gzip: acceptsGzip,
-				sleepSeconds,
-				serverTime: now,
-				profilePhase,
-				etag,
-			});
-		}
+		const response = await shapeFrame({
+			format: req.format,
+			layout,
+			view,
+			rendered,
+			acceptsGzip: req.acceptsGzip,
+			meta,
+		});
 
 		// Single completion log covering the full critical path (auth → render →
 		// encode). Timing lives in the trace span, not a logged field (#54).
-		log.info('frame.completed', {
-			batteryMv,
-			hardwareId,
-			requestId,
-			slug,
-			layoutKey: layout,
-			profilePhase,
-			format,
-		});
+		log.info('frame.completed', { ...obs, layoutKey: layout, profilePhase, format: req.format });
 		return response;
 	} catch (err) {
-		// Failure boundary (ADR-0011). Map any throw to a problem type — known
-		// AppErrors pass through, anything else becomes `internal` — then log it
-		// and return the problem+json response. No re-throw: the contract owns the
-		// status, sleep, and body, so CF never sees a bare 500.
-		const error = err instanceof AppError ? err : internalError();
-		const fields: Record<string, unknown> = {
-			batteryMv,
-			hardwareId,
-			requestId,
-			slug,
-			problemType: error.slug,
-			status: error.status,
-			detail: error.detail,
-			upstreamDetail: error.upstreamDetail,
-		};
-		// An unknown (non-AppError) throw also carries the raw stack for triage.
-		if (!(err instanceof AppError)) {
-			fields.error =
-				err instanceof Error
-					? { name: err.name, message: err.message, stack: err.stack }
-					: { message: String(err) };
-		}
-		if (error.logLevel === 'error') log.error('frame.error', fields);
-		else log.warn('frame.error', fields);
-
-		return problemResponse(error, {
+		return failureResponse(err, {
+			obs,
+			requestId: req.requestId,
 			phaseCadence,
-			requestId,
 			profilePhase: resolvedPhase,
 		});
 	}
+}
+
+// Everything renderFrame needs from the raw Request, parsed once: the radiator
+// identity + telemetry headers and the negotiated response shape. includeBmp
+// is meaningful only on the JSON diagnostics path (`?include_bmp=1` — lets the
+// common JSON case skip the Satori/resvg pipeline entirely); ifNoneMatch is
+// the conditional-request validator (ADR-0013).
+type FrameRequest = {
+	slug: string;
+	hardwareId: string | undefined;
+	requestId: string | undefined;
+	batteryMv: number | undefined;
+	format: ResponseFormat;
+	includeBmp: boolean;
+	acceptsGzip: boolean;
+	ifNoneMatch: string | null;
+};
+
+function parseFrameRequest(request: Request): FrameRequest {
+	const format = resolveResponseFormat(request.headers.get('Accept'));
+	return {
+		slug: request.headers.get('X-Radiator-Slug') ?? '',
+		hardwareId: request.headers.get('X-Radiator-Hardware-Id') ?? undefined,
+		requestId: request.headers.get('X-Request-Id') ?? undefined,
+		batteryMv: parseBatteryMv(request.headers.get('X-Radiator-Battery-Mv')),
+		format,
+		includeBmp:
+			format === 'json' &&
+			new URL(request.url).searchParams.get('include_bmp') === '1',
+		acceptsGzip: (request.headers.get('Accept-Encoding') ?? '').includes('gzip'),
+		ifNoneMatch: request.headers.get('If-None-Match'),
+	};
+}
+
+// Conditional frame request (ADR-0013 / #73): only the image/bmp path
+// participates — a human on the JSON/SVG diagnostics surface came to see the
+// data, so those always answer 200. The check sits after buildViewModel (the
+// answer to "did the content change?" lives there) and before render, so a
+// matching validator skips the entire Satori → resvg → BMP pipeline. Error
+// paths never reach here: a buildViewModel throw hits the failure boundary
+// regardless of any If-None-Match.
+function isUnchangedFrame(req: FrameRequest, etag: string): boolean {
+	return req.format === 'bmp' && ifNoneMatchSatisfied(req.ifNoneMatch, etag);
+}
+
+// Failure boundary (ADR-0011). Maps any throw to a problem type — known
+// AppErrors pass through, anything else becomes `internal` — then logs it and
+// returns the problem+json response. No re-throw: the contract owns the
+// status, sleep, and body, so CF never sees a bare 500. phaseCadence /
+// profilePhase carry whatever the try block resolved before the throw, so a
+// Retryable error can sleep at the phase cadence and name the phase.
+function failureResponse(
+	err: unknown,
+	init: {
+		obs: Record<string, unknown>;
+		requestId: string | undefined;
+		phaseCadence: number | undefined;
+		profilePhase: string;
+	},
+): Response {
+	const error = err instanceof AppError ? err : internalError();
+	const fields: Record<string, unknown> = {
+		...init.obs,
+		problemType: error.slug,
+		status: error.status,
+		detail: error.detail,
+		upstreamDetail: error.upstreamDetail,
+	};
+	// An unknown (non-AppError) throw also carries the raw stack for triage.
+	if (!(err instanceof AppError)) {
+		fields.error =
+			err instanceof Error
+				? { name: err.name, message: err.message, stack: err.stack }
+				: { message: String(err) };
+	}
+	if (error.logLevel === 'error') log.error('frame.error', fields);
+	else log.warn('frame.error', fields);
+
+	return problemResponse(error, {
+		phaseCadence: init.phaseCadence,
+		requestId: init.requestId,
+		profilePhase: init.profilePhase,
+	});
 }
 
 // Battery telemetry (GH #78): X-Radiator-Battery-Mv carries the radiator's raw
