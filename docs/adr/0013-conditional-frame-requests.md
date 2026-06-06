@@ -43,6 +43,37 @@ Two scoping rules keep the hash honest:
 
 Layouts whose view model changes every wake (`priority_split` — the marker moves; `minimal_clock` — the time string) simply never match, and keep their flush-every-wake behaviour with no special-casing. The mechanism is uniform; the *content* decides the cadence.
 
+### The flow at a glance
+
+Where the ETag enters, is calculated, and is compared — auth, slug/phase resolution, and gzip are elided (any throw before the compare returns its `problem+json`; the ETag logic never runs):
+
+```mermaid
+sequenceDiagram
+    participant R as Radiator (firmware)
+    participant O as Orchestrator (frame.ts)
+    participant L as Layout (buildViewModel)
+    participant P as Render pipeline (Satori → resvg → BMP)
+
+    R->>O: GET /v1/frame · Accept: image/bmp<br/>If-None-Match: W/"a1" (stored ETag, if any)
+    O->>L: buildViewModel(ctx)
+    Note over L: external fetch lives here<br/>(Metlink / joke source)
+    L-->>O: view model (vm)
+    Note over O: etag = W/"hash(LAYOUT_VERSION + toJsonView(vm))"<br/>compare against If-None-Match — image/bmp path only
+
+    alt ETag matches — content unchanged
+        Note over O,P: render pipeline never called
+        O-->>R: 304 Not Modified · ETag · X-Sleep-Seconds (no body)
+        Note over R: unchanged-frame skip — keep panel,<br/>keep stored ETag, deep-sleep
+    else no match, or no If-None-Match
+        O->>P: render(vm, ctx)
+        P-->>O: BMP frame
+        O-->>R: 200 · frame body · ETag · X-Sleep-Seconds
+        Note over R: flush panel, store ETag<br/>(only after a successful flush), deep-sleep
+    end
+```
+
+The JSON and SVG diagnostics variants run the same calculation and carry the ETag on their `200`s, but skip the compare entirely (next section).
+
 ### Only the `image/bmp` path participates
 
 The JSON and SVG **diagnostics view** variants (ADR-0004) always return `200`, even when the request carries a matching `If-None-Match`. A human running `curl` against the diagnostics surface came to *see the data*; answering `304` would hide exactly what they asked for. The radiator's path is the only one with a panel to protect.
