@@ -36,6 +36,8 @@ describe('normalizeStatus', () => {
 		['cancelled', 'cancelled'],
 		['canceled', 'cancelled'],
 		['CANCELED', 'cancelled'],
+		['early', 'early'],
+		['EARLY', 'early'],
 		// "ontime" is a legitimate monitored-and-on-schedule status (#41), not an
 		// unknown one — it folds into 'scheduled' and must not warn.
 		['ontime', 'scheduled'],
@@ -50,6 +52,13 @@ describe('normalizeStatus', () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 		expect(normalizeStatus('ontime')).toBe('scheduled');
+		expect(warn).not.toHaveBeenCalled();
+	});
+
+	it('does not warn on the known "early" status (#81)', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		expect(normalizeStatus('early')).toBe('early');
 		expect(warn).not.toHaveBeenCalled();
 	});
 

@@ -27,7 +27,7 @@ export type Arrival = {
 	scheduled: Date;
 	predicted: Date;
 	delaySeconds: number;
-	status: 'scheduled' | 'delayed' | 'cancelled';
+	status: 'scheduled' | 'early' | 'delayed' | 'cancelled';
 	tripId: string;
 };
 

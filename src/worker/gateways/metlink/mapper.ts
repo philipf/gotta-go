@@ -86,9 +86,10 @@ export function normalizeStatus(wire: string | null): Arrival['status'] {
 	const lower = wire.toLowerCase();
 	if (lower === 'delayed') return 'delayed';
 	if (lower === 'cancelled' || lower === 'canceled') return 'cancelled';
+	if (lower === 'early') return 'early';
 	// "ontime" — monitored and running to schedule. The domain has no distinct
-	// on-time state (the union is scheduled | delayed | cancelled), so it folds
-	// into 'scheduled'; recognising it keeps the log quiet (#41).
+	// on-time state (the union is scheduled | delayed | cancelled | early), so
+	// it folds into 'scheduled'; recognising it keeps the log quiet (#41).
 	if (lower === 'ontime' || lower === 'on-time' || lower === 'on time') {
 		return 'scheduled';
 	}
