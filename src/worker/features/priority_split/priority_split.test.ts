@@ -1,16 +1,18 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
-import { buildColumn, buildViewModel, toJsonView } from './viewmodel';
-import type { ServiceColumn } from './viewmodel';
-import { layout } from './service';
+import { describe, it, expect } from 'vitest';
+import { toJsonView, type ColumnViewModel, type ServiceColumn } from './viewmodel';
+import { layout, viewModelFromStopStates, type PrioritySplitContext } from './service';
 import { serviceName } from './service-name';
-import type { RenderContext } from '../registry';
 import type { TransitTarget } from '../../config/types';
 import type { Arrival, StopState } from '../../gateways/metlink/metlink';
 import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 
-// Tested one layer below the public render() because the BMP pipeline
-// (Satori → resvg → BMP) is blocked inside the workers-pool sandbox per
-// ADR-0005; the raster path is exercised end-to-end via `pnpm dev` + curl.
+// Column/marker behaviour is specified against gateway StopStates through the
+// viewModelFromStopStates seam (see the service.ts header): driving those
+// cases through layout.buildViewModel would drag Metlink wire payloads into
+// this folder (ADR-0005 quarantine). The fetch + error-mapping path *is*
+// driven through the public layout.buildViewModel (last describe block); the
+// raster path (Satori → resvg → BMP) is sandbox-blocked per ADR-0005 and
+// exercised via `pnpm dev` + curl.
 
 const TZ = 'Pacific/Auckland';
 // 2026-05-22T19:30:00Z = 07:30 NZST (UTC+12).
@@ -42,22 +44,28 @@ function open(...arrivals: Arrival[]): StopState {
 	return { kind: 'open', arrivals };
 }
 
-// buildColumn returns a discriminated union; most assertions exercise the
-// service column, so narrow once here and let tests read its fields directly.
+// The view model for a single target/state pair — the per-column unit the
+// behaviour tests assert on.
+function column(target: TransitTarget, state: StopState, tz: string, now: Date): ColumnViewModel {
+	return viewModelFromStopStates([target], [state], tz, now).columns[0];
+}
+
+// Columns form a discriminated union; most assertions exercise the service
+// column, so narrow once here and let tests read its fields directly.
 function serviceColumn(
 	target: TransitTarget,
 	state: StopState,
 	tz: string,
 	now: Date,
 ): ServiceColumn {
-	const col = buildColumn(target, state, tz, now);
+	const col = column(target, state, tz, now);
 	if (col.kind !== 'service') {
 		throw new Error(`expected a service column, got "${col.kind}"`);
 	}
 	return col;
 }
 
-describe('priority_split.buildColumn - Leave In', () => {
+describe('priority_split.column - Leave In', () => {
 	it('renders Leave In = arrival - time_to_stop - now as "n MIN"', () => {
 		// predicted 19:42Z = now + 12 min; leave_in = 12 − 5 = 7
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:42:00Z')), TZ, NOW);
@@ -71,7 +79,7 @@ describe('priority_split.buildColumn - Leave In', () => {
 	});
 });
 
-describe('priority_split.buildColumn - Leave By', () => {
+describe('priority_split.column - Leave By', () => {
 	it('renders Leave By = arrival - time_to_stop as "BY hh:mm" (comfort buffer excluded)', () => {
 		// predicted 19:42Z (07:42 NZ); leave_by = 07:42 − 5 = 07:37
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:42:00Z')), TZ, NOW);
@@ -79,7 +87,7 @@ describe('priority_split.buildColumn - Leave By', () => {
 	});
 });
 
-describe('priority_split.buildColumn - Arrives', () => {
+describe('priority_split.column - Arrives', () => {
 	it('renders Arrives In + arrival time as "ARRIVES IN n MIN - hh:mm"', () => {
 		// predicted 19:42Z = now + 12 min, 07:42 NZ
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:42:00Z')), TZ, NOW);
@@ -87,7 +95,7 @@ describe('priority_split.buildColumn - Arrives', () => {
 	});
 });
 
-describe('priority_split.buildColumn - Next services (the three after the hero)', () => {
+describe('priority_split.column - Next services (the three after the hero)', () => {
 	it('chains the three services after the hero with an arrow separator (NEXT a -> b -> c)', () => {
 		// Hero = 19:42 (07:42); the next three catchable = 07:54, 08:06, 08:18.
 		const col = serviceColumn(
@@ -152,9 +160,9 @@ describe('priority_split.buildColumn - Next services (the three after the hero)'
 	});
 });
 
-describe('priority_split.buildViewModel - assembly', () => {
+describe('priority_split.viewModelFromStopStates - assembly', () => {
 	it('renders the wall-clock header and one full-width column for a single transit target', () => {
-		const vm = buildViewModel(
+		const vm = viewModelFromStopStates(
 			[busTarget],
 			[open(arrival('2026-05-22T19:42:00Z'))],
 			TZ,
@@ -177,9 +185,9 @@ const trainTarget: TransitTarget = {
 	comfortBuffer: 4,
 };
 
-describe('priority_split.buildViewModel - two transit targets', () => {
+describe('priority_split.viewModelFromStopStates - two transit targets', () => {
 	it('renders two independent columns under one shared wall-clock header', () => {
-		const vm = buildViewModel(
+		const vm = viewModelFromStopStates(
 			[busTarget, trainTarget],
 			[
 				open(arrival('2026-05-22T19:42:00Z', '1')),
@@ -208,7 +216,7 @@ describe('priority_split.buildViewModel - two transit targets', () => {
 	});
 
 	it('serialises both columns in order via toJsonView', () => {
-		const vm = buildViewModel(
+		const vm = viewModelFromStopStates(
 			[busTarget, trainTarget],
 			[
 				open(arrival('2026-05-22T19:42:00Z', '1')),
@@ -225,7 +233,7 @@ describe('priority_split.buildViewModel - two transit targets', () => {
 	});
 
 	it('leaves the other column unaffected when one target has no service (#10)', () => {
-		const vm = buildViewModel(
+		const vm = viewModelFromStopStates(
 			[busTarget, trainTarget],
 			[
 				open(), // bus: empty feed → no-service
@@ -241,7 +249,7 @@ describe('priority_split.buildViewModel - two transit targets', () => {
 	});
 });
 
-describe('priority_split.buildColumn - Catchable selection', () => {
+describe('priority_split.column - Catchable selection', () => {
 	it('skips a missed service (leave_by already passed) and selects the earliest catchable one', () => {
 		// 19:32Z: leave_by 19:27Z < now → missed. 19:48Z: leave_by 19:43Z ≥ now → catchable.
 		const col = serviceColumn(
@@ -257,11 +265,11 @@ describe('priority_split.buildColumn - Catchable selection', () => {
 	});
 });
 
-describe('priority_split.buildColumn - No-service state (#10)', () => {
+describe('priority_split.column - No-service state (#10)', () => {
 	it('renders NO SERVICE with the next departure clock when an uncatchable bus is still ahead', () => {
 		// 19:32Z: predicted 2 min out but leave_by 19:27Z < now → not catchable,
 		// yet still the next bus physically departing → its clock surfaces.
-		const col = buildColumn(busTarget, open(arrival('2026-05-22T19:32:00Z')), TZ, NOW);
+		const col = column(busTarget, open(arrival('2026-05-22T19:32:00Z')), TZ, NOW);
 		expect(col.kind).toBe('no_service');
 		if (col.kind !== 'no_service') throw new Error('expected no_service');
 		expect(col.serviceId).toBe('634'); // header falls back to the target's first service id
@@ -271,23 +279,23 @@ describe('priority_split.buildColumn - No-service state (#10)', () => {
 
 	it('leaves the next departure empty (renderer omits the line) when the feed carries no upcoming bus', () => {
 		// Only a past departure (19:25Z < now): nothing ahead to show.
-		const col = buildColumn(busTarget, open(arrival('2026-05-22T19:25:00Z')), TZ, NOW);
+		const col = column(busTarget, open(arrival('2026-05-22T19:25:00Z')), TZ, NOW);
 		expect(col.kind).toBe('no_service');
 		if (col.kind !== 'no_service') throw new Error('expected no_service');
 		expect(col.nextDeparture).toBe('');
 	});
 
 	it('leaves the next departure empty for an empty feed (route buried past the stop limit)', () => {
-		const col = buildColumn(busTarget, open(), TZ, NOW);
+		const col = column(busTarget, open(), TZ, NOW);
 		expect(col.kind).toBe('no_service');
 		if (col.kind !== 'no_service') throw new Error('expected no_service');
 		expect(col.nextDeparture).toBe('');
 	});
 });
 
-describe('priority_split.buildColumn - Closed stop / gateway error', () => {
+describe('priority_split.column - Closed stop / gateway error', () => {
 	it('degrades to dashes (distinct from NO SERVICE) when the stop is closed', () => {
-		const col = buildColumn(busTarget, { kind: 'closed' }, TZ, NOW);
+		const col = column(busTarget, { kind: 'closed' }, TZ, NOW);
 		expect(col.kind).toBe('service');
 		if (col.kind !== 'service') throw new Error('expected service');
 		expect(col.serviceId).toBe('634'); // fallback to the target's first service id
@@ -298,7 +306,7 @@ describe('priority_split.buildColumn - Closed stop / gateway error', () => {
 
 describe('priority_split.toJsonView - serialisation', () => {
 	it('maps a service column to snake_case wire fields verbatim', () => {
-		const vm = buildViewModel(
+		const vm = viewModelFromStopStates(
 			[busTarget],
 			[open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z', '635'))],
 			TZ,
@@ -325,7 +333,7 @@ describe('priority_split.toJsonView - serialisation', () => {
 	});
 
 	it('maps a no-service column to its own wire shape (no tier/marker fields)', () => {
-		const vm = buildViewModel([busTarget], [open()], TZ, NOW);
+		const vm = viewModelFromStopStates([busTarget], [open()], TZ, NOW);
 
 		expect(toJsonView(vm)).toEqual({
 			wall_clock: '07:30',
@@ -353,7 +361,7 @@ describe('priority_split.serviceName - column-header label', () => {
 	});
 });
 
-describe('priority_split.buildColumn - Marker', () => {
+describe('priority_split.column - Marker', () => {
 	it('sits hard-right (ratio 1) when leave margin is zero (Now)', () => {
 		// leave_by = now → margin 0 → ratio 1
 		const col = serviceColumn(busTarget, open(arrival('2026-05-22T19:35:00Z')), TZ, NOW);
@@ -383,14 +391,12 @@ describe('priority_split.buildColumn - Marker', () => {
 // short-circuits the frame by throwing the mapped problem type (the
 // renderFrame boundary, tested in router.test.ts, turns it into problem+json)
 // rather than degrading silently to dashes.
-describe('priority_split.buildViewModel - gateway failure → throws problem type (#59)', () => {
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	function ctxWith(fetchFn: typeof fetch): RenderContext {
+describe('priority_split.layout.buildViewModel - gateway failure → throws problem type (#59)', () => {
+	// PrioritySplitContext — the layout's declared RenderContext slice —
+	// carries exactly the dependencies the layout consumes; METLINK_API_KEY is
+	// typed directly, no Env cast.
+	function ctxWith(fetchFn: typeof fetch): PrioritySplitContext {
 		return {
-			radiator: { slug: 'bedroom-philip', profile: { name: 'p', phases: [] } },
 			phase: {
 				key: 'morning_commute',
 				startTime: '07:00',
@@ -404,7 +410,7 @@ describe('priority_split.buildViewModel - gateway failure → throws problem typ
 			now: NOW,
 			format: 'json',
 			includeBmp: false,
-			env: { METLINK_API_KEY: 'test-key' } as unknown as RenderContext['env'],
+			env: { METLINK_API_KEY: 'test-key' },
 			fetchFn,
 		};
 	}
@@ -412,7 +418,7 @@ describe('priority_split.buildViewModel - gateway failure → throws problem typ
 	// Captures the AppError buildViewModel() throws, failing loudly if it
 	// unexpectedly resolves — keeps the return type a clean AppError (not
 	// AppError | ViewModel).
-	async function buildError(ctx: RenderContext): Promise<AppError> {
+	async function buildError(ctx: PrioritySplitContext): Promise<AppError> {
 		try {
 			await layout.buildViewModel(ctx);
 		} catch (e) {

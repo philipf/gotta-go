@@ -26,6 +26,7 @@ These triggers replace static rules. Apply when the **when** clause becomes true
 | A wire-format field name appears outside `gateways/<system>/` | Stop; that's the bulkhead leaking | ADR-0005 §Gateways — mappers are the only file that knows the wire |
 | A test wants a fixed clock | Promote `gateways/clock/` then; not before | ADR-0005 — defaults stay light until they hurt |
 | A new external system is introduced | New folder under `gateways/` with the standard layout (client, mapper, types, fixtures, public face) | ADR-0005 §Gateways |
+| A feature test can only reach a behaviour through `layout.buildViewModel` by feeding wire payloads to a stubbed fetch | Export one explicitly-named, domain-granularity seam from `service.ts` and document why (e.g. `priority_split`'s `viewModelFromStopStates`) | The wire-format quarantine outranks single-entry purity (ADR-0014) |
 
 Add a row when a new trigger emerges; never add a row for a trigger that hasn't fired yet.
 
@@ -39,13 +40,15 @@ The *reasoning* is the load-bearing part — when an edge case arises, judge it 
 - **Type-only cross-tier imports are allowed when they prevent invalid states.** `config/types.ts` imports `LayoutKey` from `features/registry.ts`. *Why:* config can never reference a layout that isn't implemented. The dependency is type-only and one-directional.
 - **Failure variants stay narrow at the type layer.** `validate()` returns `{ ok: true } | { ok: false }` — no `reason` field. *Why:* the OpenAPI contract deliberately collapses missing-vs-invalid; the type makes the leak structurally impossible (`auth/validate.ts`).
 - **Use the glossary's vocabulary** in code symbols, folder names, commit messages, ADRs, and prose. The rejected-synonym list in [`../glossary.md`](../glossary.md) is a contract.
+- **`service.ts` thinks, `viewmodel.ts` declares shape, `view.tsx` draws.** The service is the deep module owning every derivation (fetch, error mapping, pure maths); the viewmodel is a logic-free data contract (DTO types + `toJsonView`). *Why:* one altitude per file — the registry's phase-1 sentence is literally true of the file that claims it; the output shape is a ten-second read. See [ADR-0014](../adr/0014-layout-service-depth-and-context-slices.md).
+- **Layouts declare their `RenderContext` slice.** Each `service.ts` exports a `<Layout>Context` (`Pick` of `RenderContext`, narrowing `radiator`/`env` too) used as the registry's `Ctx` parameter. *Why:* the signature is the dependency manifest — widening it is a reviewable diff, cross-feature binding reach can't happen silently, and test fixtures shrink to the declared needs. Stepping stone to composition-root capability injection (named, deferred — ADR-0014).
 - **`lookup<X>(key)` vs `resolve<X>(inputs)`.** `lookup` = key → record (static config/registry access; could be a `Map.get()`). `resolve` = inputs → derived value via rules (time, content negotiation, profile phases). *Why:* the verb encodes the operation. `lookupRadiator(slug)` and `resolveProfilePhase(radiator, now)` carry different mental models at the callsite; collapsing to one verb hides whether rules are running.
 
 ## Anti-patterns we've rejected
 
 - **`index.ts` barrels re-exporting wasm-bearing modules.** Cold-start risk on Workers (`shared/satori.ts` lazy-init exists *because* module-eval cost matters).
 - **Premature tier promotion.** Lifting code into a new horizontal tier before a second consumer exists. The original `shared/mode-icon.tsx` placement was this anti-pattern; it now lives in `features/priority_split/`.
-- **Pass-through orchestrators.** A function whose body is a single dispatch into a sibling earns no depth. Either grow it or inline it.
+- **Pass-through orchestrators.** A function whose body is a single dispatch into a sibling earns no depth. Either grow it or inline it. (Concrete rejection: every layout `service.ts` had this shape until ADR-0014 merged the derivation in — commit `e0767c4` and follow-ups.)
 - **Reaching past a module's public face.** `import { internalThing } from '../module/internal'` from another module. Convention today; lint enforcement parked for later.
 - **Bulk-writing tests ahead of implementation.** ADR-0005 mandates the `/tdd` rhythm: one RED → one GREEN → optional REFACTOR → next slice.
 
@@ -71,6 +74,7 @@ If you find this guide describing something that belongs in one of the sources a
 - [ADR-0004](../adr/0004-diagnostics-view-content-negotiation.md) — `Accept`-based content negotiation
 - [ADR-0005](../adr/0005-worker-source-architecture.md) — directory layout, gateway tier, DI, TDD
 - [ADR-0007](../adr/0007-worker-architectural-pillars.md) — Deep Modules, Feature Folders, REPR
+- [ADR-0014](../adr/0014-layout-service-depth-and-context-slices.md) — layout service depth, viewmodel data contracts, declared context slices
 - [`../glossary.md`](../glossary.md) — ubiquitous language
 - [`./domain.md`](domain.md) — how to consume the domain docs
 
