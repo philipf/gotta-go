@@ -91,7 +91,7 @@ export const PROFILES: Record<string, Profile> = {
             mode: "train",
             stopId: "TAKA1",
             serviceId: "KPL",
-            timeToStopMins: 7,
+            timeToStopMins: 8,
             comfortBuffer: 1.5,
           },
         ],
