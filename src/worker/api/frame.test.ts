@@ -10,7 +10,13 @@ import { route } from './router';
 import { renderFrame } from './frame';
 
 const TOKEN = 'test-token-123';
-const env = { RADIATOR_SHARED_TOKEN: TOKEN, METLINK_API_KEY: 'test-key' } as Env;
+const env = {
+	RADIATOR_SHARED_TOKEN: TOKEN,
+	METLINK_API_KEY: 'test-key',
+	// Empty holiday payload so dual_month_calendar frames don't trip the
+	// gateway's soft-miss warning on every run.
+	PUBLIC_HOLIDAYS: { get: async () => [] } as unknown as KVNamespace,
+} as Env;
 
 // 07:30 NZST → bedroom-daughter's morning_school_run priority_split phase
 // (refreshIntervalMinutes 2 → 120s phase cadence).

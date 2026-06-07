@@ -3,7 +3,13 @@ import { route } from './router';
 import { closedStop } from '../gateways/metlink/fixtures';
 
 const TOKEN = 'test-token-123';
-const env = { RADIATOR_SHARED_TOKEN: TOKEN, METLINK_API_KEY: 'test-key' } as Env;
+const env = {
+	RADIATOR_SHARED_TOKEN: TOKEN,
+	METLINK_API_KEY: 'test-key',
+	// Empty holiday payload so dual_month_calendar frames don't trip the
+	// gateway's soft-miss warning on every router test run.
+	PUBLIC_HOLIDAYS: { get: async () => [] } as unknown as KVNamespace,
+} as Env;
 
 function buildReq(headers: Record<string, string>, path = '/v1/frame'): Request {
 	return new Request(`http://localhost${path}`, { headers });
