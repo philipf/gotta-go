@@ -9,6 +9,9 @@
 			"enabled": true,
 		},
 	},
+	"kv_namespaces": [
+		{ "binding": "PUBLIC_HOLIDAYS", "id": "e6f049c0ba6a47cd8cb620223ed13c15" },
+	],
 	"rules": [
 		{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true },
 		{ "type": "Data", "globs": ["**/*.png"], "fallthrough": true },

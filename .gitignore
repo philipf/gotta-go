@@ -8,6 +8,7 @@ node_modules/
 # Arduino sketch settings (Wi-Fi creds etc.) — keep the .example.h template
 settings.h
 *.tsbuildinfo
+.mise.local.toml
 .DS_Store
 dist/
 coverage/
