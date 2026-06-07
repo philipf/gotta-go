@@ -2,23 +2,25 @@
 
 // Copy this file to a per-deployment variant and fill in real values:
 //
-//   cp settings.example.h settings.h.<variant>
+//   cp settings.example.h settings.<variant>.h
 //
-//   e.g. settings.h.dev           # local Worker (cloudflared tunnel)
-//        settings.h.parents-home  # bedroom radiator, deployed Worker
-//        settings.h.f5            # office radiator, deployed Worker
-//        settings.h.f5-tui        # same office device on the home WiFi
+//   e.g. settings.dev.h           # local Worker (cloudflared tunnel)
+//        settings.parents-home.h  # bedroom radiator, deployed Worker
+//        settings.f5.h            # office radiator, deployed Worker
+//        settings.f5-tui.h        # same office device on the home WiFi
 //
-// flash.sh discovers variants from the settings.h.<variant> files present —
-// any <variant> with a file is a valid argument and `./flash.sh` with no
-// argument lists them — so adding a radiator never means editing the script.
-// `./flash.sh <variant>` copies the variant onto settings.h — the file the
-// sketch #includes. That settings.h is generated/throwaway; edit the
-// variants, not it.
+// (The .h extension comes last so editors apply C/C++ syntax highlighting.)
 //
-// settings.h* are all gitignored. The sketch #includes settings.h, so it will
-// not compile until `./flash.sh <variant>` has generated it (or you cp one by
-// hand).
+// flash.sh discovers variants from the settings.<variant>.h files present —
+// any <variant> with a file is a valid argument ("example" excepted: this
+// template is not flashable) and `./flash.sh` with no argument lists them —
+// so adding a radiator never means editing the script. `./flash.sh <variant>`
+// copies the variant onto settings.h — the file the sketch #includes. That
+// settings.h is generated/throwaway; edit the variants, not it.
+//
+// settings.h and settings.<variant>.h are gitignored (only this example is
+// tracked). The sketch #includes settings.h, so it will not compile until
+// `./flash.sh <variant>` has generated it (or you cp one by hand).
 //
 // The WIFI_SSID and WIFI_PASSWORD here are the same ones used by the
 // wake-cycle PoC; if poc/lilygo/wake-cycle-32/secrets.h already exists on

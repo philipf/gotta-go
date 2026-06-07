@@ -3,25 +3,28 @@
 # flash.sh — compile, upload, and watch the radiator firmware on a LilyGo
 # T5 4.7" (ESP32-S3) against a chosen settings variant.
 #
-# Settings are variant-specific: each settings.h.<variant> file holds one
+# Settings are variant-specific: each settings.<variant>.h file holds one
 # deployment's WIFI_* / FRAME_URL / RADIATOR_SLUG / RADIATOR_TOKEN /
-# RADIATOR_VERBOSE values (e.g. settings.h.dev for the local Worker via a
-# cloudflared quick tunnel; per-device variants like settings.h.f5 or
-# settings.h.parents-home for the deployed Worker — a device may have several
-# variants differing only by WiFi network, e.g. f5 vs f5-tui). Variants are
-# discovered, not hardcoded: any settings.h.<variant> file in this directory
-# is a valid argument, so adding a radiator never means editing this script —
-# just `cp settings.example.h settings.h.<variant>` and fill it in. This
-# script copies the chosen variant onto settings.h (the file the sketch
-# #includes — a generated, gitignored, throwaway file), then runs:
+# RADIATOR_VERBOSE values (e.g. settings.dev.h for the local Worker via a
+# cloudflared quick tunnel; per-device variants like settings.f5.h or
+# settings.parents-home.h for the deployed Worker — a device may have several
+# variants differing only by WiFi network, e.g. f5 vs f5-tui). The .h
+# extension comes last so editors apply C/C++ syntax highlighting. Variants
+# are discovered, not hardcoded: any settings.<variant>.h file in this
+# directory is a valid argument ("example" excepted — settings.example.h is
+# the tracked template, not a flashable variant), so adding a radiator never
+# means editing this script — just `cp settings.example.h
+# settings.<variant>.h` and fill it in. This script copies the chosen variant
+# onto settings.h (the file the sketch #includes — a generated, gitignored,
+# throwaway file), then runs:
 #
-#   cp settings.h.<variant> → settings.h → arduino-cli compile → upload → tio
+#   cp settings.<variant>.h → settings.h → arduino-cli compile → upload → tio
 #
 # Compile runs BEFORE the ROM-download-mode button dance, so a bad arg or a
 # broken build fails before you touch the board.
 #
 # Usage:
-#   ./flash.sh <variant>   # any <variant> with a settings.h.<variant> file
+#   ./flash.sh <variant>   # any <variant> with a settings.<variant>.h file
 #   ./flash.sh             # lists the available variants
 #
 # Run from anywhere; it operates on its own directory (src/radiator/), where
@@ -35,22 +38,26 @@ PORT=/dev/ttyACM0
 cd "$(dirname "$(readlink -f "$0")")"
 
 # --- Parse + validate the variant arg ---------------------------------------
-# Variants are discovered from the settings.h.<variant> files present, so a
-# new radiator needs a new settings file but never a script change.
+# Variants are discovered from the settings.<variant>.h files present, so a
+# new radiator needs a new settings file but never a script change. The
+# tracked template settings.example.h matches the shape but is not flashable.
 ENV="${1:-}"
 
 usage() {
   echo "Usage: $0 <variant>" >&2
   echo >&2
-  echo "Available variants (settings.h.<variant> files in $PWD):" >&2
-  local found=0 f
-  for f in settings.h.*; do
+  echo "Available variants (settings.<variant>.h files in $PWD):" >&2
+  local found=0 f v
+  for f in settings.*.h; do
     [[ -f "$f" ]] || continue
-    echo "  ${f#settings.h.}" >&2
+    v="${f#settings.}"
+    v="${v%.h}"
+    [[ "$v" == "example" ]] && continue
+    echo "  $v" >&2
     found=1
   done
   if [[ "$found" -eq 0 ]]; then
-    echo "  (none — copy settings.example.h to settings.h.<variant> and fill it in)" >&2
+    echo "  (none — copy settings.example.h to settings.<variant>.h and fill it in)" >&2
   fi
 }
 
@@ -60,7 +67,13 @@ if [[ -z "$ENV" ]]; then
   exit 1
 fi
 
-VARIANT="settings.h.$ENV"
+if [[ "$ENV" == "example" ]]; then
+  echo "Error: settings.example.h is the template, not a flashable variant." >&2
+  usage
+  exit 1
+fi
+
+VARIANT="settings.$ENV.h"
 if [[ ! -f "$VARIANT" ]]; then
   echo "Error: $VARIANT not found." >&2
   usage

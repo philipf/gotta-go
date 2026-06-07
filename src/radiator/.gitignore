@@ -1,2 +1,4 @@
-settings.h*
+settings.h
+settings.*.h
+!settings.example.h
 build/
