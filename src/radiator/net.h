@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "etag.h"   // ETAG_CAP
 #include "sleep.h"  // SleepHeader, parseSleepSecondsValue
 
 // Compressed body sanity bound. Headroom over the ~525 B observed on
@@ -32,14 +33,40 @@ static const size_t UZLIB_DICT_BYTES = 32768;
 // The raw outcome of one wake request. status <= 0 is a transport failure / no
 // response (the panel-untouched arm); otherwise it is the HTTP status. body* and
 // gzipped describe the drained body in the caller's buffer; sleep is the parsed
-// X-Sleep-Seconds directive (honoured even on a non-2xx).
+// X-Sleep-Seconds directive (honoured even on a non-2xx); etag is the response's
+// ETag header verbatim ("" when absent or over ETAG_CAP — see etag.h).
 struct HttpResponse {
     int         status;
     size_t      bodyLen;
     bool        truncated;  // body filled the buffer (cap reached)
     bool        gzipped;    // Content-Encoding: gzip
     SleepHeader sleep;
+    char        etag[ETAG_CAP];
 };
+
+// The response arm a fetched HttpResponse routes to — the ADR-0003/0011/0013
+// table's left column as a value. Status alone decides (plus the body cap for
+// the 200 path); body flags are never consulted for the 304, so the incidental
+// Content-Encoding: gzip the Workers runtime appends to the bodiless 304 (#73,
+// ADR-0013 §What a 304 carries) can never route it through the inflate path.
+enum class ResponseArm {
+    Transport,    // status <= 0 — no response. panel untouched.
+    NotModified,  // 304 — unchanged-frame skip (ADR-0013). no body, by status.
+    WorkerError,  // reachable non-2xx — problem+json → error screen (ADR-0011).
+    BodyTooLarge, // 2xx but the body overran the caller's buffer.
+    Frame,        // 2xx — gzipped BMP for the panel.
+};
+
+// Classify a fetched response onto its arm. The 304 check sits before the
+// non-2xx check (304 is outside 2xx but is not an error) and before any body
+// concern (a 304 has none, per RFC 9110 §15.4.5). Pure — host-testable.
+inline ResponseArm classifyResponse(const HttpResponse &r) {
+    if (r.status <= 0) return ResponseArm::Transport;
+    if (r.status == 304) return ResponseArm::NotModified;
+    if (r.status < 200 || r.status >= 300) return ResponseArm::WorkerError;
+    if (r.truncated) return ResponseArm::BodyTooLarge;
+    return ResponseArm::Frame;
+}
 
 // The outcome of one Wi-Fi association attempt. ssid is the AP we tried (always
 // set, aliasing the configured credential — valid for the program's lifetime).
@@ -64,9 +91,11 @@ void disconnectWiFi();
 // TLS client and HTTP session for the call's duration. batteryMv is the wake's
 // battery sample in raw millivolts, sent as X-Radiator-Battery-Mv; 0 means "no
 // reading" and omits the header (GH #79 — sampled pre-Wi-Fi by the orchestrator
-// because GPIO 14 is ADC2, which the radio owns once up). See HttpResponse for
-// the returned facts.
-HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv);
+// because GPIO 14 is ADC2, which the radio owns once up). ifNoneMatch is the
+// stored ETag to send as If-None-Match (ADR-0013); null/empty omits the header
+// so the Worker answers 200 as before. See HttpResponse for the returned facts.
+HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv,
+                        const char *ifNoneMatch);
 
 // Inflate a gzip stream src[0..srcLen) into dst[0..dstCap) using the caller's
 // dictionary scratch. Returns bytes produced, or -1 on any uzlib error. Shared

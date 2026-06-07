@@ -23,6 +23,9 @@ elsewhere, pass `-DARDUINOJSON_DIR=/path/to/ArduinoJson/src`.
 | Path | Role |
 | --- | --- |
 | `test_problem.cpp` | Tests for the `problem` module (`parseProblem`, `resolveErrorScreen`). |
+| `test_sleep.cpp` | Tests for the pure sleep policy (`parseSleepSecondsValue`, `chooseSleep`, `cycleResultStr`). |
+| `test_frame.cpp` | Tests for `decodeBmpToFramebuffer` validation. |
+| `test_etag.cpp` | Tests for the ADR-0013 conditional-request policy (`classifyResponse`, `panelStateAfter`, `chooseEtagAction`). |
 | `stubs/` | Host stand-ins for `Arduino.h`, `epd_driver.h`, `firasans.h` — no-op draw, deterministic text measurement. |
 | `doctest.h` | Vendored doctest v2.4.11 (single header, MIT). |
 | `CMakeLists.txt` | Builds the module-under-test from its real source + the stubs. |

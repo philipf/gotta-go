@@ -3,8 +3,10 @@
 The **radiator** firmware. One sketch, one wake cycle:
 
 ```
-Wi-Fi → HTTPS GET /v1/frame (gzipped BMP) → inflate → BMP decode
-      → panel flush → deep sleep for X-Sleep-Seconds
+Wi-Fi → HTTPS GET /v1/frame (If-None-Match: stored ETag)
+      → 200: inflate → BMP decode → panel flush → store ETag
+      → 304: unchanged-frame skip — panel untouched (ADR-0013)
+      → deep sleep for X-Sleep-Seconds
 ```
 
 Closes the firmware ACs of [GH #4](https://github.com/philipf/gotta-go/issues/4). Composes three earlier spikes (#30 panel hello, [#31 BMP → panel](../../poc/lilygo/show-bmp-31/), [#32 Wi-Fi + sleep](../../poc/lilygo/wake-cycle-32/)) plus the gzip inflater landed in [ADR-0008](../../docs/adr/0008-radiator-gzip-decompression.md).
@@ -15,10 +17,11 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 
 | File                | Purpose                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------- |
-| `radiator.ino`      | Wake-cycle orchestrator: allocates scratch, drives one request, maps the response onto the ADR-0003/0011 table, deep-sleeps. |
-| `net.{h,cpp}`       | Wi-Fi + HTTP transport + body I/O: `connectWiFi`, `fetchFrame` → `HttpResponse`, body drain, gzip `inflateGzip`. Device-only. |
+| `radiator.ino`      | Wake-cycle orchestrator: allocates scratch, drives one request, maps the response onto the ADR-0003/0011/0013 table, keeps the RTC-backed stored ETag truthful, deep-sleeps. |
+| `net.{h,cpp}`       | Wi-Fi + HTTP transport + body I/O: `connectWiFi`, `fetchFrame` → `HttpResponse` (sends `If-None-Match`, captures `ETag`), body drain, gzip `inflateGzip`. The pure `classifyResponse()` in the header is host-tested; the rest is device-only. |
 | `frame.{h,cpp}`     | 1bpp BMP decode + panel flush (`flushToPanel`). `decodeBmpToFramebuffer` validation is host-tested. |
 | `problem.{h,cpp}`   | Error-screen module (ADR-0011): problem+json parse, fallback resolution, on-panel render. Neutral `renderErrorScreen()` reusable by #47. |
+| `etag.h`            | Stored-ETag policy ([ADR-0013](../../docs/adr/0013-conditional-frame-requests.md) / GH #74): `panelStateAfter()` + `chooseEtagAction()` encode the store/keep/clear rules; pure, host-tested. |
 | `sleep.h`           | `SleepHeader` + pure `parseSleepSecondsValue()` (ADR-0003); host-tested. Seed of the #5 sleep module. |
 | `battery.{h,cpp}`   | Battery-voltage sample (GH #79): `sampleBatteryMv()` — pre-Wi-Fi ADC2 power pulse, avg of 8 reads → `X-Radiator-Battery-Mv`. Device-only. |
 | `test/`             | Host-native unit tests (CMake + doctest) for the pure logic — see [`test/README.md`](test/README.md) and [ADR-0012](../../docs/adr/0012-radiator-host-native-tests.md). |
@@ -132,22 +135,33 @@ inflate: ok 64862 bytes in 18 ms
 BMP: 960x540 1bpp comp=0 offset=62 top-down
 decode: ok in 24 ms
 panel: frame latched
+etag: stored W/"6e1064b09d4c64fe"
 Cycle #1: outcome=ok, awake 4870 ms, sleeping 300 s (X-Sleep-Seconds)
                               ⟵ deep sleep (USB drops) ⟶
 === GottaGo wake cycle #2 — wake reason: timer (deep-sleep wake) ===
 ...
 ```
 
+A wake whose content is unchanged (e.g. the `daytime_calendar` phase between midnight rollovers) takes the `304` skip instead — no inflate, no decode, no panel flash:
+
+```
+HTTPS: status 304, content-length 0, sleep=14400 (402 ms)
+body: none (304 Not Modified)
+frame: 304 unchanged — skipping panel flush (ADR-0013)
+Cycle #7: outcome=not-modified, awake 3120 ms, sleeping 14400 s (X-Sleep-Seconds)
+```
+
 The `wake-to-sleep` window (logged on the `Cycle #N:` line) is the per-cycle active duration that drives battery accounting — same baseline as PoC #32, now including BMP decode + panel flush time.
 
-## How firmware response-handling maps to ADR-0003 / ADR-0011
+## How firmware response-handling maps to ADR-0003 / ADR-0011 / ADR-0013
 
-ADR-0003's table tells the radiator how to react to every Worker response; [ADR-0011](../../docs/adr/0011-error-contract-problem-details.md) refines the error path so a reachable Worker error is shown on-panel instead of held silently. The sketch encodes that as the `CycleResult` enum + `sleepFor()` dispatch:
+ADR-0003's table tells the radiator how to react to every Worker response; [ADR-0011](../../docs/adr/0011-error-contract-problem-details.md) refines the error path so a reachable Worker error is shown on-panel instead of held silently; [ADR-0013](../../docs/adr/0013-conditional-frame-requests.md) adds the `304` unchanged-frame skip. The sketch encodes that as the `CycleResult` enum + `sleepFor()` dispatch:
 
-| ADR-0003 / ADR-0011 row                                        | `CycleResult`                           | Panel touched?       | Sleep source                                         |
+| ADR-0003 / ADR-0011 / ADR-0013 row                             | `CycleResult`                           | Panel touched?       | Sleep source                                         |
 | -------------------------------------------------------------- | --------------------------------------- | -------------------- | ---------------------------------------------------- |
 | 200 OK with valid gzipped BMP + `X-Sleep-Seconds`              | `Ok`                                    | Yes — frame flushed  | `X-Sleep-Seconds`                                    |
 | 200 OK but inflate/parse fails                                 | `InflateFailed` / `BmpInvalid`          | No                   | `X-Sleep-Seconds` if present, else firmware fallback |
+| 304 Not Modified (stored ETag matched)                         | `NotModified`                           | No — unchanged-frame skip | `X-Sleep-Seconds` if present, else firmware fallback |
 | Reachable non-2xx (`problem+json`) with `X-Sleep-Seconds`      | `WorkerError`                           | Yes — error screen   | `X-Sleep-Seconds`                                    |
 | Reachable non-2xx (`problem+json`) without `X-Sleep-Seconds`   | `WorkerError`                           | Yes — error screen   | Firmware fallback (300 s)                            |
 | Transport failure / no response (Wi-Fi/DNS/TCP/TLS timeout)    | `HttpError` (early exit from `setup()`) | No                   | Firmware fallback (300 s)                            |
@@ -159,6 +173,16 @@ ADR-0003's table tells the radiator how to react to every Worker response; [ADR-
 On a **reachable** non-2xx the Worker returns an `application/problem+json` body (RFC 9457; see [`docs/api/errors.md`](../../docs/api/errors.md)). `net::fetchFrame()` drains it; the orchestrator's `renderWorkerError()` inflates it if the edge gzipped it in transit (`Content-Encoding: gzip`), parses it with ArduinoJson (`problem::parseProblem`), and `renderErrorScreen()` then draws the problem's `title` as the heading and `detail` as the body to the panel — so a wrong `RADIATOR_TOKEN` (`401` "Radiator not authorised") or a Metlink outage (`502` "Transit data unavailable") is visible rather than masquerading as a quiet frame. An empty or unparseable body still renders a generic `"Unexpected error"` screen with the HTTP status — never a blank or stale panel.
 
 Set `RADIATOR_VERBOSE 1` in `settings.h` to also render the raw `upstream_detail` snippet (carried on `metlink-*` errors) beneath the body — a debugging aid, off by default. The renderer takes neutral strings, not an HTTP object, so [#47](https://github.com/philipf/gotta-go/issues/47) can reuse it for the worker-unreachable case. A **transport** failure (Wi-Fi/DNS/TCP/TLS dead, no response) is *not* a Worker error: it stays `HttpError` and leaves the panel untouched — that stale-frame / unreachable indicator is #47's domain.
+
+### Conditional requests — the stored ETag (ADR-0013 / GH #74)
+
+The radiator keeps the last `200`'s `ETag` in RTC slow memory (`storedEtag` — survives deep sleep, zeroed on cold boot) and echoes it verbatim as `If-None-Match` on every wake. A matching validator gets a `304 Not Modified`: no body, no panel flush — the e-ink keeps its frame with no visible flash — and `X-Sleep-Seconds` is honoured as on any response. The bookkeeping rules live in [`etag.h`](etag.h) and are host-tested:
+
+- **Store** a new ETag only after a successfully flushed `200`. A `200` whose body fails inflate/decode keeps the old value (the panel still shows the old frame), and a `200` without an `ETag` header clears it.
+- **Keep** it whenever the panel is untouched — `304`, transport failure, oversized/unparseable body.
+- **Clear** it whenever the panel shows anything other than a frame — the ADR-0011 error screen and the #66 Wi-Fi error screen both clear, so a later `304` can never strand an error screen on the panel. The next wake then sends no `If-None-Match` and takes the full `200` redraw.
+
+One wire quirk from #73: the Workers runtime appends an incidental `Content-Encoding: gzip` to the bodiless `304` whenever the request advertised `Accept-Encoding: gzip`. The firmware branches on the status *before* any body handling (`classifyResponse()` in [`net.h`](net.h)), so those zero bytes never reach the inflate path — guarded by a host-native test.
 
 ## Acceptance criteria (GH #4 firmware)
 

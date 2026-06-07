@@ -2,8 +2,10 @@
  * GottaGo — LilyGO T5 4.7" radiator firmware
  *
  * One wake cycle:
- *   Wi-Fi  →  HTTPS GET /v1/frame (gzipped BMP) →  inflate  →  BMP decode
- *          →  panel flush  →  deep sleep for X-Sleep-Seconds
+ *   Wi-Fi  →  HTTPS GET /v1/frame (If-None-Match: stored ETag)
+ *          →  200: inflate  →  BMP decode  →  panel flush  →  store ETag
+ *          →  304: unchanged-frame skip — panel untouched (ADR-0013)
+ *          →  deep sleep for X-Sleep-Seconds
  *
  * Composes three closed spikes:
  *   poc/lilygo/wake-cycle-32 — Wi-Fi + HTTPS GET + esp_deep_sleep
@@ -14,6 +16,7 @@
  *   net.{h,cpp}     — Wi-Fi + HTTP request + body drain + gzip inflate
  *   frame.{h,cpp}   — 1bpp BMP decode + panel flush
  *   problem.{h,cpp} — problem+json parse + error-screen render (ADR-0011)
+ *   etag.h          — stored-ETag store/keep/clear policy (ADR-0013)
  *   sleep.{h,cpp}   — X-Sleep-Seconds parse + sleep policy + deep sleep (ADR-0003)
  *   battery.{h,cpp} — battery-voltage sample → X-Radiator-Battery-Mv (GH #79)
  * This file is the wake-cycle orchestrator: it allocates scratch, drives one
@@ -26,9 +29,13 @@
  * last frame, so a bad token or a Metlink outage is visible (CycleResult::
  * WorkerError). A transport failure / no response (Wi-Fi/DNS/TCP/TLS dead)
  * still leaves the panel untouched (CycleResult::HttpError, #47's arm), as do
- * 200-OK inflate/parse failures. X-Sleep-Seconds dictates the next wake; a
- * 300 s firmware fallback covers the cases where the radiator can't extract a
- * usable header (no response, missing header, value out of range [1, 86400]).
+ * 200-OK inflate/parse failures. A 304 Not Modified (ADR-0013, GH #74) is the
+ * unchanged-frame skip: the stored ETag (RTC-backed, echoed as If-None-Match
+ * each wake) matched, so the panel keeps its frame — no flush, no eye-pull
+ * (CycleResult::NotModified; bookkeeping rules in etag.h). X-Sleep-Seconds
+ * dictates the next wake on every arm, 304 included; a 300 s firmware fallback
+ * covers the cases where the radiator can't extract a usable header (no
+ * response, missing header, value out of range [1, 86400]).
  *
  * Toolchain pinned by ADR-0006: arduino-cli + esp32:esp32@2.0.15 +
  * LilyGo-EPD47@1.0.1 + uzlib. FQBN lives in sketch.yaml.
@@ -45,9 +52,10 @@
 
 #include "epd_driver.h"  // epd_init() — panel bring-up
 #include "battery.h"     // sampleBatteryMv — must run before connectWiFi (ADC2)
-#include "net.h"         // connectWiFi, WifiResult, fetchFrame, inflateGzip, decodeBodyText, HttpResponse, BodyText
+#include "net.h"         // connectWiFi, WifiResult, fetchFrame, classifyResponse, inflateGzip, decodeBodyText, HttpResponse, BodyText
 #include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
 #include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
+#include "etag.h"        // ETAG_CAP, PanelState, EtagAction, panelStateAfter, chooseEtagAction
 #include "sleep.h"       // CycleResult, SleepHeader, sleepFor
 #include "settings.h"    // RADIATOR_VERBOSE (creds/URL are net.cpp's)
 
@@ -61,6 +69,13 @@
 // Wake counter parked in RTC slow memory — survives deep sleep, zeroed only
 // on a true cold boot. Used to disambiguate cold-boot vs timer-wake in logs.
 RTC_DATA_ATTR uint32_t wakeCount = 0;
+
+// Stored ETag, also RTC slow memory (ADR-0013): the opaque validator naming
+// the frame the panel currently shows, echoed as If-None-Match each wake.
+// Survives deep sleep; zeroed on cold boot, so the first wake after power
+// loss sends no If-None-Match and takes one redundant 200 redraw — safe.
+// Kept truthful by applyEtagAction() after every cycle (rules in etag.h).
+RTC_DATA_ATTR char storedEtag[ETAG_CAP];
 
 // PSRAM scratch buffers. Re-allocated per cycle (deep sleep wipes the heap on
 // wake anyway), but declared here so the wake-path code reads top-down.
@@ -124,22 +139,47 @@ static void renderWifiErrorScreen(const WifiResult &wifi) {
     renderErrorScreen("No Wi-Fi connection", detail, nullptr);
 }
 
-// Map a fetched response onto the ADR-0003 / ADR-0011 outcome table: render the
-// error screen or flush the frame as a side effect, and return the outcome that
-// drives the sleep policy.
+// Map a fetched response onto the ADR-0003 / ADR-0011 / ADR-0013 outcome table:
+// render the error screen or flush the frame as a side effect, and return the
+// outcome that drives the sleep policy. The arm decision itself is net.h's pure
+// classifyResponse() — host-tested, including the 304-before-body ordering.
 static CycleResult dispatchResponse(const HttpResponse &r) {
-    if (r.status <= 0) {
-        return CycleResult::HttpError;            // transport failure — panel untouched (#47)
+    switch (classifyResponse(r)) {
+        case ResponseArm::Transport:
+            return CycleResult::HttpError;        // transport failure — panel untouched (#47)
+        case ResponseArm::NotModified:
+            Serial.println("frame: 304 unchanged — skipping panel flush (ADR-0013)");
+            return CycleResult::NotModified;      // unchanged-frame skip — panel keeps its frame
+        case ResponseArm::WorkerError:
+            renderWorkerError(r);                 // reachable non-2xx — error screen
+            return CycleResult::WorkerError;
+        case ResponseArm::BodyTooLarge:
+            Serial.printf("body: exceeds %u byte cap\n", (unsigned)MAX_COMPRESSED_BYTES);
+            return CycleResult::BodyTooLarge;
+        case ResponseArm::Frame:
+            return handleFrameResponse(r);        // 200 OK — frame to panel
     }
-    if (r.status < 200 || r.status >= 300) {
-        renderWorkerError(r);                     // reachable non-2xx — error screen
-        return CycleResult::WorkerError;
+    return CycleResult::HttpError;
+}
+
+// Apply an ADR-0013 bookkeeping decision to the RTC-backed ETag, keeping the
+// invariant "storedEtag names the frame the panel shows" true. newEtag is the
+// response's ETag (consulted only on Store).
+static void applyEtagAction(EtagAction action, const char *newEtag) {
+    switch (action) {
+        case EtagAction::Store:
+            strlcpy(storedEtag, newEtag, sizeof(storedEtag));
+            Serial.printf("etag: stored %s\n", storedEtag);
+            break;
+        case EtagAction::Clear:
+            if (storedEtag[0] != '\0') {
+                Serial.println("etag: cleared — next wake sends no If-None-Match");
+            }
+            storedEtag[0] = '\0';
+            break;
+        case EtagAction::Keep:
+            break;
     }
-    if (r.truncated) {
-        Serial.printf("body: exceeds %u byte cap\n", (unsigned)MAX_COMPRESSED_BYTES);
-        return CycleResult::BodyTooLarge;
-    }
-    return handleFrameResponse(r);                // 200 OK — frame to panel
 }
 
 // ---------- Wake path ----------
@@ -191,11 +231,19 @@ void setup() {
 
     const WifiResult wifi = connectWiFi();
     if (wifi.connected) {
-        const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES, batteryMv);
+        const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES,
+                                          batteryMv, storedEtag);
         sleep = r.sleep;
         outcome = dispatchResponse(r);
+        applyEtagAction(chooseEtagAction(panelStateAfter(outcome), r.etag[0] != '\0'),
+                        r.etag);
     } else {
         renderWifiErrorScreen(wifi);  // show why, instead of silently holding (#66)
+        // The error screen replaced the frame, so the stored ETag is no longer
+        // the truth — clear it (ADR-0013 rule 3) even though the outcome stays
+        // HttpError for the sleep policy (#66). panelStateAfter() can't see
+        // this screen: there is no HttpResponse on this arm.
+        applyEtagAction(chooseEtagAction(PanelState::ErrorScreen, false), nullptr);
     }
     disconnectWiFi();  // drop the radio before sleeping
 

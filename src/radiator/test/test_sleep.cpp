@@ -54,6 +54,7 @@ TEST_CASE("chooseSleep falls back to the firmware default when absent") {
 
 TEST_CASE("cycleResultStr maps every outcome to its log token") {
     CHECK(std::string(cycleResultStr(CycleResult::Ok)) == "ok");
+    CHECK(std::string(cycleResultStr(CycleResult::NotModified)) == "not-modified");
     CHECK(std::string(cycleResultStr(CycleResult::HttpError)) == "http-error");
     CHECK(std::string(cycleResultStr(CycleResult::WorkerError)) == "worker-error");
     CHECK(std::string(cycleResultStr(CycleResult::BodyTooLarge)) == "body-too-large");

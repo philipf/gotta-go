@@ -55,6 +55,7 @@ static const uint32_t FIRMWARE_FALLBACK_SLEEP_S = 300;
 // and its log vocabulary sit together.
 enum class CycleResult {
     Ok,             // 200 + valid BMP. flushed to panel. sleep = X-Sleep-Seconds.
+    NotModified,    // 304 — unchanged-frame skip (ADR-0013). panel untouched, stored ETag kept.
     HttpError,      // transport failure / no response. panel untouched. (#47's arm)
     WorkerError,    // reachable Worker returned a non-2xx problem doc. error screen rendered.
     BodyTooLarge,   // body exceeded MAX_COMPRESSED_BYTES. panel untouched.
@@ -80,6 +81,7 @@ inline SleepDecision chooseSleep(SleepHeader sleep) {
 inline const char *cycleResultStr(CycleResult outcome) {
     switch (outcome) {
         case CycleResult::Ok:            return "ok";
+        case CycleResult::NotModified:   return "not-modified";
         case CycleResult::HttpError:     return "http-error";
         case CycleResult::WorkerError:   return "worker-error";
         case CycleResult::BodyTooLarge:  return "body-too-large";

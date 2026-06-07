@@ -144,8 +144,9 @@ BodyText decodeBodyText(const HttpResponse &r, const uint8_t *body,
 
 // ---------- HTTP fetch ----------
 
-HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv) {
-    HttpResponse r = {0, 0, false, false, {false, 0}};
+HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv,
+                        const char *ifNoneMatch) {
+    HttpResponse r = {0, 0, false, false, {false, 0}, ""};
 
     // The TLS client and HTTP session live only for this request — constructed
     // here, torn down on return (https.end() below; client frees its TLS buffers
@@ -188,6 +189,13 @@ HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv) {
         https.addHeader("X-Radiator-Battery-Mv", String(batteryMv));
     }
 
+    // Conditional frame request (ADR-0013): echo the stored ETag verbatim so
+    // the Worker can answer 304 on unchanged content. No stored ETag (first
+    // boot, post-error-screen) → no header → the Worker answers 200 as today.
+    if (ifNoneMatch != nullptr && ifNoneMatch[0] != '\0') {
+        https.addHeader("If-None-Match", ifNoneMatch);
+    }
+
     // Dev-only: when settings.h defines DEBUG_NOW, send it so the Worker resolves
     // the profile phase against that instant instead of real time (lets you
     // preview e.g. morning_school_run any time of day). Requires the Worker to
@@ -200,7 +208,7 @@ HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv) {
     // Retain the diagnostic headers we want to read off the response.
     // Content-Length is tracked internally by HTTPClient regardless of this list.
     static const char *kept[] = {"X-Sleep-Seconds", "X-Profile-Phase",
-                                 "X-Server-Time", "Content-Encoding"};
+                                 "X-Server-Time", "Content-Encoding", "ETag"};
     https.collectHeaders(kept, sizeof(kept) / sizeof(kept[0]));
 
     const uint32_t t0 = millis();
@@ -220,6 +228,27 @@ HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv) {
                   status, https.getSize(),
                   r.sleep.present ? String(r.sleep.seconds).c_str() : "(missing)",
                   (unsigned long)reqMs);
+
+    // ETag capture (ADR-0013): verbatim — the radiator never inspects it. An
+    // over-cap value is treated as absent rather than stored truncated (a
+    // truncated validator can never match, yet would be re-sent every wake).
+    const String etag = https.header("ETag");
+    if (etag.length() > 0 && etag.length() < sizeof(r.etag)) {
+        memcpy(r.etag, etag.c_str(), etag.length() + 1);
+    } else if (etag.length() >= sizeof(r.etag)) {
+        Serial.printf("ETag: %u chars exceeds %u cap — treating as absent\n",
+                      (unsigned)etag.length(), (unsigned)sizeof(r.etag));
+    }
+
+    // A 304 has no content (RFC 9110 §15.4.5) — return before any body I/O.
+    // The Workers runtime appends an incidental Content-Encoding: gzip to even
+    // this bodiless response (#73, ADR-0013 §What a 304 carries); leaving
+    // gzipped false here keeps those zero bytes away from the inflate path.
+    if (status == 304) {
+        https.end();
+        Serial.println("body: none (304 Not Modified)");
+        return r;
+    }
 
     r.gzipped = https.header("Content-Encoding").indexOf("gzip") >= 0;
     r.bodyLen = drainBody(https, buf, cap, &r.truncated);
