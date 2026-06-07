@@ -5,6 +5,7 @@
 - **Deciders:** Philip Fourie
 - **Language reference:** [`../glossary.md`](../glossary.md) — folder names must match canonical terms.
 - **Related contracts:** [ADR-0003](0003-radiator-worker-contract.md) (radiator ↔ Worker), [ADR-0004](0004-diagnostics-view-content-negotiation.md) (Accept-based content negotiation).
+- **Amended by:** [ADR-0014](0014-layout-service-depth-and-context-slices.md) — the "one layer below" feature-testing exception now applies to phase 2 (render) only; `viewmodel.ts` is a logic-free data contract; layouts declare the `RenderContext` slice they consume.
 
 ## Context
 
