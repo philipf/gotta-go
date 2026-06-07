@@ -19,6 +19,7 @@ import type { ResponseFormat } from '../api/format';
 import { layout as minimalClockLayout } from './minimal_clock/service';
 import { layout as prioritySplitLayout } from './priority_split/service';
 import { layout as idleJokesLayout } from './idle_jokes/service';
+import { layout as dualMonthCalendarLayout } from './dual_month_calendar/service';
 
 export type RenderContext = {
 	radiator: Radiator;
@@ -75,6 +76,7 @@ export const layouts = {
 	minimal_clock: minimalClockLayout,
 	priority_split: prioritySplitLayout,
 	idle_jokes: idleJokesLayout,
+	dual_month_calendar: dualMonthCalendarLayout,
 } satisfies Record<string, Layout>;
 
 export type LayoutKey = keyof typeof layouts;
