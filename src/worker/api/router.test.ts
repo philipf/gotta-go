@@ -115,8 +115,9 @@ describe('api.router — JSON view-model variant', () => {
 
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T00:00:00.000Z');
 		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_calendar');
-		// daytime_calendar refreshes every 30 min → 1800s.
-		expect(res.headers.get('X-Sleep-Seconds')).toBe('1800');
+		// daytime_calendar refreshes every 3h → 10800s (12:00 NZST is >3h from
+		// the 15:15 boundary, so no truncation).
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('10800');
 	});
 
 	it('returns the priority_split per-column view model with glossary field names', async () => {

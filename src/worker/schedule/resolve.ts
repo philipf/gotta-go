@@ -1,8 +1,11 @@
 // Profile-phase resolver. Maps (radiator, now) → active profile phase, its
 // layout, and the clamped sleep duration (30s ≤ n ≤ 14400s per glossary §8).
-// When server time is outside every configured phase, falls through to the
-// idle profile (ADR-0003 §"Idle profile" / #17): renders the idle layout and
-// sleeps until the next phase opens, capped at the 4h ceiling.
+// An active phase's sleep is its refresh interval truncated at the next phase
+// boundary (any phase start or the active phase's own end), so a long-interval
+// phase never oversleeps into the next phase or the idle handoff. When server
+// time is outside every configured phase, falls through to the idle profile
+// (ADR-0003 §"Idle profile" / #17): renders the idle layout and sleeps until
+// the next phase opens, capped at the 4h ceiling.
 
 import type { Radiator } from '../config/lookup';
 import type { ProfilePhase } from '../config/types';
@@ -68,11 +71,19 @@ export function resolveProfilePhase(radiator: Radiator, now: Date): ProfilePhase
 	);
 
 	if (active) {
+		// Truncate the refresh interval at the next boundary: the earliest other
+		// phase start, or the active phase's own end (where the idle profile takes
+		// over if no phase starts there). mins < endTime per the half-open window,
+		// so the end delta is always ≥ 1 minute.
+		const untilBoundary = Math.min(
+			minutesUntilNextPhaseStart(phases, mins),
+			toMinutes(active.endTime) - mins,
+		);
 		return {
 			profilePhase: active.key,
 			phase: active,
 			layout: active.layout,
-			sleepSeconds: clampSleep(active.refreshIntervalMinutes * 60),
+			sleepSeconds: clampSleep(Math.min(active.refreshIntervalMinutes, untilBoundary) * 60),
 		};
 	}
 

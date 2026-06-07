@@ -108,17 +108,17 @@ export const PROFILES: Record<string, Profile> = {
       // 09:00–15:15. Bounded at 21:00 (not all-day) so the 21:00–05:45
       // overnight gap still falls through to the idle profile → idle_jokes
       // (#17). Interim home: #76's dedicated office radiator (full-day, 4h
-      // cap) comes later — here the refresh must stay well under the gap to
-      // afternoon_commute because resolveProfilePhase returns the flat
-      // interval without truncating at the next phase boundary; 30 min caps
-      // the commute pickup delay while the unchanged-frame skip (#73/#74)
-      // keeps every same-day wake flash-free.
+      // cap) comes later. The calendar barely changes within a day, so a 3h
+      // refresh suffices — resolveProfilePhase truncates the sleep at the
+      // next phase boundary, so the 15:15 afternoon_commute pickup is never
+      // delayed, and the unchanged-frame skip (#73/#74) keeps each wake
+      // flash-free.
       {
         key: "daytime_calendar",
         startTime: "09:00",
         endTime: "21:00",
         layout: "dual_month_calendar",
-        refreshIntervalMinutes: 30,
+        refreshIntervalMinutes: 180,
       },
     ],
   },

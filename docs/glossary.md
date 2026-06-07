@@ -253,7 +253,7 @@ The radiator's raw battery voltage in **millivolts**, sampled once per **wake cy
 - **Not to be confused with:** a battery *percentage* (no discharge curve exists yet — the PoC's linear 3.30 V → 4.20 V map was display-only, not a contract).
 
 ### Sleep duration
-The number of seconds the radiator should deep-sleep before its next **wake cycle**. Set by the Worker on every response (including errors). Allowed range `30 ≤ n ≤ 14400`.
+The number of seconds the radiator should deep-sleep before its next **wake cycle**. Set by the Worker on every response (including errors). Inside an active **profile phase** it is the phase's `refresh_interval_minutes` truncated at the next phase boundary (the earliest other phase start, or the active phase's own end), so a long-interval phase never oversleeps the next phase or the **idle profile** handoff. Allowed range `30 ≤ n ≤ 14400`.
 - **Appears as:** HTTP response header `X-Sleep-Seconds`, code symbol `sleep_seconds`.
 
 ### Wake cycle
@@ -358,4 +358,4 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 ## 11. Open questions (language work still pending)
 
 1. **Naming of the strike-through above a cancelled service.** Currently unnamed — we have "cancelled service" (the rendered struck line) and "replacement service" (Tier 1 below it). Probably fine without a third name, but flag if it surfaces in conversation.
-2. **`refresh_interval_minutes` vs `sleep duration`.** These describe the same thing from different sides — config-side cadence vs response-side instruction. Probably acceptable as two names for two angles; revisit if they ever drift.
+2. **`refresh_interval_minutes` vs `sleep duration`.** Config-side cadence vs response-side instruction. They have now drifted by design: the sleep duration is the refresh interval truncated at the next phase boundary (see **Sleep duration**), so the two names earn their keep.

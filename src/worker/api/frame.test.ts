@@ -233,8 +233,9 @@ describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () =
 		// ADR-0013 §What a 304 carries.
 		expect(res.headers.get('Content-Encoding')).toBeNull();
 		// Sleep authority rides every response (ADR-0003); the ETag is repeated
-		// per RFC 9110 §15.4.5. daytime_calendar refreshes every 30 min → 1800s.
-		expect(res.headers.get('X-Sleep-Seconds')).toBe('1800');
+		// per RFC 9110 §15.4.5. daytime_calendar refreshes every 3h → 10800s
+		// (12:00 NZST is >3h from the 15:15 boundary, so no truncation).
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('10800');
 		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_calendar');
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T00:00:00.000Z');
 		expect(res.headers.get('ETag')).toBe(etag);

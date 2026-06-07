@@ -143,6 +143,40 @@ describe('schedule.resolveProfilePhase', () => {
 		}
 	});
 
+	// An active phase's sleep is min(refresh interval, time to the next phase
+	// boundary) so a long-interval phase never oversleeps the next phase start
+	// or its own end (the idle handoff). June = NZST (UTC+12).
+	it('truncates an active-phase sleep at the next phase boundary', () => {
+		const radiator = lookupRadiator('bedroom-philip-tania')!;
+
+		// 09:30 NZST: daytime_calendar (180-min refresh); afternoon_commute opens
+		// 15:15 (345 min away) → the full interval fits, sleep = 180 min.
+		const morning = resolveProfilePhase(radiator, new Date('2026-06-06T21:30:00Z'));
+		expect(morning.profilePhase).toBe('daytime_calendar');
+		expect(morning.sleepSeconds).toBe(180 * 60);
+
+		// 14:00 NZST: 75 min to the 15:15 afternoon_commute start → truncated so
+		// the commute pickup is not delayed by the 3h interval.
+		const preCommute = resolveProfilePhase(radiator, new Date('2026-06-07T02:00:00Z'));
+		expect(preCommute.profilePhase).toBe('daytime_calendar');
+		expect(preCommute.sleepSeconds).toBe(75 * 60);
+
+		// 20:45 NZST: afternoon_commute (1-min refresh) — short intervals are
+		// unaffected by the 21:00 end boundary.
+		const commute = resolveProfilePhase(radiator, new Date('2026-06-07T08:45:00Z'));
+		expect(commute.profilePhase).toBe('afternoon_commute');
+		expect(commute.sleepSeconds).toBe(60);
+	});
+
+	it("truncates at the active phase's own end when no phase starts there", () => {
+		// daughter afternoon_idle (30-min refresh) ends 21:00 with nothing
+		// adjacent — the idle profile takes over, so 20:45 NZST sleeps 15 min to
+		// the handoff, not the flat 30.
+		const at2045 = resolveProfilePhase(multiPhaseRadiator, new Date('2026-06-07T08:45:00Z'));
+		expect(at2045.profilePhase).toBe('afternoon_idle');
+		expect(at2045.sleepSeconds).toBe(15 * 60);
+	});
+
 	it("honours a profile's own idle override over the system default", () => {
 		const overridden: Radiator = {
 			slug: 'bedroom-override',
