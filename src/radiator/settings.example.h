@@ -1,16 +1,23 @@
 #pragma once
 
-// Copy this file to the per-environment variants and fill in real values:
+// Copy this file to a per-deployment variant and fill in real values:
 //
-//   cp settings.example.h settings.h.dev    # local Worker (cloudflared tunnel)
-//   cp settings.example.h settings.h.prod   # deployed Worker (*.workers.dev)
+//   cp settings.example.h settings.h.<variant>
 //
-// Then flash a chosen environment with `./flash.sh dev` (or `prod`), which
-// copies the variant onto settings.h — the file the sketch #includes. That
-// settings.h is generated/throwaway; edit the .dev/.prod variants, not it.
+//   e.g. settings.h.dev    # local Worker (cloudflared tunnel)
+//        settings.h.prod   # deployed Worker (*.workers.dev)
+//        settings.h.f5     # office radiator, deployed Worker
+//
+// flash.sh discovers variants from the settings.h.<variant> files present —
+// any <variant> with a file is a valid argument and `./flash.sh` with no
+// argument lists them — so adding a radiator never means editing the script.
+// `./flash.sh <variant>` copies the variant onto settings.h — the file the
+// sketch #includes. That settings.h is generated/throwaway; edit the
+// variants, not it.
 //
 // settings.h* are all gitignored. The sketch #includes settings.h, so it will
-// not compile until `./flash.sh <env>` has generated it (or you cp one by hand).
+// not compile until `./flash.sh <variant>` has generated it (or you cp one by
+// hand).
 //
 // The WIFI_SSID and WIFI_PASSWORD here are the same ones used by the
 // wake-cycle PoC; if poc/lilygo/wake-cycle-32/secrets.h already exists on

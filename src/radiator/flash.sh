@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
 #
 # flash.sh — compile, upload, and watch the radiator firmware on a LilyGo
-# T5 4.7" (ESP32-S3) against a chosen environment (dev or prod).
+# T5 4.7" (ESP32-S3) against a chosen settings variant.
 #
-# Settings are environment-specific: settings.h.dev and settings.h.prod hold
-# the per-env FRAME_URL / RADIATOR_TOKEN / RADIATOR_VERBOSE values. This script
+# Settings are variant-specific: each settings.h.<variant> file holds one
+# deployment's WIFI_* / FRAME_URL / RADIATOR_SLUG / RADIATOR_TOKEN /
+# RADIATOR_VERBOSE values (e.g. settings.h.dev for the local Worker via a
+# cloudflared quick tunnel, settings.h.prod or a per-device variant like
+# settings.h.f5 for the deployed Worker). Variants are discovered, not
+# hardcoded: any settings.h.<variant> file in this directory is a valid
+# argument, so adding a radiator never means editing this script — just
+# `cp settings.example.h settings.h.<variant>` and fill it in. This script
 # copies the chosen variant onto settings.h (the file the sketch #includes —
 # a generated, gitignored, throwaway file), then runs:
 #
-#   cp settings.h.<env> → settings.h → arduino-cli compile → upload → tio
+#   cp settings.h.<variant> → settings.h → arduino-cli compile → upload → tio
 #
 # Compile runs BEFORE the ROM-download-mode button dance, so a bad arg or a
 # broken build fails before you touch the board.
 #
 # Usage:
-#   ./flash.sh dev      # local Worker via cloudflared quick tunnel
-#   ./flash.sh prod     # deployed Worker on *.workers.dev
+#   ./flash.sh <variant>   # any <variant> with a settings.h.<variant> file
+#   ./flash.sh             # lists the available variants
 #
 # Run from anywhere; it operates on its own directory (src/radiator/), where
 # sketch.yaml pins the FQBN and serial port.
@@ -27,44 +33,50 @@ PORT=/dev/ttyACM0
 # Operate on the sketch dir this script lives in, regardless of cwd.
 cd "$(dirname "$(readlink -f "$0")")"
 
-# --- Parse + validate the environment arg ----------------------------------
+# --- Parse + validate the variant arg ---------------------------------------
+# Variants are discovered from the settings.h.<variant> files present, so a
+# new radiator needs a new settings file but never a script change.
 ENV="${1:-}"
 
 usage() {
-  echo "Usage: $0 {dev|prod}" >&2
+  echo "Usage: $0 <variant>" >&2
   echo >&2
-  echo "  dev   flash against the local Worker (settings.h.dev)" >&2
-  echo "  f5    flash against the F5 environment (settings.h.f5)" >&2
-  echo "  prod  flash against the deployed Worker (settings.h.prod)" >&2
+  echo "Available variants (settings.h.<variant> files in $PWD):" >&2
+  local found=0 f
+  for f in settings.h.*; do
+    [[ -f "$f" ]] || continue
+    echo "  ${f#settings.h.}" >&2
+    found=1
+  done
+  if [[ "$found" -eq 0 ]]; then
+    echo "  (none — copy settings.example.h to settings.h.<variant> and fill it in)" >&2
+  fi
 }
 
-case "$ENV" in
-  dev|prod|f5) ;;
-  "")
-    echo "Error: no environment given." >&2
-    usage
-    exit 1
-    ;;
-  *)
-    echo "Error: unknown environment '$ENV'." >&2
-    usage
-    exit 1
-    ;;
-esac
+if [[ -z "$ENV" ]]; then
+  echo "Error: no variant given." >&2
+  usage
+  exit 1
+fi
 
 VARIANT="settings.h.$ENV"
 if [[ ! -f "$VARIANT" ]]; then
-  echo "Error: $VARIANT not found — create it (copy from settings.example.h)." >&2
+  echo "Error: $VARIANT not found." >&2
+  usage
   exit 1
 fi
 
 # --- Apply the variant + summarise -----------------------------------------
 cp "$VARIANT" settings.h
 
-# Pull FRAME_URL out of the variant for an eyeball check (no prod confirm
-# prompt — this summary is the sanity check). The token is intentionally NOT
-# printed; we only confirm one is set.
+# Pull FRAME_URL and RADIATOR_SLUG out of the variant for an eyeball check
+# (no prod confirm prompt — this summary is the sanity check). The slug is the
+# value that distinguishes two deployed-Worker variants whose URL and token
+# are identical, so it is the line that catches flashing the wrong device
+# personality. The token is intentionally NOT printed; we only confirm one is
+# set.
 FRAME_URL="$(sed -n 's/^#define FRAME_URL[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
+SLUG="$(sed -n 's/^#define RADIATOR_SLUG[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
 if grep -q '^#define RADIATOR_TOKEN[[:space:]]*"..*"' "$VARIANT"; then
   TOKEN_STATE="set"
 else
@@ -73,6 +85,7 @@ fi
 
 echo "Deploying ${ENV^^}"
 echo "  FRAME_URL      ${FRAME_URL:-<unset>}"
+echo "  RADIATOR_SLUG  ${SLUG:-<unset>}"
 echo "  RADIATOR_TOKEN ${TOKEN_STATE} (hidden)"
 echo
 
