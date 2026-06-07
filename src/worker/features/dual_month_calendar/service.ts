@@ -6,19 +6,32 @@
 // current-date header and two Monday-start month grids (this month and next),
 // each captioned "Month YYYY". render produces only the rendered artefact the
 // negotiated format needs (ADR-0004): the rasterised BMP, the intermediate
-// Satori SVG, or neither. Ignores the transit-only context fields (fetchFn,
-// phase, stopPredictionLimit). No birthdays (#75; a deferred follow-up that
-// adds a cell pill).
+// Satori SVG, or neither. CalendarContext declares the slice of RenderContext
+// this layout consumes — its dependency manifest; the transit-only fields
+// (fetchFn, phase, stopPredictionLimit) and every binding but PUBLIC_HOLIDAYS
+// are unreachable by construction. No birthdays (#75; a deferred follow-up
+// that adds a cell pill).
 //
 // Only the wall date (y/m/d) depends on the timezone; once extracted, every
 // derived value (weekday names, grid alignment, month lengths) is computed at
 // UTC midnight of that wall date, so the Date.UTC overflow rules handle the
 // December → January rollover for free.
 
-import type { Layout } from '../registry';
+import type { Layout, RenderContext } from '../registry';
+import type { Radiator } from '../../config/lookup';
 import { fetchHolidays } from '../../gateways/public_holidays/public-holidays';
 import { toJsonView, type MonthGrid, type ViewModel } from './viewmodel';
 import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
+
+// The slice of RenderContext this layout actually consumes (registry Ctx
+// parameter): slug is the only radiator field read, and PUBLIC_HOLIDAYS the
+// only env binding reachable. The full RenderContext the orchestrator passes
+// is a structural subtype, so no adapter is needed — and widening this type
+// is the visible, reviewable act of taking on a new dependency.
+export type CalendarContext = Pick<RenderContext, 'timezone' | 'now' | 'format' | 'includeBmp'> & {
+	radiator: Pick<Radiator, 'slug'>;
+	env: Pick<Env, 'PUBLIC_HOLIDAYS'>;
+};
 
 // y/m/d extraction in an arbitrary timezone, without a date library — the same
 // memoised-per-timezone Intl pattern as shared/hhmm and shared/shortDate (the
@@ -106,7 +119,7 @@ function monthGrid(
 	return { caption: CAPTION_FMT.format(first), weeks, today: todayDay, holidays };
 }
 
-export const layout: Layout<ViewModel> = {
+export const layout: Layout<ViewModel, CalendarContext> = {
 	version: LAYOUT_VERSION,
 	async buildViewModel(ctx) {
 		const holidays = await fetchHolidays({ kv: ctx.env.PUBLIC_HOLIDAYS });

@@ -1,43 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { layout } from './service';
-import type { RenderContext } from '../registry';
-import type { Radiator } from '../../config/lookup';
+import { layout, type CalendarContext } from './service';
 import { storedHolidays } from '../../gateways/public_holidays/fixtures';
-
-const seedRadiator: Radiator = {
-	slug: 'office-philip',
-	profile: {
-		name: 'philip_office',
-		phases: [
-			{
-				key: 'daytime_calendar',
-				startTime: '00:00',
-				endTime: '23:59',
-				layout: 'dual_month_calendar',
-				refreshIntervalMinutes: 240,
-			},
-		],
-	},
-};
 
 // Every test drives the public buildViewModel(ctx) phase — pure JS plus a
 // stubbed PUBLIC_HOLIDAYS KV binding holding the stored { date, name } shape
 // (#84). The render(vm, ctx) phase (Satori → resvg → BMP) is wasm-blocked in
 // the workers-pool sandbox per ADR-0005 and is exercised via `pnpm dev` + curl.
+//
+// The fixture builds CalendarContext — the layout's declared RenderContext
+// slice — so it carries exactly the dependencies the layout consumes and
+// nothing else; only the KV binding itself is stubbed.
 type StoredHolidays = { date: string; name: string }[];
 
-const ctxAt = (iso: string, tz = 'Pacific/Auckland', holidays: StoredHolidays = []): RenderContext => ({
-	radiator: seedRadiator,
-	phase: seedRadiator.profile.phases[0],
+const ctxAt = (iso: string, tz = 'Pacific/Auckland', holidays: StoredHolidays = []): CalendarContext => ({
+	radiator: { slug: 'office-philip' },
 	timezone: tz,
-	stopPredictionLimit: 10,
 	now: new Date(iso),
 	format: 'json',
 	includeBmp: false,
 	env: {
-		PUBLIC_HOLIDAYS: { get: async () => holidays },
-	} as unknown as Env,
-	fetchFn: fetch,
+		PUBLIC_HOLIDAYS: { get: async () => holidays } as unknown as KVNamespace,
+	},
 });
 
 const vmAt = (iso: string, tz?: string, holidays?: StoredHolidays) =>
