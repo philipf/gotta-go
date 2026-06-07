@@ -1,0 +1,7 @@
+# pnpm settings (the package.json "pnpm" field is no longer read by pnpm 11+).
+# Deps whose postinstall build scripts are approved to run; without this,
+# pnpm in CI hard-fails the install with ERR_PNPM_IGNORED_BUILDS.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
