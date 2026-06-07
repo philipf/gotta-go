@@ -18,7 +18,7 @@
 #   BASE_URI=http://localhost:8787 mise run smoke
 set -euo pipefail
 
-BASE_URI="${BASE_URI:-https://gotta-go-worker.philip-fourie-4ad.workers.dev}"
+BASE_URI="${BASE_URI:-https://gotta-go.notnot.uk}"
 SLUG="bedroom-philip-tania"
 
 hdr="$(mktemp)"
