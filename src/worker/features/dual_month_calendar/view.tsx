@@ -3,8 +3,8 @@
 // right) as React/JSX and renders it via Satori → resvg, exposing both the
 // intermediate SVG (ADR-0004 diagnostics) and the rasterised 1-bit BMP, using
 // DejaVu Sans Bold (ADR-0009). Today's cell is inverted (solid black, white
-// number); weekends stay plain — the panel is 1-bit, so gencal-style grey
-// shading does not exist (#75).
+// number) and wins over shading; weekend columns and public-holiday days
+// (#84) share the dithered-grey cell background — shaded = non-working day.
 
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
@@ -111,7 +111,9 @@ function grid(month: MonthGrid): ReactNode {
 					{week.map((day, i) =>
 						cell(day === null ? '' : String(day), i, {
 							inverted: day !== null && day === month.today,
-							shaded: isWeekendCol(i),
+							// Public holidays (#84) reuse the weekend dither — shaded =
+							// non-working day; column position disambiguates the two.
+							shaded: isWeekendCol(i) || (day !== null && month.holidays.includes(day)),
 							fontSize: DAY_SIZE,
 							lastCol: i === 6,
 							lastRow: w === month.weeks.length - 1,

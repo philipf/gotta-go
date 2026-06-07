@@ -1,8 +1,10 @@
 // Builds the format-agnostic ViewModel for the dual_month_calendar layout:
 // slug + a full current-date header + two Monday-start month grids (this month
 // and next month), each captioned "Month YYYY". Pure date math from `now` in
-// the supplied timezone — no external data, no birthdays (#75; birthdays are a
-// deferred follow-up that adds a gateway + a cell pill).
+// the supplied timezone, plus an optional set of public-holiday ISO dates
+// (#84; fetched by the service from the public_holidays gateway — this module
+// stays fetch-free) mapped to per-grid day numbers. No birthdays (#75; a
+// deferred follow-up that adds a cell pill).
 //
 // Only the wall date (y/m/d) depends on the timezone; once extracted, every
 // derived value (weekday names, grid alignment, month lengths) is computed at
@@ -12,12 +14,14 @@
 import type { Radiator } from '../../config/lookup';
 
 // One rendered month: caption ("June 2026"), rows of 7 cells Monday-start
-// (null = blank leading/trailing cell), and the day-of-month to highlight —
-// set only on the grid containing today, null on the other.
+// (null = blank leading/trailing cell), the day-of-month to highlight — set
+// only on the grid containing today, null on the other — and the days that are
+// public holidays (#84), shaded like weekends by the view.
 export type MonthGrid = {
 	caption: string;
 	weeks: (number | null)[][];
 	today: number | null;
+	holidays: number[];
 };
 
 export type ViewModel = {
@@ -81,7 +85,12 @@ function header(year: number, month0: number, day: number): string {
 // Monday-start grid for one month. Date.UTC normalises an overflowed month0
 // (e.g. 12 = January of the following year), and the day-0 trick yields the
 // month length across 28/29/30/31 — including leap-year February.
-function monthGrid(year: number, month0: number, todayDay: number | null): MonthGrid {
+function monthGrid(
+	year: number,
+	month0: number,
+	todayDay: number | null,
+	holidayDates: Set<string>,
+): MonthGrid {
 	const first = new Date(Date.UTC(year, month0, 1));
 	const daysInMonth = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
 	// getUTCDay is Sunday-0; rotate so Monday lands in column 0.
@@ -94,15 +103,33 @@ function monthGrid(year: number, month0: number, todayDay: number | null): Month
 	const weeks: (number | null)[][] = [];
 	for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
-	return { caption: CAPTION_FMT.format(first), weeks, today: todayDay };
+	// Days in this month that are public holidays: filter the ISO date set by
+	// this grid's "YYYY-MM-" prefix, taken from `first` so an overflowed month0
+	// (December's next-month grid = January next year) gets the rolled-over
+	// year for free.
+	const prefix = `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, '0')}-`;
+	const holidays = [...holidayDates]
+		.filter((date) => date.startsWith(prefix))
+		.map((date) => Number(date.slice(prefix.length)))
+		.sort((a, b) => a - b);
+
+	return { caption: CAPTION_FMT.format(first), weeks, today: todayDay, holidays };
 }
 
-export function buildViewModel(radiator: Radiator, timezone: string, now: Date): ViewModel {
+export function buildViewModel(
+	radiator: Radiator,
+	timezone: string,
+	now: Date,
+	holidayDates: Set<string>,
+): ViewModel {
 	const { year, month0, day } = wallDate(now, timezone);
 	return {
 		slug: radiator.slug,
 		header: header(year, month0, day),
-		months: [monthGrid(year, month0, day), monthGrid(year, month0 + 1, null)],
+		months: [
+			monthGrid(year, month0, day, holidayDates),
+			monthGrid(year, month0 + 1, null, holidayDates),
+		],
 	};
 }
 

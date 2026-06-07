@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildViewModel } from './viewmodel';
+import { layout } from './service';
+import type { RenderContext } from '../registry';
 import type { Radiator } from '../../config/lookup';
+import { storedHolidays } from '../../gateways/public_holidays/fixtures';
 
 const seedRadiator: Radiator = {
 	slug: 'office-philip',
@@ -18,8 +21,35 @@ const seedRadiator: Radiator = {
 	},
 };
 
-const vmAt = (iso: string, tz = 'Pacific/Auckland') =>
-	buildViewModel(seedRadiator, tz, new Date(iso));
+const vmAt = (iso: string, tz = 'Pacific/Auckland', holidays = new Set<string>()) =>
+	buildViewModel(seedRadiator, tz, new Date(iso), holidays);
+
+// Drives the public buildViewModel(ctx) phase with a stub PUBLIC_HOLIDAYS
+// binding — the layout fetches holidays through the public_holidays gateway
+// and they surface as per-grid day numbers (#84).
+describe('dual_month_calendar.layout', () => {
+	const ctxAt = (iso: string): RenderContext => ({
+		radiator: seedRadiator,
+		phase: seedRadiator.profile.phases[0],
+		timezone: 'Pacific/Auckland',
+		stopPredictionLimit: 10,
+		now: new Date(iso),
+		format: 'json',
+		includeBmp: false,
+		env: {
+			PUBLIC_HOLIDAYS: { get: async () => storedHolidays },
+		} as unknown as Env,
+		fetchFn: fetch,
+	});
+
+	it('fetches holidays from the PUBLIC_HOLIDAYS binding into the view model', async () => {
+		// June 2026: fixtures hold King's Birthday (2026-06-01); July has none.
+		const vm = await layout.buildViewModel(ctxAt('2026-06-07T00:00:00Z'));
+
+		expect(vm.months[0].holidays).toEqual([1]);
+		expect(vm.months[1].holidays).toEqual([]);
+	});
+});
 
 // Tested one layer below the public render() because the full BMP pipeline
 // (Satori → resvg → BMP) is blocked inside the workers-pool sandbox per ADR-0005;
@@ -100,6 +130,42 @@ describe('dual_month_calendar.buildViewModel', () => {
 		const utc = vmAt('2026-06-07T13:00:00Z', 'UTC');
 		expect(utc.header).toBe('Sunday 7 June 2026');
 		expect(utc.months[0].today).toBe(7);
+	});
+
+	it('maps holiday dates to day numbers in their own month grid', () => {
+		// King's Birthday in the displayed June, Matariki-ish date in July.
+		const vm = vmAt(
+			'2026-06-07T00:00:00Z',
+			'Pacific/Auckland',
+			new Set(['2026-06-01', '2026-07-10']),
+		);
+
+		expect(vm.months[0].holidays).toEqual([1]);
+		expect(vm.months[1].holidays).toEqual([10]);
+	});
+
+	it('ignores holiday dates outside the two displayed months', () => {
+		const vm = vmAt(
+			'2026-06-07T00:00:00Z',
+			'Pacific/Auckland',
+			new Set(['2026-02-06', '2026-08-01', '2027-06-01']),
+		);
+
+		expect(vm.months[0].holidays).toEqual([]);
+		expect(vm.months[1].holidays).toEqual([]);
+	});
+
+	it("shows next January's holidays in the December next-month grid", () => {
+		const vm = vmAt(
+			'2026-12-15T00:00:00Z',
+			'Pacific/Auckland',
+			new Set(['2026-12-25', '2027-01-01', '2026-01-01']),
+		);
+
+		expect(vm.months[0].caption).toBe('December 2026');
+		expect(vm.months[0].holidays).toEqual([25]);
+		// January 2027, not the stale January 2026 entry.
+		expect(vm.months[1].holidays).toEqual([1]);
 	});
 
 	it('crosses the year boundary in the configured timezone ahead of UTC', () => {
