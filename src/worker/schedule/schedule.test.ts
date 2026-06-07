@@ -177,6 +177,42 @@ describe('schedule.resolveProfilePhase', () => {
 		expect(at2045.sleepSeconds).toBe(15 * 60);
 	});
 
+	// office-f5 (#86) covers the full day — 00:00–15:00 / 15:00–19:30 /
+	// 19:30–24:00 — so the idle profile must never engage there, including
+	// across the 24:00 end time (a first in the config: toMinutes("24:00") =
+	// 1440 sits just above the 23:59 wall-clock maximum). June = NZST (UTC+12).
+	it('never resolves idle for office-f5 — full-day coverage incl. the 24:00 end (#86)', () => {
+		const radiator = lookupRadiator('office-f5')!;
+
+		// 09:00 NZST → morning_calendar at the 4h cap.
+		const morning = resolveProfilePhase(radiator, new Date('2026-06-07T21:00:00Z'));
+		expect(morning.profilePhase).toBe('morning_calendar');
+		expect(morning.layout).toBe('dual_month_calendar');
+		expect(morning.sleepSeconds).toBe(14400);
+
+		// 15:00 NZST: half-open boundary — the commute window opens.
+		const commute = resolveProfilePhase(radiator, new Date('2026-06-08T03:00:00Z'));
+		expect(commute.profilePhase).toBe('office_afternoon_commute');
+		expect(commute.layout).toBe('priority_split');
+		expect(commute.sleepSeconds).toBe(60);
+
+		// 19:30 NZST: commute hands off to the evening calendar, not idle.
+		const evening = resolveProfilePhase(radiator, new Date('2026-06-08T07:30:00Z'));
+		expect(evening.profilePhase).toBe('evening_calendar');
+		expect(evening.layout).toBe('dual_month_calendar');
+
+		// 23:50 NZST: still inside evening_calendar's [19:30, 24:00) window —
+		// no idle gap before midnight; sleep truncates to the 00:00 boundary
+		// where morning_calendar takes over.
+		const lateNight = resolveProfilePhase(radiator, new Date('2026-06-08T11:50:00Z'));
+		expect(lateNight.profilePhase).toBe('evening_calendar');
+		expect(lateNight.sleepSeconds).toBe(10 * 60);
+
+		// 00:00 NZST: midnight rollover lands in morning_calendar.
+		const midnight = resolveProfilePhase(radiator, new Date('2026-06-08T12:00:00Z'));
+		expect(midnight.profilePhase).toBe('morning_calendar');
+	});
+
 	it("honours a profile's own idle override over the system default", () => {
 		const overridden: Radiator = {
 			slug: 'bedroom-override',

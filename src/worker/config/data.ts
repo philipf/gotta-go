@@ -1,9 +1,10 @@
-// PoC seed data for the PRD global:, profiles: and radiators: blocks. Each
-// profile leaves an overnight gap outside its phases, which the resolver falls
-// through to the idle profile (idle_jokes, #17) — so server time is not always
-// inside a configured phase by design.
+// PoC seed data for the PRD global:, profiles: and radiators: blocks. The
+// bedroom profiles leave an overnight gap outside their phases, which the
+// resolver falls through to the idle profile (idle_jokes, #17) — so server
+// time is not always inside a configured phase by design. philip_office is
+// the exception: full-day coverage, the idle profile never engages (#86).
 
-import type { Global, IdleProfile, Profile } from "./types";
+import type { Global, IdleProfile, Profile, TransitTarget } from "./types";
 
 // PRD §9 `global:` block.
 export const GLOBAL: Global = {
@@ -21,6 +22,42 @@ export const GLOBAL: Global = {
 export const SYSTEM_IDLE_DEFAULT: IdleProfile = {
   layout: "idle_jokes",
 };
+
+// The city→home afternoon targets, shared by every profile that watches the
+// commute out of the CBD (philip_and_tania's afternoon_commute and
+// philip_office's office_afternoon_commute, #86). One constant so the
+// live-validated filters below can't drift apart between radiators; if walk
+// times ever need to differ per desk, fork the constant at that point.
+//
+// Bus: 5012 (Lambton Central Stop A) route 1 outbound → Churton Park. Route 1
+// branches at this stop (Churton Park / Grenada Village / Johnsonville West);
+// pin to the Churton Park terminus so only the wanted buses surface (#68).
+// Live-validated 2026-06-02.
+//
+// Train: KPL line boarding at Wellington Station (WELL) outbound → Waikanae,
+// alighting at Takapu Road. Peak KPL expresses run WELL → Porirua nonstop,
+// skipping Takapu Road — same route and (for Waikanae runs) same terminus as
+// the stopping trains, so only the destination-name suffix tells them apart
+// ("WAIK - Express" vs "WAIK/PORI - All stops"). Require "All stops" so
+// expresses drop out (#77). Live-validated 2026-06-04.
+const CITY_TO_HOME_TARGETS: TransitTarget[] = [
+  {
+    mode: "bus",
+    stopId: "5012",
+    serviceId: "1",
+    destinationStopId: "3281",
+    timeToStopMins: 10,
+    comfortBuffer: 1.5,
+  },
+  {
+    mode: "train",
+    stopId: "WELL",
+    serviceId: "KPL",
+    destinationNameIncludes: "All stops",
+    timeToStopMins: 10,
+    comfortBuffer: 1.5,
+  },
+];
 
 // PRD §9 `profiles:` block — named profiles keyed by profile name. Each
 // profile owns its phases (and may carry an `idle` override; both seeds use the
@@ -60,46 +97,18 @@ export const PROFILES: Record<string, Profile> = {
         ],
       },
       // Afternoon commute home from the city (the reverse of morning).
-      // priority_split over two targets: bus 5012 (Lambton Central Stop A)
-      // route 1 outbound → Churton Park, and the KPL line boarding at
-      // Wellington Station (WELL) outbound → Waikanae, alighting at Takapu
-      // Road. Stop/service IDs live-validated against /stop-predictions.
-      // Listed before daytime_calendar so its 15:15–21:00 window wins over
-      // the calendar during the evening commute (resolver picks the first
-      // matching phase — see schedule/resolve.ts).
+      // priority_split over the shared city→home pair (CITY_TO_HOME_TARGETS
+      // above — stop/service rationale lives on the constant). Listed before
+      // daytime_calendar so its 15:15–21:00 window wins over the calendar
+      // during the evening commute (resolver picks the first matching phase —
+      // see schedule/resolve.ts).
       {
         key: "afternoon_commute",
         startTime: "15:15",
         endTime: "21:00",
         layout: "priority_split",
         refreshIntervalMinutes: 1,
-        transitTargets: [
-          {
-            mode: "bus",
-            stopId: "5012",
-            serviceId: "1",
-            // Route 1 branches at this stop (Churton Park / Grenada Village /
-            // Johnsonville West); pin to the Churton Park terminus so only the
-            // wanted buses surface (#68). Live-validated 2026-06-02.
-            destinationStopId: "3281",
-            timeToStopMins: 10,
-            comfortBuffer: 1.5,
-          },
-          {
-            mode: "train",
-            stopId: "WELL",
-            serviceId: "KPL",
-            // Peak KPL expresses run WELL → Porirua nonstop, skipping Takapu
-            // Road — same route and (for Waikanae runs) same terminus as the
-            // stopping trains, so only the destination-name suffix tells them
-            // apart ("WAIK - Express" vs "WAIK/PORI - All stops"). Require
-            // "All stops" so expresses drop out (#77). Live-validated
-            // 2026-06-04.
-            destinationNameIncludes: "All stops",
-            timeToStopMins: 10,
-            comfortBuffer: 1.5,
-          },
-        ],
+        transitTargets: CITY_TO_HOME_TARGETS,
       },
       // Daytime two-month calendar between the morning and afternoon commute
       // windows (GH #76, replacing the daytime clock). Window stays
@@ -107,18 +116,55 @@ export const PROFILES: Record<string, Profile> = {
       // 15:15–21:00 resolves to the commute; the calendar only wins
       // 09:00–15:15. Bounded at 21:00 (not all-day) so the 21:00–05:45
       // overnight gap still falls through to the idle profile → idle_jokes
-      // (#17). Interim home: #76's dedicated office radiator (full-day, 4h
-      // cap) comes later. The calendar barely changes within a day, so a 3h
-      // refresh suffices — resolveProfilePhase truncates the sleep at the
-      // next phase boundary, so the 15:15 afternoon_commute pickup is never
-      // delayed, and the unchanged-frame skip (#73/#74) keeps each wake
-      // flash-free.
+      // (#17). The office radiator (philip_office below, #86) now carries
+      // #76's full-day calendar; this bedroom window stays alongside it. The
+      // calendar barely changes within a day, so a 3h refresh suffices —
+      // resolveProfilePhase truncates the sleep at the next phase boundary,
+      // so the 15:15 afternoon_commute pickup is never delayed, and the
+      // unchanged-frame skip (#73/#74) keeps each wake flash-free.
       {
         key: "daytime_calendar",
         startTime: "09:00",
         endTime: "21:00",
         layout: "dual_month_calendar",
         refreshIntervalMinutes: 180,
+      },
+    ],
+  },
+  // Philip's F5 office-desk profile (#86): the city→home afternoon commute
+  // bracketed by the two-month calendar. The three phases cover the full day
+  // (00:00–24:00), so the idle profile never engages at the office — the
+  // dedicated office radiator #76 anticipated. Calendar phases refresh at the
+  // 4h sleep ceiling; with the unchanged-frame skip (#73/#74) the only
+  // visible flash is the midnight rollover. The commute key is
+  // office_afternoon_commute (not a second afternoon_commute) because phase
+  // keys are globally unique across profiles — the test-<phaseKey> scenario
+  // slugs (#21) resolve a phase by bare key. NB: phases run 7 days a week;
+  // weekday-only commute windows are tracked in #87.
+  philip_office: {
+    name: "philip_office",
+    phases: [
+      {
+        key: "morning_calendar",
+        startTime: "00:00",
+        endTime: "15:00",
+        layout: "dual_month_calendar",
+        refreshIntervalMinutes: 240,
+      },
+      {
+        key: "office_afternoon_commute",
+        startTime: "15:00",
+        endTime: "19:30",
+        layout: "priority_split",
+        refreshIntervalMinutes: 1,
+        transitTargets: CITY_TO_HOME_TARGETS,
+      },
+      {
+        key: "evening_calendar",
+        startTime: "19:30",
+        endTime: "24:00",
+        layout: "dual_month_calendar",
+        refreshIntervalMinutes: 240,
       },
     ],
   },
@@ -170,5 +216,9 @@ export const RADIATOR_REFS: Record<
   "bedroom-daughter": {
     slug: "bedroom-daughter",
     profileName: "daughter_school",
+  },
+  "office-f5": {
+    slug: "office-f5",
+    profileName: "philip_office",
   },
 };

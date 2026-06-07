@@ -197,7 +197,7 @@ The slack between *now* and **Leave By**. Drives the **marker** position on the 
 
 ### Profile
 A named user/household configuration. One profile may be shared by multiple radiators.
-- **Appears as:** config keys under `profiles:`, e.g. `philip_and_tania`, `daughter_school`.
+- **Appears as:** config keys under `profiles:`, e.g. `philip_and_tania`, `daughter_school`, `philip_office`.
 - **Not to be confused with:** **user** (a person — multiple people can share one profile).
 
 ### Idle profile
@@ -211,9 +211,14 @@ A named time-of-day phase inside a profile. Each phase has a `start_time`, an `e
 - **Not to be confused with:** ~~state~~ (overloaded with state-machine talk), ~~mode~~ (overloaded with transport mode — see **mode**).
 
 ### `daytime_calendar`
-The office radiator's full-day **profile phase**: it runs the `dual_month_calendar` **layout** across the whole day (so the **idle profile** never engages there) at the 4 h **sleep duration** cap. Replaces the radiator's earlier all-day clock phase; with the **unchanged-frame skip**, the only visible panel flash is the daily date rollover.
+The bedroom radiator's daytime **profile phase**: it runs the `dual_month_calendar` **layout** between the morning and afternoon commute windows. Replaces the radiator's earlier all-day clock phase. (Written for the office radiator before that device existed; the office's full-day calendar now lives in `morning_calendar` / `evening_calendar`.)
 - **Appears as:** config key `daytime_calendar`, `X-Profile-Phase: daytime_calendar`.
-- **Not to be confused with:** `dual_month_calendar` (the **layout** the phase runs — content vs schedule), ~~all_day_clock~~ (the predecessor phase, deprecated).
+- **Not to be confused with:** `dual_month_calendar` (the **layout** the phase runs — content vs schedule), `morning_calendar` / `evening_calendar` (the office radiator's calendar phases), ~~all_day_clock~~ (the predecessor phase, deprecated).
+
+### `morning_calendar` / `evening_calendar`
+The office radiator's calendar **profile phases**: they run the `dual_month_calendar` **layout** before (00:00–15:00) and after (19:30–24:00) the office afternoon commute window, at the 4 h **sleep duration** cap. Together with `office_afternoon_commute` they cover the full day, so the **idle profile** never engages at the office; with the **unchanged-frame skip**, the only visible panel flash is the daily date rollover. Two keys rather than one reused key because phase keys are globally unique (the `test-<phaseKey>` scenario slugs resolve a phase by bare key) — which is also why the office commute phase is `office_afternoon_commute`, not a second `afternoon_commute`.
+- **Appears as:** config keys `morning_calendar` / `evening_calendar`, `X-Profile-Phase: morning_calendar` / `evening_calendar`.
+- **Not to be confused with:** `daytime_calendar` (the bedroom's daytime window), `dual_month_calendar` (the **layout** all three calendar phases run).
 
 ### Transit target
 One configured stop or station that the radiator watches inside a profile phase. A profile phase using `priority_split` has one or two transit targets.

@@ -33,6 +33,52 @@ describe('config.lookupRadiator', () => {
 		expect(train?.serviceId).toBe('KPL');
 	});
 
+	it('seeds office-f5 with full-day coverage: calendar phases bracketing the office_afternoon_commute (#86)', () => {
+		const radiator = lookupRadiator('office-f5');
+
+		expect(radiator?.profile.name).toBe('philip_office');
+		expect(radiator?.profile.phases).toHaveLength(3);
+
+		const [morning, commute, evening] = radiator?.profile.phases ?? [];
+		expect(morning?.key).toBe('morning_calendar');
+		expect(morning?.startTime).toBe('00:00');
+		expect(morning?.endTime).toBe('15:00');
+		expect(morning?.layout).toBe('dual_month_calendar');
+		expect(morning?.refreshIntervalMinutes).toBe(240);
+
+		expect(commute?.key).toBe('office_afternoon_commute');
+		expect(commute?.startTime).toBe('15:00');
+		expect(commute?.endTime).toBe('19:30');
+		expect(commute?.layout).toBe('priority_split');
+		expect(commute?.refreshIntervalMinutes).toBe(1);
+
+		expect(evening?.key).toBe('evening_calendar');
+		expect(evening?.startTime).toBe('19:30');
+		expect(evening?.endTime).toBe('24:00');
+		expect(evening?.layout).toBe('dual_month_calendar');
+		expect(evening?.refreshIntervalMinutes).toBe(240);
+	});
+
+	it('shares one city→home transit-target constant between the bedroom and office commute phases (#86)', () => {
+		const bedroom = lookupRadiator('bedroom-philip-tania')?.profile.phases.find(
+			(p) => p.key === 'afternoon_commute',
+		);
+		const office = lookupRadiator('office-f5')?.profile.phases.find(
+			(p) => p.key === 'office_afternoon_commute',
+		);
+
+		// Same reference, not merely equal values — filter fixes like the
+		// Churton Park terminus pin (#68) or the "All stops" express filter
+		// (#77) must reach both radiators at once.
+		expect(office?.transitTargets).toBe(bedroom?.transitTargets);
+
+		const [bus, train] = office?.transitTargets ?? [];
+		expect(bus?.stopId).toBe('5012');
+		expect(bus?.destinationStopId).toBe('3281');
+		expect(train?.stopId).toBe('WELL');
+		expect(train?.destinationNameIncludes).toBe('All stops');
+	});
+
 	it('seeds bedroom-daughter with a morning_school_run priority_split phase carrying one bus transit target', () => {
 		const radiator = lookupRadiator('bedroom-daughter');
 
