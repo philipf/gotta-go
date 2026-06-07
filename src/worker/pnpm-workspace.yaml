@@ -1,14 +1,6 @@
 # pnpm settings. Deps whose postinstall build scripts are approved to run;
 # without approval, pnpm hard-fails CI installs with ERR_PNPM_IGNORED_BUILDS.
-#
-# Both spellings on purpose: pnpm 11+ reads allowBuilds (and dropped the v10
-# names); pnpm 10 reads onlyBuiltDependencies (and ignores allowBuilds).
-# Collapse to allowBuilds alone once local pnpm is on 11.
 allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
-  - workerd
