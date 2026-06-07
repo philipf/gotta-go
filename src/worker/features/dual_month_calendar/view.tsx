@@ -14,7 +14,7 @@ import type { MonthGrid, ViewModel } from './viewmodel';
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 1;
+export const LAYOUT_VERSION = 2;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -24,12 +24,14 @@ const WHITE = '#fff';
 // come to 848, leaving symmetric margins; header + caption + weekday row +
 // up to 6 week rows clear the height. Exact cell styling is tune-on-the-panel —
 // verify live per ADR-0009.
-const HEADER_SIZE = 44;
+const HEADER_SIZE = 42;
 const CAPTION_SIZE = 34;
-const DOW_SIZE = 22;
-const DAY_SIZE = 26;
-const CELL_W = 56;
-const CELL_H = 46;
+const DOW_SIZE = 24;
+const DAY_SIZE = 28;
+// Cells grow with the font (panel-read tuning) so the per-cell whitespace
+// ratio stays as tuned at v1; 7 × 60 × 2 grids + the gap = 904 < 960.
+const CELL_W = 60;
+const CELL_H = 48;
 const GRID_GAP = 64;
 
 const DOW_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
@@ -84,16 +86,28 @@ function layout(vm: ViewModel): ReactNode {
 				color: BLACK,
 				display: 'flex',
 				flexDirection: 'column',
-				justifyContent: 'center',
 				alignItems: 'center',
+				// Top-anchored, not justify-centered: centring leaves ~70px above
+				// the header vs ~30px below it (the band looks sunk). 30px up top
+				// balances the header band; spare height falls to the bottom, where
+				// a 6-week month's extra row consumes it.
+				paddingTop: 30,
 				fontFamily: FAMILY,
 				fontWeight: 700,
 			}}
 		>
 			<div style={{ fontSize: HEADER_SIZE, lineHeight: 1 }}>{vm.header}</div>
-			<div style={{ display: 'flex', marginTop: 26 }}>
-				<div style={{ display: 'flex', marginRight: GRID_GAP }}>{grid(vm.months[0])}</div>
-				<div style={{ display: 'flex' }}>{grid(vm.months[1])}</div>
+			{/* The grid block (captions + weekday names + cells) centres in the
+			    height left under the header, so a 5-week month splits the spare
+			    space evenly instead of pooling it at the bottom; a 6-week month
+			    just centres tighter. The inner row top-aligns the two grids with
+			    each other — when their week counts differ, centring each grid
+			    individually would stagger the captions. */}
+			<div style={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+				<div style={{ display: 'flex', alignItems: 'flex-start' }}>
+					<div style={{ display: 'flex', marginRight: GRID_GAP }}>{grid(vm.months[0])}</div>
+					<div style={{ display: 'flex' }}>{grid(vm.months[1])}</div>
+				</div>
 			</div>
 		</div>
 	);
