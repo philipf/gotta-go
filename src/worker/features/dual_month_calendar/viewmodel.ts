@@ -1,17 +1,8 @@
-// Builds the format-agnostic ViewModel for the dual_month_calendar layout:
-// slug + a full current-date header + two Monday-start month grids (this month
-// and next month), each captioned "Month YYYY". Pure date math from `now` in
-// the supplied timezone, plus an optional set of public-holiday ISO dates
-// (#84; fetched by the service from the public_holidays gateway — this module
-// stays fetch-free) mapped to per-grid day numbers. No birthdays (#75; a
-// deferred follow-up that adds a cell pill).
-//
-// Only the wall date (y/m/d) depends on the timezone; once extracted, every
-// derived value (weekday names, grid alignment, month lengths) is computed at
-// UTC midnight of that wall date, so the Date.UTC overflow rules handle the
-// December → January rollover for free.
-
-import type { Radiator } from '../../config/lookup';
+// Data contract for the dual_month_calendar layout: the format-agnostic
+// ViewModel that service.ts builds (phase 1) and view.tsx renders (phase 2).
+// Deliberately logic-free — a DTO plus its JSON projection — so this file
+// answers only "what shape does this layout draw?"; every derivation lives
+// in service.ts.
 
 // One rendered month: caption ("June 2026"), rows of 7 cells Monday-start
 // (null = blank leading/trailing cell), the day-of-month to highlight — set
@@ -30,113 +21,9 @@ export type ViewModel = {
 	months: [MonthGrid, MonthGrid];
 };
 
-// y/m/d extraction in an arbitrary timezone, without a date library — the same
-// memoised-per-timezone Intl pattern as shared/hhmm and shared/shortDate (the
-// set of timezones is tiny and fixed for a household). Kept in-feature until a
-// 2nd consumer appears, per the worker-architecture lift heuristic.
-const YMD_FMT = new Map<string, Intl.DateTimeFormat>();
-
-function ymdFormatter(tz: string): Intl.DateTimeFormat {
-	let fmt = YMD_FMT.get(tz);
-	if (!fmt) {
-		fmt = new Intl.DateTimeFormat('en-GB', {
-			timeZone: tz,
-			year: 'numeric',
-			month: 'numeric',
-			day: 'numeric',
-		});
-		YMD_FMT.set(tz, fmt);
-	}
-	return fmt;
-}
-
-function wallDate(now: Date, tz: string): { year: number; month0: number; day: number } {
-	const parts = ymdFormatter(tz).formatToParts(now);
-	const get = (type: Intl.DateTimeFormatPartTypes) =>
-		Number(parts.find((p) => p.type === type)?.value);
-	return { year: get('year'), month0: get('month') - 1, day: get('day') };
-}
-
-// Header ("Sunday 7 June 2026") and caption ("June 2026") formatters run at
-// UTC against a Date anchored to UTC midnight of the wall date, so no further
-// timezone handling is needed. Parts are joined manually because en-GB's
-// default weekday format inserts a comma ("Sunday, 7 June") we don't want.
-const HEADER_FMT = new Intl.DateTimeFormat('en-GB', {
-	timeZone: 'UTC',
-	weekday: 'long',
-	day: 'numeric',
-	month: 'long',
-	year: 'numeric',
-});
-
-const CAPTION_FMT = new Intl.DateTimeFormat('en-GB', {
-	timeZone: 'UTC',
-	month: 'long',
-	year: 'numeric',
-});
-
-function header(year: number, month0: number, day: number): string {
-	const parts = HEADER_FMT.formatToParts(new Date(Date.UTC(year, month0, day)));
-	const get = (type: Intl.DateTimeFormatPartTypes) =>
-		parts.find((p) => p.type === type)?.value ?? '';
-	return `${get('weekday')} ${get('day')} ${get('month')} ${get('year')}`;
-}
-
-// Monday-start grid for one month. Date.UTC normalises an overflowed month0
-// (e.g. 12 = January of the following year), and the day-0 trick yields the
-// month length across 28/29/30/31 — including leap-year February.
-function monthGrid(
-	year: number,
-	month0: number,
-	todayDay: number | null,
-	holidayDates: Set<string>,
-): MonthGrid {
-	const first = new Date(Date.UTC(year, month0, 1));
-	const daysInMonth = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
-	// getUTCDay is Sunday-0; rotate so Monday lands in column 0.
-	const leadingBlanks = (first.getUTCDay() + 6) % 7;
-
-	const cells: (number | null)[] = Array(leadingBlanks).fill(null);
-	for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-	while (cells.length % 7 !== 0) cells.push(null);
-
-	const weeks: (number | null)[][] = [];
-	for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-
-	// Days in this month that are public holidays: filter the ISO date set by
-	// this grid's "YYYY-MM-" prefix, taken from `first` so an overflowed month0
-	// (December's next-month grid = January next year) gets the rolled-over
-	// year for free.
-	const prefix = `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, '0')}-`;
-	const holidays = [...holidayDates]
-		.filter((date) => date.startsWith(prefix))
-		.map((date) => Number(date.slice(prefix.length)))
-		.sort((a, b) => a - b);
-
-	return { caption: CAPTION_FMT.format(first), weeks, today: todayDay, holidays };
-}
-
-export function buildViewModel(
-	radiator: Radiator,
-	timezone: string,
-	now: Date,
-	holidayDates: Set<string>,
-): ViewModel {
-	const { year, month0, day } = wallDate(now, timezone);
-	return {
-		slug: radiator.slug,
-		header: header(year, month0, day),
-		months: [
-			monthGrid(year, month0, day, holidayDates),
-			monthGrid(year, month0 + 1, null, holidayDates),
-		],
-	};
-}
-
 // Serialises the view model verbatim for the JSON diagnostics envelope
-// (ADR-0004). The two-month structure (caption/weeks/today) is the meaningful
-// content; the JSON view is a serialiser of the type Satori receives, never a
-// parallel definition.
+// (ADR-0004). The ViewModel is a pure DTO, so the projection is the identity —
+// a field added to the type can never silently miss the diagnostics view.
 export function toJsonView(vm: ViewModel): Record<string, unknown> {
-	return { slug: vm.slug, header: vm.header, months: vm.months };
+	return { ...vm };
 }
