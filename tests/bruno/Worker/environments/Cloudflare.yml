@@ -1,6 +1,6 @@
 name: Cloudflare
 variables:
   - name: base-uri
-    value: https://gotta-go-worker.philip-fourie-4ad.workers.dev
+    value: https://gotta-go.notnot.uk
   - secret: true
     name: Radiator-Token
