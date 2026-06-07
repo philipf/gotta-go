@@ -45,7 +45,7 @@ export type Global = {
 };
 
 // Mirrors PRD §9 profile phase — a time-of-day phase inside a profile.
-// `key` is the phase identifier (e.g. `morning_commute`, `daytime_clock`).
+// `key` is the phase identifier (e.g. `morning_commute`, `daytime_calendar`).
 export type ProfilePhase = {
 	key: string;
 	startTime: string;

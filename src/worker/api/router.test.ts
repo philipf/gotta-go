@@ -82,8 +82,8 @@ describe('api.router — JSON view-model variant', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('returns the minimal_clock view model with diagnostics fields and no BMP', async () => {
-		const now = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_clock
+	it('returns the dual_month_calendar view model with diagnostics fields and no BMP', async () => {
+		const now = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_calendar
 		const req = buildReq({
 			'X-Radiator-Slug': 'bedroom-philip-tania',
 			'X-Radiator-Token': TOKEN,
@@ -95,16 +95,16 @@ describe('api.router — JSON view-model variant', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get('Content-Type')).toBe('application/json');
 		const body = (await res.json()) as Record<string, unknown>;
-		expect(body.profile_phase).toBe('daytime_clock');
-		expect(body.layout).toBe('minimal_clock');
+		expect(body.profile_phase).toBe('daytime_calendar');
+		expect(body.layout).toBe('dual_month_calendar');
 		expect(body.server_time).toBe('2026-05-23T00:00:00.000Z');
 		expect(body.slug).toBe('bedroom-philip-tania');
-		expect(body.time).toBe('12:00');
+		expect(body.header).toBe('Saturday 23 May 2026');
 		expect(body).not.toHaveProperty('frame_bmp_base64');
 	});
 
 	it('carries observability headers identical to the BMP variant', async () => {
-		const now = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_clock
+		const now = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_calendar
 		const req = buildReq({
 			'X-Radiator-Slug': 'bedroom-philip-tania',
 			'X-Radiator-Token': TOKEN,
@@ -114,9 +114,9 @@ describe('api.router — JSON view-model variant', () => {
 		const res = await route(req, env, now);
 
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T00:00:00.000Z');
-		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
-		// daytime_clock refreshes every 5 min → 300s.
-		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
+		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_calendar');
+		// daytime_calendar refreshes every 30 min → 1800s.
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('1800');
 	});
 
 	it('returns the priority_split per-column view model with glossary field names', async () => {

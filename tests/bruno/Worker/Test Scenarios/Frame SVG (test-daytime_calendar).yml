@@ -1,5 +1,5 @@
 info:
-  name: Frame SVG (test-all_day_clock)
+  name: Frame SVG (test-daytime_calendar)
   type: http
   seq: 1
 
@@ -8,7 +8,7 @@ http:
   url: "{{base-uri}}/v1/frame"
   headers:
     - name: X-Radiator-Slug
-      value: test-all_day_clock
+      value: test-daytime_calendar
     - name: Accept
       value: image/svg+xml
     - name: Accept-Encoding
@@ -24,15 +24,16 @@ settings:
 docs: |
   Intent-named scenario slug (GH #21). `test-<phaseKey>` renders that profile
   phase directly, widened to all-day, so the frame is the same whatever the
-  wall-clock time — no X-Debug-Now needed. This one is `test-all_day_clock`:
-  the offline `minimal_clock` layout.
+  wall-clock time — no X-Debug-Now needed. This one is `test-daytime_calendar`:
+  the offline `dual_month_calendar` layout (GH #75/#76) — current-date header
+  above this-month and next-month Monday-start grids, today's cell inverted.
 
   Expect 200 + Content-Type: image/svg+xml + Content-Encoding: gzip, with the
-  usual observability headers (X-Server-Time, X-Profile-Phase: all_day_clock,
-  X-Sleep-Seconds).
+  usual observability headers (X-Server-Time, X-Profile-Phase: daytime_calendar,
+  X-Sleep-Seconds: 1800).
 
   Bruno does not gunzip the body. To inspect it, run from a shell:
-    curl -H "X-Radiator-Token: $TOKEN" -H "X-Radiator-Slug: test-all_day_clock" \
+    curl -H "X-Radiator-Token: $TOKEN" -H "X-Radiator-Slug: test-daytime_calendar" \
          -H "Accept: image/svg+xml" --compressed \
          http://localhost:8787/v1/frame -o frame.svg && xdg-open frame.svg
 

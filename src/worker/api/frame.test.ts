@@ -118,8 +118,8 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 
 // Battery telemetry (#78): X-Radiator-Battery-Mv rides every frame log event as
 // the numeric batteryMv field; garbage is dropped silently, never rejected. The
-// success path uses a test- slug (offline minimal_clock, no Metlink fetch) so
-// frame.completed fires for real without the Satori → BMP pipeline.
+// success path uses a test- slug (offline dual_month_calendar, no Metlink
+// fetch) so frame.completed fires for real without the Satori → BMP pipeline.
 describe('renderFrame observability — battery telemetry', () => {
 	function loggedEvent(spy: ReturnType<typeof vi.spyOn>, event: string): Record<string, unknown> {
 		const line = spy.mock.calls
@@ -133,7 +133,7 @@ describe('renderFrame observability — battery telemetry', () => {
 		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
 		const res = await route(
-			frameReq({ 'X-Radiator-Slug': 'test-daytime_clock', 'X-Radiator-Battery-Mv': '3942' }),
+			frameReq({ 'X-Radiator-Slug': 'test-daytime_calendar', 'X-Radiator-Battery-Mv': '3942' }),
 			env,
 			NOW,
 		);
@@ -145,7 +145,7 @@ describe('renderFrame observability — battery telemetry', () => {
 	it('omits batteryMv when the header is absent', async () => {
 		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-		const res = await route(frameReq({ 'X-Radiator-Slug': 'test-daytime_clock' }), env, NOW);
+		const res = await route(frameReq({ 'X-Radiator-Slug': 'test-daytime_calendar' }), env, NOW);
 
 		expect(res.status).toBe(200);
 		expect(loggedEvent(logSpy, 'frame.completed')).not.toHaveProperty('batteryMv');
@@ -156,7 +156,7 @@ describe('renderFrame observability — battery telemetry', () => {
 			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
 			const res = await route(
-				frameReq({ 'X-Radiator-Slug': 'test-daytime_clock', 'X-Radiator-Battery-Mv': garbage }),
+				frameReq({ 'X-Radiator-Slug': 'test-daytime_calendar', 'X-Radiator-Battery-Mv': garbage }),
 				env,
 				NOW,
 			);
@@ -182,16 +182,16 @@ describe('renderFrame observability — battery telemetry', () => {
 });
 
 // Conditional frame requests (ADR-0013 / #73). Driven through route() against
-// the offline minimal_clock daytime_clock phase, whose view model is fully
-// determined by the fixed `now` — so the ETag a JSON response carries is the
-// ETag the image/bmp path derives for the same instant. The 304 path is the
+// the offline dual_month_calendar daytime_calendar phase, whose view model is
+// fully determined by the fixed `now` — so the ETag a JSON response carries is
+// the ETag the image/bmp path derives for the same instant. The 304 path is the
 // only bmp-path outcome testable in the workers-pool sandbox, and that is the
 // point: the Satori → resvg pipeline is blocked here (ADR-0005), so a clean
 // 304 *proves* the render never ran — reaching it would fail the test. The
 // stale-validator → 200 + new-ETag flow is exercised live per ADR-0013
 // §Verification (`pnpm dev` + curl).
 describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () => {
-	const NOON = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_clock
+	const NOON = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_calendar
 	const clockReq = (extra: Record<string, string> = {}): Request =>
 		frameReq({ 'X-Radiator-Slug': 'bedroom-philip-tania', ...extra });
 
@@ -233,9 +233,9 @@ describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () =
 		// ADR-0013 §What a 304 carries.
 		expect(res.headers.get('Content-Encoding')).toBeNull();
 		// Sleep authority rides every response (ADR-0003); the ETag is repeated
-		// per RFC 9110 §15.4.5. daytime_clock refreshes every 5 min → 300s.
-		expect(res.headers.get('X-Sleep-Seconds')).toBe('300');
-		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_clock');
+		// per RFC 9110 §15.4.5. daytime_calendar refreshes every 30 min → 1800s.
+		expect(res.headers.get('X-Sleep-Seconds')).toBe('1800');
+		expect(res.headers.get('X-Profile-Phase')).toBe('daytime_calendar');
 		expect(res.headers.get('X-Server-Time')).toBe('2026-05-23T00:00:00.000Z');
 		expect(res.headers.get('ETag')).toBe(etag);
 		// The completion log marks the skip.
@@ -253,7 +253,7 @@ describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () =
 
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as Record<string, unknown>;
-		expect(body.layout).toBe('minimal_clock');
+		expect(body.layout).toBe('dual_month_calendar');
 		expect(res.headers.get('ETag')).toBe(etag);
 	});
 

@@ -64,8 +64,8 @@ export const PROFILES: Record<string, Profile> = {
       // route 1 outbound → Churton Park, and the KPL line boarding at
       // Wellington Station (WELL) outbound → Waikanae, alighting at Takapu
       // Road. Stop/service IDs live-validated against /stop-predictions.
-      // Listed before daytime_clock so its 15:15–21:00 window wins over the
-      // all-day clock during the evening commute (resolver picks the first
+      // Listed before daytime_calendar so its 15:15–21:00 window wins over
+      // the calendar during the evening commute (resolver picks the first
       // matching phase — see schedule/resolve.ts).
       {
         key: "afternoon_commute",
@@ -101,18 +101,24 @@ export const PROFILES: Record<string, Profile> = {
           },
         ],
       },
-      // Daytime clock between the morning and afternoon commute windows.
-      // Window stays 09:00–21:00 but afternoon_commute precedes it in the
-      // array, so 15:15–21:00 resolves to the commute; this clock only wins
+      // Daytime two-month calendar between the morning and afternoon commute
+      // windows (GH #76, replacing the daytime clock). Window stays
+      // 09:00–21:00 but afternoon_commute precedes it in the array, so
+      // 15:15–21:00 resolves to the commute; the calendar only wins
       // 09:00–15:15. Bounded at 21:00 (not all-day) so the 21:00–05:45
-      // overnight gap falls through to the idle profile → idle_jokes (#17)
-      // instead of ticking a clock nobody reads.
+      // overnight gap still falls through to the idle profile → idle_jokes
+      // (#17). Interim home: #76's dedicated office radiator (full-day, 4h
+      // cap) comes later — here the refresh must stay well under the gap to
+      // afternoon_commute because resolveProfilePhase returns the flat
+      // interval without truncating at the next phase boundary; 30 min caps
+      // the commute pickup delay while the unchanged-frame skip (#73/#74)
+      // keeps every same-day wake flash-free.
       {
-        key: "daytime_clock",
+        key: "daytime_calendar",
         startTime: "09:00",
         endTime: "21:00",
-        layout: "minimal_clock",
-        refreshIntervalMinutes: 5,
+        layout: "dual_month_calendar",
+        refreshIntervalMinutes: 30,
       },
     ],
   },

@@ -63,7 +63,11 @@ function grid(month: MonthGrid): ReactNode {
 			</div>
 			{month.weeks.map((week, w) => (
 				<div key={w} style={{ display: 'flex' }}>
-					{week.map((day, i) => cell(day === null ? '' : String(day), day === month.today, DAY_SIZE, i))}
+					{/* Guard the null blanks: in the next-month grid `today` is null
+					    too, and `null === null` would invert every blank cell. */}
+					{week.map((day, i) =>
+						cell(day === null ? '' : String(day), day !== null && day === month.today, DAY_SIZE, i),
+					)}
 				</div>
 			))}
 		</div>
@@ -80,8 +84,8 @@ function layout(vm: ViewModel): ReactNode {
 				color: BLACK,
 				display: 'flex',
 				flexDirection: 'column',
+				justifyContent: 'center',
 				alignItems: 'center',
-				paddingTop: 28,
 				fontFamily: FAMILY,
 				fontWeight: 700,
 			}}
