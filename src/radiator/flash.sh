@@ -6,13 +6,14 @@
 # Settings are variant-specific: each settings.h.<variant> file holds one
 # deployment's WIFI_* / FRAME_URL / RADIATOR_SLUG / RADIATOR_TOKEN /
 # RADIATOR_VERBOSE values (e.g. settings.h.dev for the local Worker via a
-# cloudflared quick tunnel, settings.h.prod or a per-device variant like
-# settings.h.f5 for the deployed Worker). Variants are discovered, not
-# hardcoded: any settings.h.<variant> file in this directory is a valid
-# argument, so adding a radiator never means editing this script — just
-# `cp settings.example.h settings.h.<variant>` and fill it in. This script
-# copies the chosen variant onto settings.h (the file the sketch #includes —
-# a generated, gitignored, throwaway file), then runs:
+# cloudflared quick tunnel; per-device variants like settings.h.f5 or
+# settings.h.parents-home for the deployed Worker — a device may have several
+# variants differing only by WiFi network, e.g. f5 vs f5-tui). Variants are
+# discovered, not hardcoded: any settings.h.<variant> file in this directory
+# is a valid argument, so adding a radiator never means editing this script —
+# just `cp settings.example.h settings.h.<variant>` and fill it in. This
+# script copies the chosen variant onto settings.h (the file the sketch
+# #includes — a generated, gitignored, throwaway file), then runs:
 #
 #   cp settings.h.<variant> → settings.h → arduino-cli compile → upload → tio
 #
@@ -69,14 +70,16 @@ fi
 # --- Apply the variant + summarise -----------------------------------------
 cp "$VARIANT" settings.h
 
-# Pull FRAME_URL and RADIATOR_SLUG out of the variant for an eyeball check
-# (no prod confirm prompt — this summary is the sanity check). The slug is the
-# value that distinguishes two deployed-Worker variants whose URL and token
-# are identical, so it is the line that catches flashing the wrong device
-# personality. The token is intentionally NOT printed; we only confirm one is
-# set.
+# Pull FRAME_URL, RADIATOR_SLUG and WIFI_SSID out of the variant for an
+# eyeball check (no prod confirm prompt — this summary is the sanity check).
+# The slug is the value that distinguishes two deployed-Worker variants whose
+# URL and token are identical, so it is the line that catches flashing the
+# wrong device personality; the SSID distinguishes same-device variants that
+# differ only by network (e.g. f5 vs f5-tui). The WiFi password and token are
+# intentionally NOT printed; for the token we only confirm one is set.
 FRAME_URL="$(sed -n 's/^#define FRAME_URL[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
 SLUG="$(sed -n 's/^#define RADIATOR_SLUG[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
+WIFI_SSID="$(sed -n 's/^#define WIFI_SSID[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
 if grep -q '^#define RADIATOR_TOKEN[[:space:]]*"..*"' "$VARIANT"; then
   TOKEN_STATE="set"
 else
@@ -86,6 +89,7 @@ fi
 echo "Deploying ${ENV^^}"
 echo "  FRAME_URL      ${FRAME_URL:-<unset>}"
 echo "  RADIATOR_SLUG  ${SLUG:-<unset>}"
+echo "  WIFI_SSID      ${WIFI_SSID:-<unset>}"
 echo "  RADIATOR_TOKEN ${TOKEN_STATE} (hidden)"
 echo
 

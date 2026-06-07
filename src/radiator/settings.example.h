@@ -4,9 +4,10 @@
 //
 //   cp settings.example.h settings.h.<variant>
 //
-//   e.g. settings.h.dev    # local Worker (cloudflared tunnel)
-//        settings.h.prod   # deployed Worker (*.workers.dev)
-//        settings.h.f5     # office radiator, deployed Worker
+//   e.g. settings.h.dev           # local Worker (cloudflared tunnel)
+//        settings.h.parents-home  # bedroom radiator, deployed Worker
+//        settings.h.f5            # office radiator, deployed Worker
+//        settings.h.f5-tui        # same office device on the home WiFi
 //
 // flash.sh discovers variants from the settings.h.<variant> files present —
 // any <variant> with a file is a valid argument and `./flash.sh` with no
