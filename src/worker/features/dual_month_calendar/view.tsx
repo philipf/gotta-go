@@ -14,7 +14,7 @@ import type { MonthGrid, ViewModel } from './viewmodel';
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 1;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -41,14 +41,23 @@ const DOW_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 // instead of doubling up to 2px.
 const BORDER = `1px solid ${BLACK}`;
 
-function cell(
-	content: string,
-	inverted: boolean,
-	fontSize: number,
-	key: number,
-	lastCol: boolean,
-	lastRow: boolean,
-): ReactNode {
+// Weekend "grey" on a 1-bit panel: an ordered-dither illusion — a tiled 2×2
+// vector checkerboard (one black pixel per tile = 25% density) as the cell's
+// background image. Crucially this stays in Satori land: the dots are real
+// black pixels at raster time, so they pass the bmp.ts luma-128 threshold
+// untouched; a CSS grey backgroundColor would collapse to solid white there.
+const SHADE_TILE =
+	"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2'%3E%3Crect width='1' height='1' fill='black'/%3E%3C/svg%3E";
+
+type CellOpts = {
+	inverted: boolean; // today: solid black cell, white number (wins over shaded)
+	shaded: boolean; // weekend column: dithered-grey background
+	fontSize: number;
+	lastCol: boolean;
+	lastRow: boolean;
+};
+
+function cell(content: string, key: number, opts: CellOpts): ReactNode {
 	return (
 		<div
 			key={key}
@@ -58,15 +67,18 @@ function cell(
 				display: 'flex',
 				justifyContent: 'center',
 				alignItems: 'center',
-				fontSize,
-				backgroundColor: inverted ? BLACK : WHITE,
-				color: inverted ? WHITE : BLACK,
+				fontSize: opts.fontSize,
+				backgroundColor: opts.inverted ? BLACK : WHITE,
+				color: opts.inverted ? WHITE : BLACK,
 				borderTop: BORDER,
 				borderLeft: BORDER,
 				// Spread, not `border*: undefined` — Satori trims border strings
 				// and throws on an undefined value.
-				...(lastCol ? { borderRight: BORDER } : {}),
-				...(lastRow ? { borderBottom: BORDER } : {}),
+				...(opts.lastCol ? { borderRight: BORDER } : {}),
+				...(opts.lastRow ? { borderBottom: BORDER } : {}),
+				...(opts.shaded && !opts.inverted
+					? { backgroundImage: `url("${SHADE_TILE}")`, backgroundSize: '2px 2px' }
+					: {}),
 			}}
 		>
 			{content}
@@ -74,26 +86,36 @@ function cell(
 	);
 }
 
+// Monday-start columns 5 and 6 are Sa/Su.
+const isWeekendCol = (i: number): boolean => i >= 5;
+
 function grid(month: MonthGrid): ReactNode {
 	return (
 		<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 			<div style={{ fontSize: CAPTION_SIZE, marginBottom: 14 }}>{month.caption}</div>
 			<div style={{ display: 'flex' }}>
-				{DOW_LABELS.map((label, i) => cell(label, false, DOW_SIZE, i, i === 6, false))}
+				{DOW_LABELS.map((label, i) =>
+					cell(label, i, {
+						inverted: false,
+						shaded: isWeekendCol(i),
+						fontSize: DOW_SIZE,
+						lastCol: i === 6,
+						lastRow: false,
+					}),
+				)}
 			</div>
 			{month.weeks.map((week, w) => (
 				<div key={w} style={{ display: 'flex' }}>
 					{/* Guard the null blanks: in the next-month grid `today` is null
 					    too, and `null === null` would invert every blank cell. */}
 					{week.map((day, i) =>
-						cell(
-							day === null ? '' : String(day),
-							day !== null && day === month.today,
-							DAY_SIZE,
-							i,
-							i === 6,
-							w === month.weeks.length - 1,
-						),
+						cell(day === null ? '' : String(day), i, {
+							inverted: day !== null && day === month.today,
+							shaded: isWeekendCol(i),
+							fontSize: DAY_SIZE,
+							lastCol: i === 6,
+							lastRow: w === month.weeks.length - 1,
+						}),
 					)}
 				</div>
 			))}
