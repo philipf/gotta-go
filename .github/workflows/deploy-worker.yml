@@ -27,7 +27,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Single source of truth for node/pnpm versions: src/worker/mise.toml
       - uses: jdx/mise-action@v4
@@ -50,7 +50,7 @@ jobs:
       group: deploy-worker
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: jdx/mise-action@v4
         with:
