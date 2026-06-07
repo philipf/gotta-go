@@ -36,7 +36,19 @@ const GRID_GAP = 64;
 
 const DOW_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
-function cell(content: string, inverted: boolean, fontSize: number, key: number): ReactNode {
+// Hairline cell grid: every cell owns its top+left edge and the last
+// column/row close the rectangle, so adjacent cells share one 1px line
+// instead of doubling up to 2px.
+const BORDER = `1px solid ${BLACK}`;
+
+function cell(
+	content: string,
+	inverted: boolean,
+	fontSize: number,
+	key: number,
+	lastCol: boolean,
+	lastRow: boolean,
+): ReactNode {
 	return (
 		<div
 			key={key}
@@ -49,6 +61,12 @@ function cell(content: string, inverted: boolean, fontSize: number, key: number)
 				fontSize,
 				backgroundColor: inverted ? BLACK : WHITE,
 				color: inverted ? WHITE : BLACK,
+				borderTop: BORDER,
+				borderLeft: BORDER,
+				// Spread, not `border*: undefined` — Satori trims border strings
+				// and throws on an undefined value.
+				...(lastCol ? { borderRight: BORDER } : {}),
+				...(lastRow ? { borderBottom: BORDER } : {}),
 			}}
 		>
 			{content}
@@ -61,14 +79,21 @@ function grid(month: MonthGrid): ReactNode {
 		<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 			<div style={{ fontSize: CAPTION_SIZE, marginBottom: 14 }}>{month.caption}</div>
 			<div style={{ display: 'flex' }}>
-				{DOW_LABELS.map((label, i) => cell(label, false, DOW_SIZE, i))}
+				{DOW_LABELS.map((label, i) => cell(label, false, DOW_SIZE, i, i === 6, false))}
 			</div>
 			{month.weeks.map((week, w) => (
 				<div key={w} style={{ display: 'flex' }}>
 					{/* Guard the null blanks: in the next-month grid `today` is null
 					    too, and `null === null` would invert every blank cell. */}
 					{week.map((day, i) =>
-						cell(day === null ? '' : String(day), day !== null && day === month.today, DAY_SIZE, i),
+						cell(
+							day === null ? '' : String(day),
+							day !== null && day === month.today,
+							DAY_SIZE,
+							i,
+							i === 6,
+							w === month.weeks.length - 1,
+						),
 					)}
 				</div>
 			))}
