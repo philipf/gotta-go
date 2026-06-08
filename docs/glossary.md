@@ -206,9 +206,15 @@ A system-wide default profile that takes over when server time falls outside eve
 - **Defined by:** [ADR-0003](adr/0003-radiator-worker-contract.md) §"Idle profile"; layout and content source settled in #17 (`idle_jokes`, dad jokes from icanhazdadjoke).
 
 ### Profile phase
-A named time-of-day phase inside a profile. Each phase has a `start_time`, an `end_time`, a **layout**, and (for `priority_split`) one or more **transit targets**.
+A named time-of-day phase inside a profile. Each phase has a `start_time`, an `end_time`, a **layout**, optional **active days**, and (for `priority_split`) one or more **transit targets**.
 - **Appears as:** config keys e.g. `morning_commute`, `workday_focus`, `morning_school_run`, `daytime_calendar`, `evening_return`.
 - **Not to be confused with:** ~~state~~ (overloaded with state-machine talk), ~~mode~~ (overloaded with transport mode — see **mode**).
+
+### Active days
+The set of weekdays a **profile phase** is eligible to run, as lowercase three-letter tokens (`mon`–`sun`). Absent means **every day** — the common case. A phase is active only when its `[start_time, end_time)` window contains the local (**Pacific/Auckland**) time *and* its active days include today's local weekday; otherwise the resolver skips it, falling through to the next eligible phase or the **idle profile**. Used to keep weekday commute and school-run phases from firing — and burning battery / Metlink calls — on weekends. The filter applies to the active-phase match only: the next-phase **sleep duration** scan stays day-agnostic and leans on the 4 h cap rather than scanning across days ([ADR-0015](adr/0015-profile-phase-active-days.md)).
+- **Appears as:** config key `days:` under a profile phase, code symbol `days`, type `Weekday`.
+- **Not to be confused with:** the phase's `start_time` / `end_time` (time-of-day, orthogonal to day-of-week), ~~schedule~~ (the whole time model).
+- **Defined by:** [ADR-0015](adr/0015-profile-phase-active-days.md); implemented in #92 (parent #87).
 
 ### `daytime_calendar`
 The bedroom radiator's daytime **profile phase**: it runs the `dual_month_calendar` **layout** between the morning and afternoon commute windows. Replaces the radiator's earlier all-day clock phase. (Written for the office radiator before that device existed; the office's full-day calendar now lives in `morning_calendar` / `evening_calendar`.)
@@ -216,7 +222,7 @@ The bedroom radiator's daytime **profile phase**: it runs the `dual_month_calend
 - **Not to be confused with:** `dual_month_calendar` (the **layout** the phase runs — content vs schedule), `morning_calendar` / `evening_calendar` (the office radiator's calendar phases), ~~all_day_clock~~ (the predecessor phase, deprecated).
 
 ### `morning_calendar` / `evening_calendar`
-The office radiator's calendar **profile phases**: they run the `dual_month_calendar` **layout** before (00:00–15:00) and after (19:30–24:00) the office afternoon commute window, at the 4 h **sleep duration** cap. Together with `office_afternoon_commute` they cover the full day, so the **idle profile** never engages at the office; with the **unchanged-frame skip**, the only visible panel flash is the daily date rollover. Two keys rather than one reused key because phase keys are globally unique (the `test-<phaseKey>` scenario slugs resolve a phase by bare key) — which is also why the office commute phase is `office_afternoon_commute`, not a second `afternoon_commute`.
+The office radiator's calendar **profile phases**: they run the `dual_month_calendar` **layout** before (00:00–15:00) and after (19:30–24:00) the office afternoon commute window, at the 4 h **sleep duration** cap. On weekdays they bracket `office_afternoon_commute` to cover the full day, so the **idle profile** never engages; on weekends the commute is out of its **active days** (mon–fri), so its 15:00–19:30 slot falls through to the idle profile. With the **unchanged-frame skip**, the only visible panel flash is the daily date rollover. Two keys rather than one reused key because phase keys are globally unique (the `test-<phaseKey>` scenario slugs resolve a phase by bare key) — which is also why the office commute phase is `office_afternoon_commute`, not a second `afternoon_commute`.
 - **Appears as:** config keys `morning_calendar` / `evening_calendar`, `X-Profile-Phase: morning_calendar` / `evening_calendar`.
 - **Not to be confused with:** `daytime_calendar` (the bedroom's daytime window), `dual_month_calendar` (the **layout** all three calendar phases run).
 

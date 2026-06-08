@@ -108,3 +108,48 @@ describe('phase keys', () => {
 		expect(new Set(keys).size).toBe(keys.length);
 	});
 });
+
+describe('active days (#92)', () => {
+	const phasesByKey = new Map(
+		Object.values(PROFILES).flatMap((profile) =>
+			profile.phases.map((phase) => [phase.key, phase] as const),
+		),
+	);
+
+	// The four commute/school rituals are weekday-only so they stop firing — and
+	// stop burning battery / Metlink calls — on weekends (#92 / ADR-0015).
+	it('restricts the commute and school-run phases to mon–fri', () => {
+		const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+		for (const key of [
+			'morning_commute',
+			'afternoon_commute',
+			'office_afternoon_commute',
+			'morning_school_run',
+		]) {
+			expect(phasesByKey.get(key)?.days).toEqual(weekdays);
+		}
+	});
+
+	// Calendars and the daughter's clock stay useful at weekends → every day.
+	it('leaves the calendar and idle-clock phases every-day (days absent)', () => {
+		for (const key of [
+			'daytime_calendar',
+			'morning_calendar',
+			'evening_calendar',
+			'afternoon_idle',
+		]) {
+			expect(phasesByKey.get(key)?.days).toBeUndefined();
+		}
+	});
+
+	// An empty array would match no weekday — a silently dead phase the Weekday
+	// union cannot catch. Guard it here, where the unique-keys invariant lives,
+	// rather than branching in the hot resolver path.
+	it('never declares an empty active-days array', () => {
+		for (const phase of phasesByKey.values()) {
+			if (phase.days !== undefined) {
+				expect(phase.days.length).toBeGreaterThan(0);
+			}
+		}
+	});
+});

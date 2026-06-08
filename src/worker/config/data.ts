@@ -1,10 +1,16 @@
 // PoC seed data for the PRD global:, profiles: and radiators: blocks. The
 // bedroom profiles leave an overnight gap outside their phases, which the
 // resolver falls through to the idle profile (idle_jokes, #17) — so server
-// time is not always inside a configured phase by design. philip_office is
-// the exception: full-day coverage, the idle profile never engages (#86).
+// time is not always inside a configured phase by design. philip_office covers
+// the full day on weekdays (the idle profile never engages then, #86); on
+// weekends its mon-fri commute (#92) drops out and that slot falls to idle too.
 
-import type { Global, IdleProfile, Profile, TransitTarget } from "./types";
+import type { Global, IdleProfile, Profile, TransitTarget, Weekday } from "./types";
+
+// Active days for the commute/school rituals (glossary "Active days", #92 /
+// ADR-0015): Monday–Friday. Shared so the four weekday-only phases can't drift
+// apart. Calendar and idle-clock phases omit `days` entirely (every day).
+const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
 
 // PRD §9 `global:` block.
 export const GLOBAL: Global = {
@@ -79,6 +85,7 @@ export const PROFILES: Record<string, Profile> = {
         endTime: "09:00",
         layout: "priority_split",
         refreshIntervalMinutes: 1,
+        days: WEEKDAYS,
         transitTargets: [
           {
             mode: "bus",
@@ -108,6 +115,7 @@ export const PROFILES: Record<string, Profile> = {
         endTime: "21:00",
         layout: "priority_split",
         refreshIntervalMinutes: 1,
+        days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
       },
       // Daytime two-month calendar between the morning and afternoon commute
@@ -132,15 +140,15 @@ export const PROFILES: Record<string, Profile> = {
     ],
   },
   // Philip's F5 office-desk profile (#86): the city→home afternoon commute
-  // bracketed by the two-month calendar. The three phases cover the full day
-  // (00:00–24:00), so the idle profile never engages at the office — the
-  // dedicated office radiator #76 anticipated. Calendar phases refresh at the
-  // 4h sleep ceiling; with the unchanged-frame skip (#73/#74) the only
-  // visible flash is the midnight rollover. The commute key is
-  // office_afternoon_commute (not a second afternoon_commute) because phase
-  // keys are globally unique across profiles — the test-<phaseKey> scenario
-  // slugs (#21) resolve a phase by bare key. NB: phases run 7 days a week;
-  // weekday-only commute windows are tracked in #87.
+  // bracketed by the two-month calendar. On weekdays the three phases cover the
+  // full day (00:00–24:00) and the idle profile never engages; on weekends the
+  // mon–fri commute (#92) drops out, so its 15:00–19:30 slot falls through to
+  // idle_jokes — the unattended desk no longer burns ~270 wakes/weekend-day.
+  // Calendar phases refresh at the 4h sleep ceiling; with the unchanged-frame
+  // skip (#73/#74) the only visible flash is the midnight rollover. The commute
+  // key is office_afternoon_commute (not a second afternoon_commute) because
+  // phase keys are globally unique across profiles — the test-<phaseKey>
+  // scenario slugs (#21) resolve a phase by bare key.
   philip_office: {
     name: "philip_office",
     phases: [
@@ -157,6 +165,7 @@ export const PROFILES: Record<string, Profile> = {
         endTime: "19:30",
         layout: "priority_split",
         refreshIntervalMinutes: 1,
+        days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
       },
       {
@@ -180,6 +189,7 @@ export const PROFILES: Record<string, Profile> = {
         endTime: "08:30",
         layout: "priority_split",
         refreshIntervalMinutes: 2,
+        days: WEEKDAYS,
         transitTargets: [
           {
             mode: "bus",

@@ -12,6 +12,7 @@ import type { ProfilePhase } from '../config/types';
 import type { LayoutKey } from '../features/registry';
 import { GLOBAL, SYSTEM_IDLE_DEFAULT } from '../config/data';
 import { hhmm } from '../shared/hhmm';
+import { weekday } from '../shared/weekday';
 
 const SLEEP_FLOOR = 30;
 const SLEEP_CEILING = 14400;
@@ -66,8 +67,17 @@ function minutesUntilNextPhaseStart(phases: ProfilePhase[], mins: number): numbe
 export function resolveProfilePhase(radiator: Radiator, now: Date): ProfilePhaseResolution {
 	const phases = radiator.profile.phases;
 	const mins = nowMinutes(now, GLOBAL.timezone);
+	// A phase is active when its half-open window contains now AND its active
+	// days include today's local weekday (glossary "Active days" / #92). Absent
+	// `days` means every day. The day filter applies to the active match only —
+	// minutesUntilNextPhaseStart stays day-agnostic, leaning on the 4h sleep cap
+	// rather than scanning across day boundaries (ADR-0015).
+	const today = weekday(now, GLOBAL.timezone);
 	const active = phases.find(
-		(p) => mins >= toMinutes(p.startTime) && mins < toMinutes(p.endTime),
+		(p) =>
+			mins >= toMinutes(p.startTime) &&
+			mins < toMinutes(p.endTime) &&
+			(p.days === undefined || p.days.includes(today)),
 	);
 
 	if (active) {

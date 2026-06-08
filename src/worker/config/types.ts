@@ -52,9 +52,20 @@ export type ProfilePhase = {
 	endTime: string;
 	layout: LayoutKey;
 	refreshIntervalMinutes: number;
+	// The weekdays this phase is eligible to run (glossary "Active days").
+	// Absent = every day (the common case). A phase whose active days exclude
+	// the local (Pacific/Auckland) weekday is skipped by the resolver — used to
+	// keep weekday commute phases from firing on weekends (#92 / ADR-0015). A
+	// config.test.ts invariant forbids an empty array (a silent dead phase).
+	days?: Weekday[];
 	// Present for priority_split phases; absent for minimal_clock.
 	transitTargets?: TransitTarget[];
 };
+
+// Lowercase three-letter weekday tokens — the vocabulary of a phase's active
+// days. Matches the output of shared/weekday so the resolver compares with a
+// plain `days.includes(weekday(now, tz))`.
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 // The idle profile a slug falls through to when server time is outside every
 // configured phase (ADR-0003 §"Idle profile" / #17). System-wide by default

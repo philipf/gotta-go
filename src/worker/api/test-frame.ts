@@ -20,9 +20,12 @@ const TEST_PREFIX = 'test-';
 // phase, widened to the full day. The window is [00:00, 24:00) — a half-open
 // 24:00 (`[0, 1440)`) means resolveProfilePhase's find matches at every minute,
 // so it never falls through to the idle profile (#17): a test- slug always
-// renders its named phase, never overnight jokes. Unknown key → undefined →
-// 404, fail-closed like lookupRadiator. First match wins; a config.test.ts
-// assertion keeps phase keys globally unique so there is nothing to disambiguate.
+// renders its named phase, never overnight jokes. `days` is dropped for the
+// same reason the times are overridden — a weekday-only phase (#92) must still
+// render its intent on a weekend, so the synthetic phase is eligible every day.
+// Unknown key → undefined → 404, fail-closed like lookupRadiator. First match
+// wins; a config.test.ts assertion keeps phase keys globally unique so there is
+// nothing to disambiguate.
 export function resolveTestRadiator(slug: string): Radiator | undefined {
 	if (!slug.startsWith(TEST_PREFIX)) return undefined;
 	const key = slug.slice(TEST_PREFIX.length);
@@ -33,7 +36,7 @@ export function resolveTestRadiator(slug: string): Radiator | undefined {
 				slug,
 				profile: {
 					name: profile.name,
-					phases: [{ ...phase, startTime: '00:00', endTime: '24:00' }],
+					phases: [{ ...phase, startTime: '00:00', endTime: '24:00', days: undefined }],
 				},
 			};
 		}

@@ -43,6 +43,33 @@ const multiPhaseRadiator: Radiator = {
 	},
 };
 
+// A weekday-only commute phase bracketing an every-day calendar. June 2026 is
+// NZST (UTC+12). 2026-06-08 is a Monday; 2026-05-30 is a Saturday.
+const activeDaysRadiator: Radiator = {
+	slug: 'test-active-days',
+	profile: {
+		name: 'active_days_profile',
+		phases: [
+			{
+				key: 'weekday_commute',
+				startTime: '06:00',
+				endTime: '09:00',
+				layout: 'priority_split',
+				refreshIntervalMinutes: 1,
+				days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+				transitTargets: [],
+			},
+			{
+				key: 'all_day_calendar',
+				startTime: '09:00',
+				endTime: '21:00',
+				layout: 'dual_month_calendar',
+				refreshIntervalMinutes: 180,
+			},
+		],
+	},
+};
+
 describe('schedule.resolveProfilePhase', () => {
 	it('returns the active profile phase, layout, and sleep within [30, 14400]', () => {
 		const result = resolveProfilePhase(seedRadiator, new Date('2026-05-23T06:48:00Z'));
@@ -145,27 +172,50 @@ describe('schedule.resolveProfilePhase', () => {
 
 	// An active phase's sleep is min(refresh interval, time to the next phase
 	// boundary) so a long-interval phase never oversleeps the next phase start
-	// or its own end (the idle handoff). June = NZST (UTC+12).
+	// or its own end (the idle handoff). Instants are Monday so the weekday-only
+	// afternoon_commute (#92) is eligible — this test is about truncation, not
+	// the day filter. 2026-06-08 is a Monday; June = NZST (UTC+12).
 	it('truncates an active-phase sleep at the next phase boundary', () => {
 		const radiator = lookupRadiator('bedroom-philip-tania')!;
 
-		// 09:30 NZST: daytime_calendar (180-min refresh); afternoon_commute opens
-		// 15:15 (345 min away) → the full interval fits, sleep = 180 min.
-		const morning = resolveProfilePhase(radiator, new Date('2026-06-06T21:30:00Z'));
+		// 09:30 NZST Mon: daytime_calendar (180-min refresh); afternoon_commute
+		// opens 15:15 (345 min away) → the full interval fits, sleep = 180 min.
+		const morning = resolveProfilePhase(radiator, new Date('2026-06-07T21:30:00Z'));
 		expect(morning.profilePhase).toBe('daytime_calendar');
 		expect(morning.sleepSeconds).toBe(180 * 60);
 
-		// 14:00 NZST: 75 min to the 15:15 afternoon_commute start → truncated so
-		// the commute pickup is not delayed by the 3h interval.
-		const preCommute = resolveProfilePhase(radiator, new Date('2026-06-07T02:00:00Z'));
+		// 14:00 NZST Mon: 75 min to the 15:15 afternoon_commute start → truncated
+		// so the commute pickup is not delayed by the 3h interval.
+		const preCommute = resolveProfilePhase(radiator, new Date('2026-06-08T02:00:00Z'));
 		expect(preCommute.profilePhase).toBe('daytime_calendar');
 		expect(preCommute.sleepSeconds).toBe(75 * 60);
 
-		// 20:45 NZST: afternoon_commute (1-min refresh) — short intervals are
+		// 20:45 NZST Mon: afternoon_commute (1-min refresh) — short intervals are
 		// unaffected by the 21:00 end boundary.
-		const commute = resolveProfilePhase(radiator, new Date('2026-06-07T08:45:00Z'));
+		const commute = resolveProfilePhase(radiator, new Date('2026-06-08T08:45:00Z'));
 		expect(commute.profilePhase).toBe('afternoon_commute');
 		expect(commute.sleepSeconds).toBe(60);
+	});
+
+	// minutesUntilNextPhaseStart stays day-agnostic (ADR-0015, Option B): on a
+	// weekend the calendar's sleep is still truncated at the disabled commute's
+	// start. The radiator wakes there, re-resolves to the same calendar phase,
+	// and sleeps on — a couple of harmless self-correcting wakes rather than a
+	// cross-day scan. 2026-06-07 is a Sunday.
+	it('keeps the next-boundary scan day-agnostic on a weekend (#92, ADR-0015)', () => {
+		const radiator = lookupRadiator('bedroom-philip-tania')!;
+
+		// 14:00 NZST Sun: afternoon_commute (mon–fri) is not eligible, so the
+		// active phase is daytime_calendar — but the day-agnostic boundary scan
+		// still truncates the 3h interval at the 15:15 start → 75 min.
+		const sun = resolveProfilePhase(radiator, new Date('2026-06-07T02:00:00Z'));
+		expect(sun.profilePhase).toBe('daytime_calendar');
+		expect(sun.sleepSeconds).toBe(75 * 60);
+
+		// 15:15 NZST Sun: the commute does NOT take over — still the calendar,
+		// proving the wake at the truncated boundary self-corrects.
+		const sun1515 = resolveProfilePhase(radiator, new Date('2026-06-07T03:15:00Z'));
+		expect(sun1515.profilePhase).toBe('daytime_calendar');
 	});
 
 	it("truncates at the active phase's own end when no phase starts there", () => {
@@ -211,6 +261,26 @@ describe('schedule.resolveProfilePhase', () => {
 		// 00:00 NZST: midnight rollover lands in morning_calendar.
 		const midnight = resolveProfilePhase(radiator, new Date('2026-06-08T12:00:00Z'));
 		expect(midnight.profilePhase).toBe('morning_calendar');
+	});
+
+	// Active days (#92 / ADR-0015): a phase is active only when its window
+	// contains now AND its `days` include today's local weekday. Absent `days`
+	// means every day (unchanged behaviour).
+	it('excludes a weekday-only phase on its off-day, falling through (#92)', () => {
+		// 2026-05-29T19:00:00Z = 07:00 Saturday NZST — inside weekday_commute's
+		// 06:00–09:00 window, but Saturday is not in its days → no match, and the
+		// calendar opens at 09:00, so the slot falls through to the idle profile.
+		const off = resolveProfilePhase(activeDaysRadiator, new Date('2026-05-29T19:00:00Z'));
+		expect(off.profilePhase).toBe('idle_profile');
+		expect(off.layout).toBe('idle_jokes');
+	});
+
+	it('includes a weekday-only phase on an on-day (#92)', () => {
+		// 2026-06-07T19:00:00Z = 07:00 Monday NZST — inside the window and Monday
+		// is in days → the commute phase is active.
+		const on = resolveProfilePhase(activeDaysRadiator, new Date('2026-06-07T19:00:00Z'));
+		expect(on.profilePhase).toBe('weekday_commute');
+		expect(on.layout).toBe('priority_split');
 	});
 
 	it("honours a profile's own idle override over the system default", () => {

@@ -51,6 +51,14 @@ describe('resolveTestRadiator', () => {
 		expect(r?.profile.phases[0].transitTargets).toBeDefined();
 	});
 
+	it('strips active days so a weekday-only phase renders on any day (#92)', () => {
+		// office_afternoon_commute is mon–fri in production; a test- slug must
+		// render its intent regardless of wall-clock OR weekday, so the synthetic
+		// phase drops `days` just as it overrides start/end times.
+		const r = resolveTestRadiator('test-office_afternoon_commute');
+		expect(r?.profile.phases[0].days).toBeUndefined();
+	});
+
 	it('returns undefined for an unknown phase key', () => {
 		expect(resolveTestRadiator('test-nope')).toBeUndefined();
 	});
