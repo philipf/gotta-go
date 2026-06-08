@@ -1,0 +1,38 @@
+meta {
+  name: Office weekday - commute runs (control)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/v1/frame
+  body: none
+  auth: none
+}
+
+headers {
+  X-Radiator-Slug: office-f5
+  X-Radiator-Token: {{token}}
+  X-Debug-Now: 2026-06-15T16:00:00+12:00
+  Accept: application/json
+}
+
+assert {
+  res.headers[x-profile-phase]: eq office_afternoon_commute
+}
+
+docs {
+  # Office radiator, Monday afternoon (weekday control)
+
+  X-Debug-Now pins server time to **Mon 2026-06-15 16:00 NZ**. The same 16:00
+  that fell to dad jokes on Saturday (seq 2) now resolves to
+  `office_afternoon_commute`, proving the weekday filter only suppresses the
+  phase on its off-days.
+
+  This phase is `priority_split` and fetches **live Metlink**, so a valid
+  METLINK_API_KEY must be set in `.dev.vars`. The assert checks only the
+  resolved phase via the `X-Profile-Phase` header, which the worker sets even
+  when an upstream Metlink error maps to a problem+json body — so the control
+  stays meaningful regardless of network/key state. Status is intentionally not
+  asserted for that reason.
+}

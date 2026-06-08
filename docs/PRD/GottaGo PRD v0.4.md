@@ -213,6 +213,7 @@ profiles:
     morning_commute:
       start_time: "06:30"
       end_time: "09:00"
+      days: ["mon", "tue", "wed", "thu", "fri"]  # Active days — weekday-only; absent = every day (ADR-0015)
       refresh_interval_minutes: 2
       layout: "priority_split"
       transit_targets:

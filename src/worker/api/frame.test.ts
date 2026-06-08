@@ -18,9 +18,10 @@ const env = {
 	PUBLIC_HOLIDAYS: { get: async () => [] } as unknown as KVNamespace,
 } as Env;
 
-// 07:30 NZST → bedroom-daughter's morning_school_run priority_split phase
-// (refreshIntervalMinutes 2 → 120s phase cadence).
-const NOW = new Date('2026-05-22T19:30:00Z');
+// Friday 07:30 NZST → bedroom-daughter's morning_school_run priority_split
+// phase (mon–fri per #92; refreshIntervalMinutes 2 → 120s phase cadence).
+// 2026-05-22 is a Friday in NZ.
+const NOW = new Date('2026-05-21T19:30:00Z');
 const PHASE_CADENCE = '120';
 
 function frameReq(extra: Record<string, string> = {}): Request {

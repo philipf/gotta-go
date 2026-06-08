@@ -133,7 +133,8 @@ describe('api.router — JSON view-model variant', () => {
 			'fetch',
 			vi.fn(async () => new Response(JSON.stringify(closedStop), { status: 200 })),
 		);
-		const now = new Date('2026-05-22T19:30:00Z'); // 07:30 NZST → morning_school_run
+		// Friday 07:30 NZST → morning_school_run (mon–fri, #92). 2026-05-22 is a Friday.
+		const now = new Date('2026-05-21T19:30:00Z');
 		const req = buildReq({
 			'X-Radiator-Slug': 'bedroom-daughter',
 			'X-Radiator-Token': TOKEN,
