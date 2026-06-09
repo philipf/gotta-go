@@ -51,6 +51,16 @@
 // a debugging aid. Leave at 0 for normal operation.
 #define RADIATOR_VERBOSE 0
 
+// Debug build (power/timing, not display — distinct from RADIATOR_VERBOSE).
+// On wake the native USB CDC has re-enumerated and the host has not re-attached
+// yet, so the radiator delays 1 s before logging the wake banner. That 1 s of
+// active current per wake is pure waste on a battery radiator nobody is watching
+// (GH #89). Set this to 1 on a development board (a dev settings variant) to keep
+// the delay on every wake so timer-wake logs are visible over `tio`/`picocom`.
+// Leave at 0 for deployed/battery radiators — the delay is still kept on cold
+// boot (you just plugged in), only timer wakes skip it.
+#define RADIATOR_DEBUG 0
+
 // Optional dev-only time override. Uncomment and set an ISO 8601 timestamp to
 // make the Worker resolve the profile phase against that instant instead of
 // real time — e.g. to preview the morning_school_run layout outside its

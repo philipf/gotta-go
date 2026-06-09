@@ -98,6 +98,8 @@ tio -b 115200 /dev/ttyACM0
 
 **Watching across sleep — the USB CDC drops.** `USBMode=hwcdc` + `CDCOnBoot=cdc` route `Serial` over the native USB CDC; the peripheral powers down during deep sleep and `/dev/ttyACM0` de-enumerates / re-enumerates on wake. `arduino-cli monitor` will not auto-reconnect; use `tio -m INLCRNL /dev/ttyACM0` (reconnects automatically) or `picocom -b 115200 /dev/ttyACM0` and re-run after each wake.
 
+The wake banner is printed after a 1 s delay that gives the host time to re-attach the re-enumerated CDC — otherwise the first prints of each cycle are lost. That delay is ~1 s of active current per wake, so it is gated behind `RADIATOR_DEBUG` (`settings.example.h`): cold boot always delays (you just plugged in), but a deployed/battery build (`RADIATOR_DEBUG 0`) skips it on timer wakes. To watch timer-wake logs across sleep, flash a variant with `RADIATOR_DEBUG 1` (a dev `settings.<variant>.h`); otherwise the per-cycle banner will race the CDC and you will see partial or missing lines.
+
 ## Reach the Worker
 
 AC-F3 closes against the **deployed Worker**. The cheapest unblock — no production deploy yet (deferred to [#12](https://github.com/philipf/gotta-go/issues/12)) — is a cloudflared **quick tunnel** that fronts `wrangler dev` with a throwaway public HTTPS URL.
