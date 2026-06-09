@@ -66,6 +66,16 @@
 #define RADIATOR_VERBOSE 0
 #endif
 
+// Debug build: keep the 1 s CDC re-attach delay on *every* wake so timer-wake
+// banners are visible over the re-enumerated USB CDC. Default off — a battery
+// radiator should not burn ~1 s of active current per wake just for logs nobody
+// is watching (GH #89). Cold boot always delays regardless (see announceWake).
+// A power/timing axis, deliberately distinct from RADIATOR_VERBOSE's display
+// axis. Namespaced and #ifndef-guarded like RADIATOR_VERBOSE.
+#ifndef RADIATOR_DEBUG
+#define RADIATOR_DEBUG 0
+#endif
+
 // Wake counter parked in RTC slow memory — survives deep sleep, zeroed only
 // on a true cold boot. Used to disambiguate cold-boot vs timer-wake in logs.
 RTC_DATA_ATTR uint32_t wakeCount = 0;
@@ -184,12 +194,20 @@ static void applyEtagAction(EtagAction action, const char *newEtag) {
 
 // ---------- Wake path ----------
 
-// Bring up the serial link and log the wake banner. The CDC delay lets the host
-// re-attach after the wake re-enumeration; the wake counter (RTC-backed) bumps
-// here so the banner reports it.
+// Bring up the serial link and log the wake banner. The wake counter (RTC-backed)
+// bumps here so the banner reports it.
+//
+// The 1 s CDC re-attach delay (the S3's native USB CDC powers down in deep sleep
+// and re-enumerates on wake; prints fired before the host re-attaches are lost)
+// is gated (GH #89): kept on cold boot — you just plugged in and are probably
+// watching — but on a timer wake it costs ~1 s of active current every cycle for
+// nothing unless someone is on the port, so it is opt-in via RADIATOR_DEBUG.
 static void announceWake() {
     Serial.begin(115200);
-    delay(1000);  // let the host re-attach the CDC after the wake re-enumeration
+    if (RADIATOR_DEBUG ||
+        esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+        delay(1000);  // let the host re-attach the CDC after the wake re-enumeration
+    }
 
     wakeCount++;
     Serial.println();
