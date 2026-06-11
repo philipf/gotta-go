@@ -65,6 +65,26 @@ const CITY_TO_HOME_TARGETS: TransitTarget[] = [
   },
 ];
 
+// Demo radiator (slug demo-radiator-1, settings.demo.h): the city→Churton Park
+// bus shared by reference with the household commute (CITY_TO_HOME_TARGETS[0],
+// so the #68 terminus pin and any future bus fix reach the demo too), paired
+// with a Wellington→Waikanae KPL train. Unlike CITY_TO_HOME_TARGETS the rider
+// stays on to the WAIK terminus, so expresses are welcome — no "All stops"
+// filter; pin only destinationStopId WAIK, which still excludes the Porirua
+// short-turns that share service id KPL at WELL (WAIK/PORI dest stop ids from
+// the kapitiExpressMix fixture, recorded 2026-06-04).
+const CITY_TO_WAIKANAE_TARGETS: TransitTarget[] = [
+  CITY_TO_HOME_TARGETS[0],
+  {
+    mode: "train",
+    stopId: "WELL",
+    serviceId: "KPL",
+    destinationStopId: "WAIK",
+    timeToStopMins: 10,
+    comfortBuffer: 1.5,
+  },
+];
+
 // PRD §9 `profiles:` block — named profiles keyed by profile name. Each
 // profile owns its phases (and may carry an `idle` override; both seeds use the
 // system default). Multiple radiators may share one profile. Phases do not
@@ -209,6 +229,49 @@ export const PROFILES: Record<string, Profile> = {
       },
     ],
   },
+  // Lunchtime demo profile (slug demo-radiator-1, settings.demo.h). Four
+  // contiguous every-day phases covering the full day (00:00–24:00), so the
+  // idle profile never engages. The two short midday phases are timed to fire
+  // live during a lunch demo: a 10-min priority_split board (city→Churton Park
+  // bus + Wellington→Waikanae train) followed by a 5-min dad-joke break, then
+  // the calendar resumes. idle_jokes is a registry layout (LayoutKey), so it is
+  // valid as an ordinary phase, not only as the idle fallback. Phase keys are
+  // demo_-prefixed to stay globally unique (config.test invariant). Windows are
+  // disjoint, so chronological order is safe under first-match resolution.
+  demo_radiator_1: {
+    name: "demo_radiator_1",
+    phases: [
+      {
+        key: "demo_morning_calendar",
+        startTime: "00:00",
+        endTime: "12:15",
+        layout: "dual_month_calendar",
+        refreshIntervalMinutes: 180,
+      },
+      {
+        key: "demo_lunch_commute",
+        startTime: "12:15",
+        endTime: "12:25",
+        layout: "priority_split",
+        refreshIntervalMinutes: 1,
+        transitTargets: CITY_TO_WAIKANAE_TARGETS,
+      },
+      {
+        key: "demo_joke",
+        startTime: "12:25",
+        endTime: "12:30",
+        layout: "idle_jokes",
+        refreshIntervalMinutes: 1,
+      },
+      {
+        key: "demo_evening_calendar",
+        startTime: "12:30",
+        endTime: "24:00",
+        layout: "dual_month_calendar",
+        refreshIntervalMinutes: 180,
+      },
+    ],
+  },
 };
 
 // PRD §9 `radiators:` block — radiator slug → profile-name reference.
@@ -230,5 +293,9 @@ export const RADIATOR_REFS: Record<
   "office-f5": {
     slug: "office-f5",
     profileName: "philip_office",
+  },
+  "demo-radiator-1": {
+    slug: "demo-radiator-1",
+    profileName: "demo_radiator_1",
   },
 };
