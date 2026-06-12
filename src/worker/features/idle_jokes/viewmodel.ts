@@ -6,12 +6,11 @@
 export type ViewModel = {
 	text: string;
 	id: string;
-	fontSize: number;
 };
 
 // Serialises the view model for the JSON diagnostics envelope (ADR-0004). A
-// real projection, not the identity: text + id map onto the glossary wire
-// names, and fontSize is a render-only detail that stays out of the wire view.
+// real projection: text + id map onto the glossary wire names. Font sizing is a
+// view concern (view.tsx), so it never reached the wire view anyway.
 export function toJsonView(vm: ViewModel): Record<string, unknown> {
 	return { joke: vm.text, jokeId: vm.id };
 }
