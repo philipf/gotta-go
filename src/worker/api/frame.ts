@@ -40,7 +40,8 @@ export function handleFrame(
 	env: Env,
 	now: Date,
 ): Promise<Response> {
-	return renderFrame(request, env, now, lookupRadiator);
+	// FIX: Just a pass-through?
+	return renderFrame(request, env, now, lookupRadiator); // FIX: Why is lookupRadiator injected?
 }
 
 // Branch-free frame core. Authenticates, resolves the slug via the injected
@@ -63,6 +64,7 @@ export async function renderFrame(
 	// JSON.stringify, so they need no conditional spread. Timing is owned by CF
 	// trace spans (observability.traces), not logged here — workerd freezes
 	// Date.now() between I/O so an in-script delta misleads (#54).
+	// FIX:: This can just be FrameRequest
 	const obs = {
 		batteryMv: req.batteryMv,
 		hardwareId: req.hardwareId,
@@ -84,7 +86,7 @@ export async function renderFrame(
 			return problemResponse(unauthorizedError(), { requestId: req.requestId });
 		}
 
-		const radiator = resolve(req.slug);
+		const radiator = resolve(req.slug); // FIX: I don't understand this
 		if (!radiator) {
 			log.warn('frame.unknown_radiator', obs);
 			return problemResponse(unknownRadiatorError(req.slug), { requestId: req.requestId });
@@ -95,11 +97,16 @@ export async function renderFrame(
 		// orchestrator holds it before phase 2 rasterises — the interception
 		// point the ETag/304 skip uses. Widened to Layout<unknown> so the view
 		// model stays an opaque token passed between the layout's own phases.
-		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now);
+		// WARN: tuple is getting long, actual some sort of TypeScript unpacking of Request in tuple 
+		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now); 
 		phaseCadence = sleepSeconds;
 		resolvedPhase = profilePhase;
 
+		// FIX: What is Layout, and what is being looked up?  Difference Profile, Phase, phaseCadence, layout and frame is confusing
+		// FIX: Move closer to where used
 		const layoutImpl: Layout = layouts[layout];
+
+		// FIX: The evil RenderContext, that combines everyting in one
 		const ctx: RenderContext = {
 			radiator,
 			phase,
@@ -116,7 +123,13 @@ export async function renderFrame(
 			fetchFn: fetch.bind(globalThis),
 		};
 		const vm = await layoutImpl.buildViewModel(ctx);
+
+		// FIX: badly name view, this actual the vmInJson
+		// Generate JSON to calculate the etag
+		// FIX: potential smell, can this with the etag calc be moved viewModel (no, because of layout version, but then maybe into layOutimpl)
 		const view = layoutImpl.toJsonView(vm);
+
+		// FIX: something smelly not sure what yet about meta. Something in base response?
 		const meta: FrameMeta = {
 			sleepSeconds,
 			serverTime: now,
@@ -210,6 +223,7 @@ function isUnchangedFrame(req: FrameRequest, etag: string): boolean {
 // status, sleep, and body, so CF never sees a bare 500. phaseCadence /
 // profilePhase carry whatever the try block resolved before the throw, so a
 // Retryable error can sleep at the phase cadence and name the phase.
+// FIX: Why not in error.
 function failureResponse(
 	err: unknown,
 	init: {

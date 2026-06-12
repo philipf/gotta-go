@@ -11,10 +11,12 @@ const PROBLEM_JSON = 'application/problem+json';
 export type ProblemResponseInit = {
 	// Active profile-phase cadence (seconds), or undefined when the error
 	// preceded phase resolution. Retryable errors inherit it; Fatal ignore it.
+	// FIX: more descriptive name needed
 	phaseCadence?: number;
 	// Inbound X-Request-Id → the problem `instance` URN. Omitted when absent.
 	requestId?: string;
 	// Resolved profile phase for X-Profile-Phase; 'none' before resolution.
+	// FIX: phaseCadence and profilePhase is request specific
 	profilePhase?: string;
 };
 
@@ -30,7 +32,7 @@ export function problemResponse(error: AppError, init: ProblemResponseInit = {})
 
 	const headers: Record<string, string> = {
 		'Content-Type': PROBLEM_JSON,
-		'X-Profile-Phase': init.profilePhase ?? 'none',
+		'X-Profile-Phase': init.profilePhase ?? 'none', // FIX: revisit when profilePhase is understood
 	};
 	const sleep = error.sleepSeconds(init.phaseCadence);
 	if (sleep !== undefined) headers['X-Sleep-Seconds'] = String(sleep);
@@ -42,6 +44,7 @@ export function problemResponse(error: AppError, init: ProblemResponseInit = {})
 // never hits. Carried in the same problem+json envelope for one error shape
 // everywhere (ADR-0011), but class-less: no `X-Sleep-Seconds` (the firmware's
 // 300s fallback covers the theoretical case), no profile phase.
+// FIX: response suffix
 export function notFound(method: string, path: string): Response {
 	const body = {
 		type: `${ERRORS_DOC_BASE}#not-found`,

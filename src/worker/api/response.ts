@@ -97,6 +97,7 @@ function frameBody(
 	});
 }
 
+// FIX: suffix Response
 export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
 	return frameBody('image/bmp', body, init);
 }
@@ -106,6 +107,7 @@ export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
 // rasterises, gzipped per ADR-0001 like the BMP body. Carries the identical
 // observability headers to frameOk so the variants are indistinguishable to a
 // human comparing them; only the body and Content-Type differ.
+// FIX: suffix Response
 export function frameSvg(body: Uint8Array, init: FrameOkInit): Response {
 	return frameBody('image/svg+xml', body, init);
 }
@@ -115,6 +117,7 @@ export function frameSvg(body: Uint8Array, init: FrameOkInit): Response {
 // variants are indistinguishable to a human comparing them; only the body shape
 // and Content-Type differ. Never gzipped — the diagnostics path is curl-facing
 // and small, and the radiator never negotiates JSON.
+// FIX: suffix Response
 export function frameJson(envelope: unknown, init: FrameMeta): Response {
 	return new Response(JSON.stringify(envelope), {
 		status: 200,
@@ -141,6 +144,8 @@ export function frameJson(envelope: unknown, init: FrameMeta): Response {
 // null body). Harmless — RFC 9110 permits representation metadata on a 304
 // and there is no body to decode — and documented as incidental in the
 // OpenAPI contract.
+//
+// FIX:: rename to frameNotModifiedResponse
 export function frameNotModified(init: FrameMeta): Response {
 	return new Response(null, {
 		status: 304,
