@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { layout, type CalendarContext } from './service';
 import { storedHolidays } from '../../gateways/public_holidays/fixtures';
 
@@ -29,7 +29,33 @@ const vmAt = (iso: string, tz?: string, holidays?: StoredHolidays) =>
 const holidaysOn = (...dates: string[]): StoredHolidays =>
 	dates.map((date) => ({ date, name: 'Holiday' }));
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe('dual_month_calendar.layout.buildViewModel', () => {
+	it('degrades to an unshaded calendar when the holidays KV read fails (#84 soft-miss)', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const ctx: CalendarContext = {
+			...ctxAt('2026-06-07T00:00:00Z'),
+			env: {
+				PUBLIC_HOLIDAYS: {
+					get: async () => {
+						throw new Error('KV down');
+					},
+				} as unknown as KVNamespace,
+			},
+		};
+
+		const vm = await layout.buildViewModel(ctx);
+
+		// No throw — the calendar still renders, just unshaded.
+		expect(vm.months[0].holidays).toEqual([]);
+		expect(vm.months[1].holidays).toEqual([]);
+		// The soft-miss is logged by the caller (the gateway is side-effect-free).
+		expect(warn).toHaveBeenCalledOnce();
+	});
+
 	it('fetches holidays from the PUBLIC_HOLIDAYS binding into the view model', async () => {
 		// June 2026: fixtures hold King's Birthday (2026-06-01); July has none.
 		const vm = await vmAt('2026-06-07T00:00:00Z', 'Pacific/Auckland', storedHolidays);

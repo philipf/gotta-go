@@ -1,7 +1,7 @@
 // Public two-phase entry for the dual_month_calendar layout (#72/#75) and the
 // home of its derivation logic. buildViewModel owns phase 1 end to end: the
 // public-holidays KV read (#84) — whose failure degrades to an unshaded
-// calendar, never an error frame (soft-miss; see the gateway header) — plus
+// calendar, never an error frame (soft-miss, applied in loadHolidays below) — plus
 // the pure date math that fills the data contract in viewmodel.ts: a full
 // current-date header and two Monday-start month grids (this month and next),
 // each captioned "Month YYYY". render produces only the rendered artefact the
@@ -19,7 +19,8 @@
 
 import type { Layout, RenderContext } from '../registry';
 import type { Radiator } from '../../config/lookup';
-import { fetchHolidays } from '../../gateways/public_holidays/public-holidays';
+import { fetchHolidays } from '../../gateways/public_holidays/fetch-holidays';
+import { log } from '../../shared/log';
 import { toJsonView, type MonthGrid, type ViewModel } from './viewmodel';
 import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 
@@ -119,10 +120,20 @@ function monthGrid(
 	return { caption: CAPTION_FMT.format(first), weeks, today: todayDay, holidays };
 }
 
+// Holidays are decoration (#84): a missing key or KV error degrades to an
+// unshaded calendar, never an error frame. The gateway is a pure bulkhead, so the
+// soft-miss and its diagnostic log live here, at the one caller that wants it.
+async function loadHolidays(kv: KVNamespace): Promise<Set<string>> {
+	const res = await fetchHolidays({ kv });
+	if (res.ok) return res.data;
+	log.warn(`public_holidays.${res.error.kind}`, { detail: res.error.detail });
+	return new Set();
+}
+
 export const layout: Layout<ViewModel, CalendarContext> = {
 	version: LAYOUT_VERSION,
 	async buildViewModel(ctx) {
-		const holidays = await fetchHolidays({ kv: ctx.env.PUBLIC_HOLIDAYS });
+		const holidays = await loadHolidays(ctx.env.PUBLIC_HOLIDAYS);
 		const { year, month0, day } = wallDate(ctx.now, ctx.timezone);
 		return {
 			slug: ctx.radiator.slug,

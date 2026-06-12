@@ -92,8 +92,8 @@ The implementation is composed of small files, each justified by an
   contract/domain types in `<capability>.ts`.
 
 Fold a file into the orchestrator only when it has **neither** hidden substance
-**nor** a role. This is the test that keeps all gateways uniform without
-cargo-culting empty files.
+**nor** a role. This is the test that keeps all gateways uniform without inventing
+empty layers.
 
 ### 4. REPR naming, gateway-qualified errors
 
@@ -128,8 +128,8 @@ coarse error surface, the quarantine, the upstream etiquette. Review scaffolding
 - "Open the contract, see the whole interface" is now literally true: request,
   response, error surface — no plumbing.
 - Cross-gateway name collisions become impossible; call sites read clearly.
-- The earn-your-file test gives a non-cargo-cult reason for each file and keeps
-  all gateways structurally uniform.
+- The earn-your-file test gives a concrete reason for each file and keeps all
+  gateways structurally uniform.
 - The implementation is compiler-bound to its contract — the two cannot silently
   drift.
 
