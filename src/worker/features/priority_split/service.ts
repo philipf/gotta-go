@@ -17,7 +17,7 @@
 // folder must not know (ADR-0005 quarantine) into its tests. The layout's
 // fetch + error-mapping path is still tested through the public surface.
 
-import type { Layout, RenderContext } from '../registry';
+import type { Layout, FrameDeps } from '../registry';
 import {
 	fetchArrivals,
 	type Arrival,
@@ -48,7 +48,7 @@ import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 // its Metlink key and prediction limit, and the timezone/clock — no radiator
 // fields, no other bindings.
 export type PrioritySplitContext = Pick<
-	RenderContext,
+	FrameDeps,
 	'phase' | 'timezone' | 'stopPredictionLimit' | 'now' | 'format' | 'includeBmp' | 'fetchFn'
 > & {
 	env: Pick<Env, 'METLINK_API_KEY'>;

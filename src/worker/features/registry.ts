@@ -1,41 +1,33 @@
-// Layout registry. Maps layout keys (minimal_clock, priority_split, …) to
-// their Layout entry points and exports LayoutKey as the source of truth
-// used by config/types.ts, so phase config and the registry can never drift.
-//
-// Every layout is two-phase (#72): buildViewModel(ctx) owns any external fetch
-// and its error mapping and returns the format-agnostic view model; render(vm,
-// ctx) is the pure Satori → resvg → BMP pipeline (and the SVG diagnostics
-// variant) from that view model. The split lets the orchestrator hold the view
-// model *before* deciding to render — the foundation for the ETag/304 skip
-// (ADR-0013) and for render-free JSON/SVG diagnostics paths.
-//
-// The orchestrator builds one full RenderContext per request so it owns every
-// binding (env, fetch, the resolved phase) per ADR-0005 §DI — no layout reads
-// a global. RenderContext is, however, the union of every layout's needs, so
-// a layout may declare the slice it actually consumes via the Ctx parameter
-// (Pick of RenderContext; see dual_month_calendar's CalendarContext). The
-// declared slice is the layout's dependency manifest: which fields, which env
-// bindings — widening it is a reviewable diff, and reaching another feature's
-// binding can't happen silently. Accepting fewer fields than the orchestrator
-// supplies is sound contravariance.
+// Composition root for the feature tier (ADR-0017 §6). Maps each layout key to
+// a FramePreparer binder, and exports LayoutKey as the source of truth used by
+// config/types.ts so phase config and the registry can never drift. Each binder
+// receives the per-request FrameDeps bundle the orchestrator assembles once
+// (ADR-0005 §DI), binds gateway capabilities to transport, and collapses format
+// negotiation into the feature's own request — the one place that legitimately
+// sees every feature's dependencies. The sin this prevents is a feature
+// importing FrameDeps; features declare their own response types and the
+// `satisfies` check below proves compatibility structurally at the wiring site.
 
 import type { Radiator } from '../config/lookup';
 import type { ProfilePhase } from '../config/types';
 import type { ResponseFormat } from '../api/format';
+import { prepareJokeFrame } from './idle_jokes/prepare-joke-frame';
+import { fetchJoke } from '../gateways/icanhazdadjoke/fetch-joke';
 import { layout as minimalClockLayout } from './minimal_clock/service';
 import { layout as prioritySplitLayout } from './priority_split/service';
-import { layout as idleJokesLayout } from './idle_jokes/service';
 import { layout as dualMonthCalendarLayout } from './dual_month_calendar/service';
 
-export type RenderContext = {
+// The per-request dependency bundle every binder receives. It is the union of
+// every feature's needs — acceptable here and only here (ADR-0017 §6): the
+// composition root is the one place that legitimately sees everything.
+export type FrameDeps = {
 	radiator: Radiator;
 	phase: ProfilePhase;
 	timezone: string;
 	// Upper bound for the Metlink /stop-predictions `limit` (GLOBAL.stopPredictionLimit).
-	// Threaded through the context rather than read from a global so layouts stay
+	// Threaded through the bundle rather than read from a global so features stay
 	// binding-driven per ADR-0005 §DI. Transit-only: priority_split is the sole
-	// consumer — a candidate to migrate into gateway-bound config if layouts ever
-	// move to composition-root injection (capabilities instead of bindings).
+	// consumer.
 	stopPredictionLimit: number;
 	now: Date;
 	format: ResponseFormat;
@@ -44,52 +36,69 @@ export type RenderContext = {
 	// path skip the Satori/resvg pipeline entirely for the common case.
 	includeBmp: boolean;
 	// The full Env is ambient authority — every binding reachable by every
-	// layout. Layouts narrow it in their Ctx slice (env: Pick<Env, …>) so the
-	// signature names exactly which bindings the feature can touch.
+	// feature. Features narrow it where they bind (Pick<Env, …>).
 	env: Env;
 	fetchFn: typeof fetch;
 };
 
-// The optional rendered artefacts render(vm, ctx) produces: the rasterised BMP
-// and the intermediate Satori SVG, each produced only when the negotiated
-// format needs it. `frame` is null on the JSON path that opted out of the BMP;
-// `svg` is null unless the SVG variant (#20) was negotiated. The view model
-// itself lives outside the result — the orchestrator builds it first and
-// projects it via toJsonView(vm) for the JSON envelope (ADR-0004).
+// The optional rendered artefacts a prepared frame's render() produces: the
+// rasterised BMP and the intermediate Satori SVG, each non-null only when the
+// negotiated format needs it.
 export type RenderResult = {
 	frame: Uint8Array | null;
 	svg: string | null;
 };
 
-// The two-phase contract every layout implements. Declared with method syntax
-// so each layout's concretely-typed entry (Layout<its ViewModel, its Ctx
-// slice>) remains assignable to the orchestrator-facing Layout<unknown> — the
-// orchestrator treats the view model as an opaque token passed between the
-// phases, and hands every layout the same full RenderContext, of which the
-// layout's declared Ctx is a structural slice.
-export type Layout<VM = unknown, Ctx = RenderContext> = {
-	// Phase 1: owns any external fetch and its error mapping (Metlink for
-	// priority_split, the joke source for idle_jokes, none for minimal_clock)
-	// and returns the format-agnostic view model (the structured input Satori
-	// receives, ready to serialise for the JSON variant — ADR-0004).
+// What the orchestrator needs from every feature (ADR-0017 §6): the cheap JSON
+// view and appearance version (both ETag inputs) up front, and a deferred
+// render closure for the expensive artefacts — so a 304 returns without ever
+// rasterising (ADR-0013). Features declare structurally-compatible response
+// types of their own and import nothing from here.
+export type PreparedFrame = {
+	view: Record<string, unknown>;
+	version: number;
+	render: () => Promise<RenderResult>;
+};
+
+export type FramePreparer = (deps: FrameDeps) => Promise<PreparedFrame>;
+
+// TRANSITIONAL: adapts a legacy two-phase Layout to the FramePreparer surface.
+// Deleted when the last feature migrates to its own prepare capability (the
+// rollout after the idle_jokes pilot). Method-syntax bivariance lets a layout
+// whose Ctx is a Pick of FrameDeps bind here without a cast.
+function fromLayout<VM>(layout: Layout<VM, FrameDeps>): FramePreparer {
+	return async (deps) => {
+		const vm = await layout.buildViewModel(deps);
+		return {
+			view: layout.toJsonView(vm),
+			version: layout.version,
+			render: () => layout.render(vm, deps),
+		};
+	};
+}
+
+// TRANSITIONAL: the legacy two-phase contract the three unmigrated features
+// still implement. buildViewModel owns any external fetch + error mapping and
+// returns the format-agnostic view model; render is the pure view model →
+// artefacts pipeline; toJsonView projects for the JSON envelope (ADR-0004);
+// version is the layout's LAYOUT_VERSION folded into the weak ETag (ADR-0013).
+export type Layout<VM = unknown, Ctx = FrameDeps> = {
 	buildViewModel(ctx: Ctx): Promise<VM>;
-	// Phase 2: pure view model → artefacts. No fetch, no error mapping.
 	render(vm: VM, ctx: Ctx): Promise<RenderResult>;
-	// Projects the view model for the JSON diagnostics envelope (ADR-0004).
 	toJsonView(vm: VM): Record<string, unknown>;
-	// The layout's LAYOUT_VERSION (declared in its view.tsx, beside the
-	// appearance it versions). Folded into the weak ETag (ADR-0013) so a
-	// visual-only change — same view model, different pixels — busts every
-	// radiator's cached validator. Forgetting the bump is the review failure
-	// mode: a deployed visual change that never appears on matching panels.
 	version: number;
 };
 
 export const layouts = {
-	minimal_clock: minimalClockLayout,
-	priority_split: prioritySplitLayout,
-	idle_jokes: idleJokesLayout,
-	dual_month_calendar: dualMonthCalendarLayout,
-} satisfies Record<string, Layout>;
+	minimal_clock: fromLayout(minimalClockLayout),
+	priority_split: fromLayout(prioritySplitLayout),
+	idle_jokes: (deps) =>
+		prepareJokeFrame({
+			fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
+			includeBmp: deps.format === 'bmp' || deps.includeBmp,
+			includeSvg: deps.format === 'svg',
+		}),
+	dual_month_calendar: fromLayout(dualMonthCalendarLayout),
+} satisfies Record<string, FramePreparer>;
 
 export type LayoutKey = keyof typeof layouts;

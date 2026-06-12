@@ -157,21 +157,6 @@ export function metlinkRateLimited(upstreamDetail?: string): RetryableError {
 	});
 }
 
-// idle_jokes content source (icanhazdadjoke) unreachable / 5xx / unusable body.
-// Treated exactly like Metlink (#17): a 502, Retryable, warn — so an overnight
-// joke-API blip retries on the next idle wake at the idle phase cadence rather
-// than wedging. No bundled fallback by design; the firmware shows the error
-// screen per ADR-0011.
-export function jokeSourceUnavailable(detail: string, upstreamDetail?: string): RetryableError {
-	return new RetryableError({
-		slug: 'joke-source-unavailable',
-		title: 'Idle content unavailable',
-		status: 502,
-		detail,
-		upstreamDetail,
-	});
-}
-
 // Any unhandled thrown error. Retryable (most throws are transient) but logged
 // at `error` because an unexpected throw warrants a human's eyes (ADR-0011).
 export function internalError(): RetryableError {

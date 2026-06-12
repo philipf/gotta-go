@@ -17,7 +17,7 @@
 // UTC midnight of that wall date, so the Date.UTC overflow rules handle the
 // December → January rollover for free.
 
-import type { Layout, RenderContext } from '../registry';
+import type { Layout, FrameDeps } from '../registry';
 import type { Radiator } from '../../config/lookup';
 import { fetchHolidays } from '../../gateways/public_holidays/fetch-holidays';
 import { log } from '../../shared/log';
@@ -29,7 +29,7 @@ import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 // only env binding reachable. The full RenderContext the orchestrator passes
 // is a structural subtype, so no adapter is needed — and widening this type
 // is the visible, reviewable act of taking on a new dependency.
-export type CalendarContext = Pick<RenderContext, 'timezone' | 'now' | 'format' | 'includeBmp'> & {
+export type CalendarContext = Pick<FrameDeps, 'timezone' | 'now' | 'format' | 'includeBmp'> & {
 	radiator: Pick<Radiator, 'slug'>;
 	env: Pick<Env, 'PUBLIC_HOLIDAYS'>;
 };

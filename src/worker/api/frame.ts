@@ -1,18 +1,17 @@
 // Orchestrator for GET /v1/frame. Validates the shared token, resolves the
-// radiator slug → radiator and the active profile phase, drives the layout's
-// two phases (#72) — buildViewModel(ctx) for the fetch + view model, then
-// render(vm, ctx) for the artefacts — and hands the result to shapeFrame
-// (response.ts) for the negotiated format. Between the phases sits the
-// conditional frame check (ADR-0013): on the image/bmp path a matching
-// If-None-Match answers 304 Not Modified without ever rendering. Auth, slug
-// resolution, sleep duration, and the observability headers are identical
-// across every format.
+// radiator slug → radiator and the active profile phase, asks the feature to
+// prepare the frame (ADR-0017: cheap view + version up front, rendering
+// deferred), and hands the result to shapeFrame (response.ts) for the
+// negotiated format. Between prepare and render sits the conditional frame
+// check (ADR-0013): on the image/bmp path a matching If-None-Match answers 304
+// Not Modified without ever rendering. Auth, slug resolution, sleep duration,
+// and the observability headers are identical across every format.
 
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
 import type { Radiator } from '../config/lookup';
 import { layouts } from '../features/registry';
-import type { Layout, RenderContext } from '../features/registry';
+import type { FrameDeps, FramePreparer } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
 import { log } from '../shared/log';
 import {
@@ -41,7 +40,12 @@ export function handleFrame(
 	now: Date,
 ): Promise<Response> {
 	// FIX: Just a pass-through?
-	return renderFrame(request, env, now, lookupRadiator); // FIX: Why is lookupRadiator injected?
+	// NOTE: yes — the thin production entry point; it exists only to inject the
+	// real resolver so renderFrame stays resolver-agnostic. Out of scope here.
+	// FIX: Why is lookupRadiator injected?
+	// NOTE: DI (ADR-0005 §DI) — handleTestFrame injects resolveTestRadiator
+	// instead, so renderFrame knows nothing about test- slugs. Leave as is.
+	return renderFrame(request, env, now, lookupRadiator);
 }
 
 // Branch-free frame core. Authenticates, resolves the slug via the injected
@@ -65,6 +69,8 @@ export async function renderFrame(
 	// trace spans (observability.traces), not logged here — workerd freezes
 	// Date.now() between I/O so an in-script delta misleads (#54).
 	// FIX:: This can just be FrameRequest
+	// NOTE: obs is the logging projection — the subset of FrameRequest spread into
+	// every event; not the whole request. Collapsing it is a separate cleanup.
 	const obs = {
 		batteryMv: req.batteryMv,
 		hardwareId: req.hardwareId,
@@ -86,28 +92,30 @@ export async function renderFrame(
 			return problemResponse(unauthorizedError(), { requestId: req.requestId });
 		}
 
-		const radiator = resolve(req.slug); // FIX: I don't understand this
+		// FIX: I don't understand this
+		// NOTE: resolve is the injected RadiatorResolver — slug → radiator, or
+		// undefined for an unknown slug (fail closed → 404). Leave as is.
+		const radiator = resolve(req.slug);
 		if (!radiator) {
 			log.warn('frame.unknown_radiator', obs);
 			return problemResponse(unknownRadiatorError(req.slug), { requestId: req.requestId });
 		}
 
-		// 2. Endpoint — resolve the phase & drive the layout's two phases (#72).
-		// Phase 1 owns the external fetch and yields the view model; the
-		// orchestrator holds it before phase 2 rasterises — the interception
-		// point the ETag/304 skip uses. Widened to Layout<unknown> so the view
-		// model stays an opaque token passed between the layout's own phases.
+		// 2. Endpoint — resolve the phase, then prepare the frame. The feature
+		// returns the cheap view + version up front and defers rendering, so the
+		// orchestrator can answer the conditional check before any rasterisation
+		// (ADR-0013).
 		// WARN: tuple is getting long, actual some sort of TypeScript unpacking of Request in tuple 
 		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now); 
 		phaseCadence = sleepSeconds;
 		resolvedPhase = profilePhase;
 
-		// FIX: What is Layout, and what is being looked up?  Difference Profile, Phase, phaseCadence, layout and frame is confusing
-		// FIX: Move closer to where used
-		const layoutImpl: Layout = layouts[layout];
-
 		// FIX: The evil RenderContext, that combines everyting in one
-		const ctx: RenderContext = {
+		// NOTE: renamed RenderContext → FrameDeps and demoted to the composition-root
+		// bundle (ADR-0017 §6). No feature sees it — each registry binder builds the
+		// feature's own REPR request from it. Still the union of all needs, accepted
+		// only here.
+		const deps: FrameDeps = {
 			radiator,
 			phase,
 			timezone: GLOBAL.timezone,
@@ -122,19 +130,30 @@ export async function renderFrame(
 			// the Metlink client). Tests inject a plain mock fn so never hit this.
 			fetchFn: fetch.bind(globalThis),
 		};
-		const vm = await layoutImpl.buildViewModel(ctx);
+
+		// FIX: What is Layout, and what is being looked up?  Difference Profile, Phase, phaseCadence, layout and frame is confusing
+		// NOTE: `layouts[layout]` is now the feature's prepare capability (a
+		// FramePreparer binder) looked up by layout key — not a two-phase Layout.
+		// FIX: Move closer to where used
+		// NOTE: done — the lookup sits immediately before its single call.
+		const prepare: FramePreparer = layouts[layout];
+		const prepared = await prepare(deps);
 
 		// FIX: badly name view, this actual the vmInJson
-		// Generate JSON to calculate the etag
+		// NOTE: the JSON projection is now prepared.view, produced inside the feature
+		// (toJsonView); the orchestrator no longer names or builds it.
 		// FIX: potential smell, can this with the etag calc be moved viewModel (no, because of layout version, but then maybe into layOutimpl)
-		const view = layoutImpl.toJsonView(vm);
-
+		// NOTE: ETag stays in api/etag.ts (ADR-0017 §7) — the feature exposes only the
+		// inputs (view, version), so generation can never drift from validation.
 		// FIX: something smelly not sure what yet about meta. Something in base response?
+		// NOTE: meta is the cross-format response metadata (FrameMeta, response.ts):
+		// the single carrier of sleep/serverTime/phase/etag across 200 and 304 — a
+		// response.ts concern, out of scope for this pilot.
 		const meta: FrameMeta = {
 			sleepSeconds,
 			serverTime: now,
 			profilePhase,
-			etag: weakEtag(view, layoutImpl.version),
+			etag: weakEtag(prepared.view, prepared.version),
 		};
 
 		if (isUnchangedFrame(req, meta.etag)) {
@@ -148,13 +167,13 @@ export async function renderFrame(
 			return frameNotModified(meta);
 		}
 
-		// 3. Response — render the artefacts and encode & shape the negotiated
-		// format from the same view model the ETag was derived from.
-		const rendered = await layoutImpl.render(vm, ctx);
+		// 3. Response — render the deferred artefacts and shape the negotiated
+		// format from the same view the ETag was derived from.
+		const rendered = await prepared.render();
 		const response = await shapeFrame({
 			format: req.format,
 			layout,
-			view,
+			view: prepared.view,
 			rendered,
 			acceptsGzip: req.acceptsGzip,
 			meta,
@@ -208,11 +227,11 @@ function parseFrameRequest(request: Request): FrameRequest {
 
 // Conditional frame request (ADR-0013 / #73): only the image/bmp path
 // participates — a human on the JSON/SVG diagnostics surface came to see the
-// data, so those always answer 200. The check sits after buildViewModel (the
-// answer to "did the content change?" lives there) and before render, so a
-// matching validator skips the entire Satori → resvg → BMP pipeline. Error
-// paths never reach here: a buildViewModel throw hits the failure boundary
-// regardless of any If-None-Match.
+// data, so those always answer 200. The check sits after prepare (the answer to
+// "did the content change?" is in its view + version) and before the deferred
+// render, so a matching validator skips the entire Satori → resvg → BMP
+// pipeline. Error paths never reach here: a prepare throw hits the failure
+// boundary regardless of any If-None-Match.
 function isUnchangedFrame(req: FrameRequest, etag: string): boolean {
 	return req.format === 'bmp' && ifNoneMatchSatisfied(req.ifNoneMatch, etag);
 }
@@ -224,6 +243,9 @@ function isUnchangedFrame(req: FrameRequest, etag: string): boolean {
 // profilePhase carry whatever the try block resolved before the throw, so a
 // Retryable error can sleep at the phase cadence and name the phase.
 // FIX: Why not in error.
+// NOTE: this is the orchestrator's boundary glue — obs assembly + logging +
+// sleep/phase carry-over — distinct from the AppError catalog in shared/errors.ts.
+// Moving it is out of scope for this pilot.
 function failureResponse(
 	err: unknown,
 	init: {

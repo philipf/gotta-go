@@ -7,7 +7,7 @@
 // RenderContext this layout consumes — its dependency manifest; env, fetchFn,
 // phase, and stopPredictionLimit are unreachable by construction.
 
-import type { Layout, RenderContext } from '../registry';
+import type { Layout, FrameDeps } from '../registry';
 import type { Radiator } from '../../config/lookup';
 import { hhmm } from '../../shared/hhmm';
 import { shortDate } from '../../shared/shortDate';
@@ -16,7 +16,7 @@ import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
 
 // The slice of RenderContext this layout actually consumes (registry Ctx
 // parameter): slug is the only radiator field read; no bindings, no fetch.
-export type ClockContext = Pick<RenderContext, 'timezone' | 'now' | 'format' | 'includeBmp'> & {
+export type ClockContext = Pick<FrameDeps, 'timezone' | 'now' | 'format' | 'includeBmp'> & {
 	radiator: Pick<Radiator, 'slug'>;
 };
 
