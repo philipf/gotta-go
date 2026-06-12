@@ -29,8 +29,7 @@ already worked. This ADR records the structure a gateway should take so the next
 one, and the metlink rewrite, is built to it rather than re-argued from first
 principles.
 
-Piloted on `icanhazdadjoke`; the `metlink` rollout is the planned next step (see
-Consequences).
+Piloted on `icanhazdadjoke` and rolled out to `metlink` (see Consequences).
 
 ## Decision
 
@@ -145,14 +144,15 @@ coarse error surface, the quarantine, the upstream etiquette. Review scaffolding
 - **Amends ADR-0007.** The gateway public face is now named by **capability**
   and split into contract/impl, refining 0007's "module-named public file"
   convention; 0007's `gateways/metlink/metlink.ts` canonical example is
-  **superseded** and awaits the rollout below.
+  **superseded** — that file no longer exists, and both gateways now follow this
+  structure.
 
-### Deferred: metlink rollout and ADR consolidation
+### Rollout done; ADR consolidation deferred
 
-- **Rollout is pending.** Only `icanhazdadjoke` is converted. `metlink` — whose
-  `client.ts` builds a query string and whose status taxonomy carries more
-  substance — is the planned next application, and will confirm the pattern
-  generalises before it is treated as settled.
+- **Both gateways are converted.** `metlink` confirmed the pattern generalises:
+  its query-building `client.ts` and five-kind status taxonomy carried exactly
+  the "substance" §3 asks a composed file to earn, where the joke gateway's
+  transport and mapper earned their place by role alone.
 - This is the fourth structural ADR in the 0005 / 0007 / 0014 / 0016 cluster,
   each amending the last. They are slated to **consolidate into a single living
   structural guide** once the broader refactor settles; until then this ADR

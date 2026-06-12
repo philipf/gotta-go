@@ -3,7 +3,7 @@ import { toJsonView, type ColumnViewModel, type ServiceColumn } from './viewmode
 import { layout, viewModelFromStopStates, type PrioritySplitContext } from './service';
 import { serviceName } from './service-name';
 import type { TransitTarget } from '../../config/types';
-import type { Arrival, StopState } from '../../gateways/metlink/metlink';
+import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
 import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 
 // Column/marker behaviour is specified against gateway StopStates through the

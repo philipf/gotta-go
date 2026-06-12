@@ -17,7 +17,7 @@
 // bundled fallback by design (#17 grill).
 
 import type { Layout, RenderContext } from '../registry';
-import { fetchJoke, type GatewayError } from '../../gateways/icanhazdadjoke/icanhazdadjoke';
+import { fetchJoke, type JokeGatewayError } from '../../gateways/icanhazdadjoke/fetch-joke';
 import { type AppError, jokeSourceUnavailable } from '../../shared/errors';
 import { toJsonView, type ViewModel } from './viewmodel';
 import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
@@ -30,7 +30,7 @@ export type JokesContext = Pick<RenderContext, 'fetchFn' | 'format' | 'includeBm
 // Maps a classified gateway failure onto the one idle problem type (ADR-0011).
 // Both kinds are Retryable 502s — an overnight blip retries on the next idle
 // wake at the idle phase cadence; the HTTP case carries the upstream snippet.
-function toAppError(error: GatewayError): AppError {
+function toAppError(error: JokeGatewayError): AppError {
 	switch (error.kind) {
 		case 'upstream':
 			return jokeSourceUnavailable(

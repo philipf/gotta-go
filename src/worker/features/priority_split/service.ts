@@ -18,8 +18,12 @@
 // fetch + error-mapping path is still tested through the public surface.
 
 import type { Layout, RenderContext } from '../registry';
-import { fetchArrivals, type Arrival, type StopState } from '../../gateways/metlink/metlink';
-import type { GatewayError } from '../../gateways/metlink/metlink';
+import {
+	fetchArrivals,
+	type Arrival,
+	type StopState,
+	type MetlinkGatewayError,
+} from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/types';
 import {
 	type AppError,
@@ -56,7 +60,7 @@ export type PrioritySplitContext = Pick<
 // and logs `error`, a transient blip retries at the phase cadence and logs
 // `warn`. Note a `closed:true` envelope is a *successful* fetch (the stop is
 // shut), not an error — it never reaches here, so it still renders normally.
-function toAppError(error: GatewayError, target: TransitTarget): AppError {
+function toAppError(error: MetlinkGatewayError, target: TransitTarget): AppError {
 	switch (error.kind) {
 		case 'auth':
 			return metlinkAuth(error.status, error.detail);

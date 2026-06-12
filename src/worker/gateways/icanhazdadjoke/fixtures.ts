@@ -2,7 +2,7 @@
 // JSON variant of https://icanhazdadjoke.com/. Drive fetchJoke through a stub
 // fetch without any live HTTP.
 
-import type { WireJoke } from './types';
+import type { WireJoke } from './wire-types';
 
 // A medium-length joke — the common case.
 export const classicJoke: WireJoke = {

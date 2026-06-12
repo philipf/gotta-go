@@ -1,10 +1,10 @@
 // End-to-end tests for the Metlink gateway. Drives fetchArrivals through a
 // stub fetch that returns a real Response constructed from fixtures.ts.
-// Per ADR-0005 testing posture, integration-style through the public
-// interface; no live HTTP calls.
+// Per ADR-0005 testing posture, integration-style through the public contract
+// (fetch-arrivals.ts); no live HTTP calls.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchArrivals } from './metlink';
+import { fetchArrivals } from './fetch-arrivals';
 import {
 	churtonParkBranchingBus,
 	closedStop,
@@ -300,7 +300,7 @@ describe('fetchArrivals', () => {
 		expect(result.data.arrivals).toHaveLength(3);
 	});
 
-	it('surfaces a malformed JSON body on a 2xx as upstream with the actual status', async () => {
+	it('surfaces a malformed JSON body on a 2xx as upstream, preserving the parse cause', async () => {
 		const stubFetch: typeof fetch = async () =>
 			new Response('not even close to JSON', { status: 200 });
 
@@ -311,10 +311,13 @@ describe('fetchArrivals', () => {
 			serviceId: 'KPL',
 		});
 
-		expect(result).toEqual({ ok: false, error: { kind: 'upstream', status: 200 } });
+		expect(result).toMatchObject({ ok: false, error: { kind: 'upstream', status: 200 } });
+		// The exact SyntaxError text is runtime-dependent — assert only that the
+		// parse cause survived into `detail`, not its wording.
+		if (!result.ok) expect(typeof result.error.detail).toBe('string');
 	});
 
-	it('surfaces a thrown fetch (network failure) as { kind: "network" }', async () => {
+	it('surfaces a thrown fetch (network failure) as network, preserving the cause', async () => {
 		const stubFetch: typeof fetch = async () => {
 			throw new TypeError('connection refused');
 		};
@@ -326,7 +329,10 @@ describe('fetchArrivals', () => {
 			serviceId: 'KPL',
 		});
 
-		expect(result).toEqual({ ok: false, error: { kind: 'network' } });
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: 'network', detail: 'TypeError: connection refused' },
+		});
 	});
 
 	it('surfaces other non-2xx as upstream with a body snippet in detail, without logging (#55)', async () => {

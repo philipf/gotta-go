@@ -2,7 +2,7 @@
 // metlink.test.ts to drive fetchArrivals through a stub fetch without any
 // live HTTP. Each fixture covers one of the documented payload shapes.
 
-import type { WireResponse } from './types';
+import type { WireResponse } from './wire-types';
 
 // closed: true envelope — treated as a no-service state by the mapper.
 // The departures array contents are ignored when closed dominates.
