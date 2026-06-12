@@ -1,14 +1,9 @@
 // Error policy for the idle_jokes feature (ADR-0011/ADR-0017 §4): the gateway
 // reports failure as data, this file turns that outcome into the one idle
 // problem type and the gateway-error → AppError mapping. prepare throws it; the
-// renderFrame boundary shapes the problem+json.
-
-// FIX: The shared/ folder contains feature/gateway specific errors. We need to guard that shared/ doesn't become the dumping ground
-// AppError might be ok, but I think jokeSourceUnavailable is too specific and should declared as an error in the feature folder
-// NOTE: resolved — jokeSourceUnavailable now lives here. The 'joke-source-unavailable'
-// slug stays in shared's ProblemSlug union by decision (ADR-0017 §4: the union is
-// the compiler-checked mirror of the error catalog); that one line is the feature's
-// named deletion residue. The shared/ admission rule itself is a separate ADR.
+// renderFrame boundary shapes the problem+json. The 'joke-source-unavailable'
+// slug stays in shared's ProblemSlug union (ADR-0017 §4: the union is the
+// compiler-checked mirror of the error catalog) — the feature's named residue.
 
 import { type AppError, RetryableError } from '../../shared/errors';
 import type { JokeGatewayError } from '../../gateways/icanhazdadjoke/fetch-joke';

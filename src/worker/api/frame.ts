@@ -39,12 +39,6 @@ export function handleFrame(
 	env: Env,
 	now: Date,
 ): Promise<Response> {
-	// FIX: Just a pass-through?
-	// NOTE: yes — the thin production entry point; it exists only to inject the
-	// real resolver so renderFrame stays resolver-agnostic. Out of scope here.
-	// FIX: Why is lookupRadiator injected?
-	// NOTE: DI (ADR-0005 §DI) — handleTestFrame injects resolveTestRadiator
-	// instead, so renderFrame knows nothing about test- slugs. Leave as is.
 	return renderFrame(request, env, now, lookupRadiator);
 }
 
@@ -68,9 +62,6 @@ export async function renderFrame(
 	// JSON.stringify, so they need no conditional spread. Timing is owned by CF
 	// trace spans (observability.traces), not logged here — workerd freezes
 	// Date.now() between I/O so an in-script delta misleads (#54).
-	// FIX:: This can just be FrameRequest
-	// NOTE: obs is the logging projection — the subset of FrameRequest spread into
-	// every event; not the whole request. Collapsing it is a separate cleanup.
 	const obs = {
 		batteryMv: req.batteryMv,
 		hardwareId: req.hardwareId,
@@ -92,9 +83,6 @@ export async function renderFrame(
 			return problemResponse(unauthorizedError(), { requestId: req.requestId });
 		}
 
-		// FIX: I don't understand this
-		// NOTE: resolve is the injected RadiatorResolver — slug → radiator, or
-		// undefined for an unknown slug (fail closed → 404). Leave as is.
 		const radiator = resolve(req.slug);
 		if (!radiator) {
 			log.warn('frame.unknown_radiator', obs);
@@ -110,11 +98,8 @@ export async function renderFrame(
 		phaseCadence = sleepSeconds;
 		resolvedPhase = profilePhase;
 
-		// FIX: The evil RenderContext, that combines everyting in one
-		// NOTE: renamed RenderContext → FrameDeps and demoted to the composition-root
-		// bundle (ADR-0017 §6). No feature sees it — each registry binder builds the
-		// feature's own REPR request from it. Still the union of all needs, accepted
-		// only here.
+		// The per-request dependency bundle (ADR-0017 §6) — the registry binders
+		// build each feature's own request from it.
 		const deps: FrameDeps = {
 			radiator,
 			phase,
@@ -131,24 +116,11 @@ export async function renderFrame(
 			fetchFn: fetch.bind(globalThis),
 		};
 
-		// FIX: What is Layout, and what is being looked up?  Difference Profile, Phase, phaseCadence, layout and frame is confusing
-		// NOTE: `layouts[layout]` is now the feature's prepare capability (a
-		// FramePreparer binder) looked up by layout key — not a two-phase Layout.
-		// FIX: Move closer to where used
-		// NOTE: done — the lookup sits immediately before its single call.
 		const prepare: FramePreparer = layouts[layout];
 		const prepared = await prepare(deps);
 
-		// FIX: badly name view, this actual the vmInJson
-		// NOTE: the JSON projection is now prepared.view, produced inside the feature
-		// (toJsonView); the orchestrator no longer names or builds it.
-		// FIX: potential smell, can this with the etag calc be moved viewModel (no, because of layout version, but then maybe into layOutimpl)
-		// NOTE: ETag stays in api/etag.ts (ADR-0017 §7) — the feature exposes only the
-		// inputs (view, version), so generation can never drift from validation.
-		// FIX: something smelly not sure what yet about meta. Something in base response?
-		// NOTE: meta is the cross-format response metadata (FrameMeta, response.ts):
-		// the single carrier of sleep/serverTime/phase/etag across 200 and 304 — a
-		// response.ts concern, out of scope for this pilot.
+		// The weak ETag is derived here (api/etag.ts) from the feature's view +
+		// version, so generation can never drift from validation (ADR-0017 §7).
 		const meta: FrameMeta = {
 			sleepSeconds,
 			serverTime: now,
@@ -242,10 +214,6 @@ function isUnchangedFrame(req: FrameRequest, etag: string): boolean {
 // status, sleep, and body, so CF never sees a bare 500. phaseCadence /
 // profilePhase carry whatever the try block resolved before the throw, so a
 // Retryable error can sleep at the phase cadence and name the phase.
-// FIX: Why not in error.
-// NOTE: this is the orchestrator's boundary glue — obs assembly + logging +
-// sleep/phase carry-over — distinct from the AppError catalog in shared/errors.ts.
-// Moving it is out of scope for this pilot.
 function failureResponse(
 	err: unknown,
 	init: {

@@ -36,14 +36,6 @@ async function prepareError(fetchJoke: JokeSource): Promise<AppError> {
 	throw new Error('expected prepareJokeFrame() to throw');
 }
 
-// NOTE (for review): the old "longer joke ⇒ smaller font" assertion is gone.
-// fontSize is now private to the view model inside the deferred render closure;
-// the public reads (view, render output) don't expose it, and render() can't run
-// in the wasm sandbox. fontSizeFor still executes on every prepare. Option:
-// expose fontSizeFor as a named test seam (ADR-0014 escape hatch, cf.
-// priority_split's viewModelFromStopStates). Left unimplemented — judged
-// acceptable for three fixed buckets; your call.
-
 describe('idle_jokes.prepareJokeFrame', () => {
 	it('carries the joke text + id into the view as { joke, jokeId } only', async () => {
 		const prepared = await prepareJokeFrame(
