@@ -7,7 +7,7 @@
 // Reuses the production transit targets (zero new seed data), and auto-extends:
 // every phase anyone adds to a profile is instantly testable as test-<itsKey>.
 // Unconditional by design — these resolve in every environment, no env gate
-// (see GH #21). The complementary X-Debug-Now override (dev-time.ts) exercises
+// (see GH #21). The complementary X-Debug-Now override (debug/dev-time.ts) exercises
 // *real* phase selection at a chosen time; these name a phase directly.
 
 import { PROFILES } from '../config/data';
