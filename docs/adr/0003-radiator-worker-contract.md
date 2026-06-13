@@ -132,7 +132,7 @@ Per PRD §8 the radiator performs zero *semantic* work — no layout, schedule, 
 ## References
 
 - [OpenAPI spec](../api/openapi.yaml) — authoritative wire contract
-- [PRD v0.4](../PRD/GottaGo%20PRD%20v0.4.md) §6 (functional requirements), §7 (error handling, power management), §8 (architecture, request/response contract)
+- [PRD v0.4](../PRD/GottaGo%20PRD.md) §6 (functional requirements), §7 (error handling, power management), §8 (architecture, request/response contract)
 - [Glossary](../glossary.md) §7 (profiles & modes), §8 (radiator ↔ worker contract)
 - [ADR-0001](0001-frame-transport-compression.md) — `Content-Encoding: gzip` on the frame body
 - [ADR-0010](0010-no-metlink-cache-layer.md) — no caching layer; Metlink failure → `502`

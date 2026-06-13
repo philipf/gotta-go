@@ -1,9 +1,9 @@
 # GottaGo — Screen Design Specification
 
-> **UI/UX Design Reference · Companion to [PRD v0.4](../PRD/GottaGo%20PRD%20v0.4.md)**  
+> **UI/UX Design Reference · Companion to [PRD v0.4](../PRD/GottaGo%20PRD.md)**  
 > **Language reference:** every term in this document is defined in [glossary.md](../glossary.md). The PRD and this reference share one ubiquitous language.
 
-The canonical visual and interaction reference for the GottaGo radiator. This document supersedes the layout sketches in [PRD §5](../PRD/GottaGo%20PRD%20v0.4.md) and should be read alongside it. All **frames** render at native 960×540, landscape, 1-bit monochrome.
+The canonical visual and interaction reference for the GottaGo radiator. This document supersedes the layout sketches in [PRD §5](../PRD/GottaGo%20PRD.md) and should be read alongside it. All **frames** render at native 960×540, landscape, 1-bit monochrome.
 
 | Field | Value |
 | --- | --- |
@@ -122,4 +122,20 @@ Hard-won decisions from design iteration. Treat the "don't" column as regression
 
 ---
 
-*GottaGo — UI/UX Reference · Companion to [PRD v0.4](../PRD/GottaGo%20PRD%20v0.4.md) §5.*
+## 4. Typography & sizing
+
+All text renders in **DejaVu Sans Bold**, bundled as a static Worker asset; the **mode icons** are custom 8-bit pixel art — a deliberate mix (see §1 *Mixed by design* and [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)). No second *text* typeface.
+
+Recommended `priority_split` element sizes, re-tuned for the proportional metric (the small tiers honour a minimum-legible 1-bit floor):
+
+| Element | Approx. size |
+| --- | --- |
+| Tier 1 hero — Leave In value | ~120 px |
+| Mode icon / route code | ~24 px |
+| Tier 2 — BY + ARRIVES + arrival time | ~16 px |
+| Tier 3 — NEXT | ~14 px |
+| Global header — wall-clock | ~20 px |
+
+---
+
+*GottaGo — UI/UX Reference · Companion to [PRD v0.4](../PRD/GottaGo%20PRD.md) §5.*

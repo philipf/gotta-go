@@ -5,7 +5,7 @@ How the engineering skills should consume this repo's domain documentation when 
 ## Before exploring, read these
 
 - **`docs/glossary.md`** — the GottaGo ubiquitous language. Every domain term (radiator, frame, layout, profile phase, transit target, Leave In, Leave By, catchable service, marker, window, etc.) is defined there, with rejected synonyms listed explicitly. Treat the rejected-synonym list as a contract.
-- **`docs/PRD/GottaGo PRD v0.4.md`** — the current product spec. Earlier versions in `docs/PRD/` are historical only.
+- **`docs/PRD/GottaGo PRD.md`** — the current product spec. Earlier versions in `docs/PRD/` are historical only.
 - **`docs/UI/GottaGo - UI_UX Design Reference.md`** — screen scenarios and weight-band guidance for the `priority_split` layout.
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in. Directory does not exist yet; it'll be created lazily when decisions get recorded.
 

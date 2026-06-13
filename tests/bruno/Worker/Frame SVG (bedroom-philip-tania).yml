@@ -35,7 +35,7 @@ docs: |
     curl -H "X-Radiator-Token: $TOKEN" -H "X-Radiator-Slug: bedroom-philip-tania" \
          -H "Accept: image/svg+xml" -H "X-Debug-Now: 2026-05-23T06:48:00Z" \
          --compressed http://localhost:8787/v1/frame -o frame.svg && xdg-open frame.svg
-  It should show 18:48 above "Sat 23 May" in Press Start 2P.
+  It should show 18:48 above "Sat 23 May" in DejaVu Sans Bold.
 
   X-Debug-Now pins server time so the rendered clock is deterministic; it only
   takes effect when DEV_TIME_OVERRIDE=true (the Local env / wrangler dev), and

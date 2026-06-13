@@ -26,7 +26,7 @@ A Cache-API (`caches.default`) variant was considered as a better-fitting primit
 
 ## Decision
 
-**Do not implement any caching layer for the Metlink gateway** — no KV, no Cache API, no in-isolate/module-level memoisation. The Worker calls the Metlink GTFS-Realtime API directly on each `priority_split` frame request and renders the response, relying on Metlink's documented rate-limit headroom at household scale.
+**Do not implement any caching layer for the Metlink gateway** — no KV, no Cache API, no in-isolate/module-level memoisation. The Worker calls the Metlink Stop Predictions endpoint (`GET /stop-predictions`) directly on each `priority_split` frame request and renders the response, relying on Metlink's documented rate-limit headroom at household scale.
 
 This makes [ADR-0005](0005-worker-source-architecture.md)'s default — "Caching: None" until an upstream call is demonstrably hot — the standing state for the Metlink gateway. The gateway is just **client + mapper**; the `cache.ts` slot stays empty.
 

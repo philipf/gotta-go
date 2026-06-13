@@ -61,7 +61,7 @@ Gzip default compression level (6) is used; level 9 buys < 5% extra at noticeabl
 
 ## References
 
-- [PRD v0.4](../PRD/GottaGo%20PRD%20v0.4.md) §7 (non-functional requirements — rendering pipeline, power management), §8 (architecture, request/response contract)
+- [PRD v0.4](../PRD/GottaGo%20PRD.md) §7 (non-functional requirements — rendering pipeline, power management), §8 (architecture, request/response contract)
 - [Glossary](../glossary.md) — `frame`, `wake cycle`, `sleep duration`, `radiator`
 - [`poc/to-bmp/plan.md`](../../poc/to-bmp/plan.md) — BMP encoder design and verification
 - [`poc/to-bmp/hand-off-next-steps.md`](../../poc/to-bmp/hand-off-next-steps.md) — implementation hand-off to the next PoC, including the recommended gzip-measurement experiment
