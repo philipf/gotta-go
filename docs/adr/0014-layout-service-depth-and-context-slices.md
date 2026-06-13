@@ -1,6 +1,9 @@
 # ADR-0014: Layout services own derivation; viewmodels are data contracts; layouts declare context slices
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0017](0017-feature-services.md) — the two-phase
+  layout service and per-feature context slices gave way to the one-capability
+  prepare-dispatch model. The principles this ADR introduced survive there:
+  derivation owns its own file, and viewmodels stay data contracts.
 - **Date:** 2026-06-07
 - **Deciders:** Philip Fourie
 - **Language reference:** [`../glossary.md`](../glossary.md)

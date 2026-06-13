@@ -1,7 +1,7 @@
 # ADR-0017: Feature services
 
-- **Status:** Draft — written ahead of the `idle_jokes` pilot; to be refined
-  from pilot-review findings, then Accepted
+- **Status:** Accepted — drafted ahead of the `idle_jokes` pilot, refined from
+  the pilot review and the full four-feature rollout
 - **Date:** 2026-06-13
 - **Deciders:** Philip Fourie
 - **Language reference:** [`../glossary.md`](../glossary.md)
@@ -11,8 +11,7 @@
   quarantine), [ADR-0007](0007-worker-architectural-pillars.md) (Deep Modules,
   REPR), [ADR-0011](0011-error-contract-problem-details.md) (error contract),
   and [ADR-0013](0013-conditional-frame-requests.md) (conditional frames).
-  Supersedes [ADR-0014](0014-layout-service-depth-and-context-slices.md) once
-  Accepted.
+  Supersedes [ADR-0014](0014-layout-service-depth-and-context-slices.md).
 
 ## Context
 
@@ -31,10 +30,13 @@ deleting a feature should mean deleting its folder. That puts features in
 tension with shared types — any type a feature imports from the tiers above it
 is reach the folder cannot sever.
 
-This ADR records the standard structure of a feature. `features/idle_jokes/`
-is the minimal reference implementation; `features/priority_split/` is the
-non-trivial one (a parameterised gateway capability, a separate domain service,
-multiple targets, and a test seam).
+This ADR records the standard structure of a feature, drawn from the four that
+exist. `features/minimal_clock/` is the smallest (no gateway, no error policy);
+`features/idle_jokes/` is the canonical gateway-backed reference (one capability,
+one error policy); `features/priority_split/` is the non-trivial one (a
+parameterised gateway capability, a separate domain service, multiple targets,
+and a test seam); `features/dual_month_calendar/` shows the soft-miss policy (§4)
+where a gateway failure degrades rather than throws.
 
 ## Decision
 
@@ -116,14 +118,23 @@ There is no shared context object. Each feature's request is its own REPR
 type; widening it is a reviewable diff at the feature *and* at the wiring
 site.
 
-### 4. Failure is a thrown `AppError`; the policy lives in the feature
+### 4. Failure policy lives in the feature: throw, or soft-miss
 
 Gateways report outcomes as data (`ok: false` unions — ADR-0016 §3); the
-feature is where outcome becomes **policy**. `errors.ts` owns the feature's
+feature is where outcome becomes **policy**. When the missing data is the
+frame's substance, the policy is to **throw**: `errors.ts` owns the feature's
 problem-type factories and the gateway-error → `AppError` mapping; `prepare`
 (or its `render` closure) throws, and the API failure boundary turns the
 throw into problem+json (ADR-0011, unchanged). The response type stays
 success-shaped.
+
+When the missing data is **decoration** rather than substance, the policy is a
+**soft-miss**: the impl logs a diagnostic `warn`, substitutes a default, and
+renders a degraded-but-valid frame — the capability never throws and the feature
+has no `errors.ts`. dual_month_calendar's public holidays are the reference: a
+KV miss yields an *unshaded* calendar, not an error frame. The dividing question
+is whether the frame still means what it should without the data — and it is the
+feature's to answer, at the one caller (the impl) that knows.
 
 The `ProblemSlug` union in `shared/errors.ts` remains **closed**: it is the
 typed mirror of the documented error catalog (`docs/api/errors.md`), so a
@@ -132,27 +143,27 @@ union is part of its named deletion residue (§1).
 
 ### 5. Files are named by role
 
-These six are the **minimum** every feature has (`features/idle_jokes/`, the
-minimal reference):
+These five are the **universal minimum** — every feature has them,
+`features/minimal_clock/` (no gateway, no derivation) being the smallest:
 
 ```
-features/idle_jokes/
-	prepare-joke-frame.ts       contract — REPR types + capability + re-export
-	prepare-joke-frame-impl.ts  impl — fetch → map → derive → compose render
-	errors.ts                   policy — problem factories + gateway-error mapping
-	viewmodel.ts                data contract — the private VM types + projections
-	view.tsx                    pixels — the renderer + LAYOUT_VERSION
-	idle_jokes.test.ts          tests — drive the public capability
+prepare-<frame>.ts       contract — REPR types + capability + re-export
+prepare-<frame>-impl.ts  impl — derive → compose render (+ fetch/map when a gateway backs it)
+viewmodel.ts             data contract — the private VM types + projections
+view.tsx                 pixels — the renderer + LAYOUT_VERSION
+<key>.test.ts            tests — drive the public capability
 ```
 
-A non-trivial feature **earns more files** by the ADR-0016 §6 rule (role or
-substance, not line count). `features/priority_split/` (the non-trivial
-reference) adds two:
+A feature **earns more files** by the ADR-0016 §6 rule (role or substance, not
+line count). `features/idle_jokes/` (the canonical gateway-backed reference)
+earns `errors.ts`; `features/priority_split/` (the non-trivial reference) earns
+two more:
 
 ```
-	domain-service.ts           substantial derivation — the gateway-StopStates →
-	                            view-model maths, plus the domain-granularity test seam
-	mode-icon.tsx               a sub-view component of view.tsx
+errors.ts          policy — problem factories + gateway-error mapping
+domain-service.ts  substantial derivation — the gateway-StopStates → view-model
+                   maths, plus the domain-granularity test seam
+mode-icon.tsx      a sub-view component of view.tsx
 ```
 
 - **`<capability>.ts` is the contract** — named by the capability, exactly as
@@ -164,12 +175,16 @@ reference) adds two:
 - **The export is the bare verb-named function** (`prepareJokeFrame`), not a
   service object. The function type *is* the contract; a one-method object is
   ceremony.
-- **The impl is a thin orchestrator** — fetch → map → compose. Trivial
-  derivation lives inline (idle_jokes builds its view model in three lines);
-  substantial derivation graduates into `domain-service.ts`, which also houses
-  any domain-granularity test seam (priority_split's `viewModelFromStopStates`,
-  specified against gateway types so the wire format never enters the feature's
-  tests — ADR-0005).
+- **The impl is a thin orchestrator** — (fetch → map →) derive → compose.
+  A gateway-backed feature fetches and maps first; a pure one (minimal_clock)
+  skips straight to derivation. Trivial derivation lives inline (idle_jokes and
+  minimal_clock build their view models in a few lines); substantial derivation
+  graduates into `domain-service.ts`, which also houses any domain-granularity
+  test seam (priority_split's `viewModelFromStopStates`, specified against
+  gateway types so the wire format never enters the feature's tests — ADR-0005).
+- **`errors.ts` is earned by a *throwing* failure policy (§4)** — present only
+  when a gateway failure is fatal to the frame. minimal_clock (no gateway) and
+  dual_month_calendar (a decoration gateway that soft-misses) have none.
 - `viewmodel.ts` and `view.tsx` are internal composed files — nothing outside
   the folder imports them. `viewmodel.ts` holds the private VM types and their
   **projections** — `toJsonView` (the JSON envelope) and any display-label
@@ -242,19 +257,34 @@ validation.
 - A one-line `ProblemSlug` residue per feature remains in `shared/` — accepted
   as the price of a compiler-checked error catalog.
 
-## Open questions for the pilot review
+## Findings from the pilot and rollout
+
+The pilot (idle_jokes) and the rollout (priority_split, dual_month_calendar,
+minimal_clock) are complete; all four features are prepare-dispatch and the
+transitional scaffolding is gone. The review questions resolved as follows:
 
 - ~~Are `includeBmp`/`includeSvg` the right request vocabulary?~~ **Resolved:**
-  flat flags read cleanly in both the idle_jokes and priority_split binders; not
-  nested.
-- Does `FrameDeps` earn a leaner shape once the remaining two features migrate
-  off the transitional `fromLayout` adapter and the context slices disappear?
+  flat flags read cleanly across all four binders; not nested.
+- ~~Does `FrameDeps` earn a leaner shape once the remaining features migrate off
+  the transitional `fromLayout` adapter and the context slices disappear?~~
+  **Resolved:** the rollout deleted `fromLayout`, the `Layout` type, and every
+  per-feature context slice (`ClockContext`, `CalendarContext`). `FrameDeps`
+  stays the full union — correct, because no feature reads it: only binders do,
+  at the composition root (§6). The coupling the question feared (features
+  `Pick`-ing a shared context) is now impossible by construction, so a leaner
+  shape would buy nothing.
+- ~~Is failure always a thrown `AppError`?~~ **Resolved, and it amended this
+  ADR:** dual_month_calendar's decoration gateway soft-misses rather than
+  throws (§4), so `errors.ts` is an earned file, not part of the minimum (§5).
+
+One question remains genuinely open and is the designated next ADR:
+
 - `shared/` guardrails: this ADR shrinks `shared/` (error policy moves out) but
   defines neither the admission rule **nor who may import a feature**. The
   metlink migration left `api/api.test.ts` importing the feature's `metlink-*`
   factories as problem-shaping fixtures — a test reaching down into a feature.
-  §1 governs a feature's *outbound* imports, not its inbound ones. Likely its
-  own short ADR after the rollout.
+  §1 governs a feature's *outbound* imports, not its inbound ones. Its own short
+  ADR, now that the rollout is done.
 
 ## References
 
@@ -268,7 +298,11 @@ validation.
 - [ADR-0013](0013-conditional-frame-requests.md) — the 304 skip the deferred
   `render` exists to serve
 - [ADR-0014](0014-layout-service-depth-and-context-slices.md) — superseded by
-  this ADR once Accepted
-- `features/idle_jokes/` — the minimal reference implementation
+  this ADR
+- `features/minimal_clock/` — the smallest feature (no gateway, no error policy)
+- `features/idle_jokes/` — the canonical gateway-backed reference (one capability,
+  one error policy)
 - `features/priority_split/` — the non-trivial reference (parameterised gateway
   capability, separate domain service, test seam)
+- `features/dual_month_calendar/` — the soft-miss reference (a decoration gateway
+  that degrades rather than throws)
