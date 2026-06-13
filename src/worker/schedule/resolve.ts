@@ -99,7 +99,7 @@ export function resolveProfilePhase(radiator: Radiator, now: Date): ProfilePhase
 
 	// Idle fall-through (ADR-0003). Wake exactly when the next configured phase
 	// opens, capped at 4h. The synthesised phase exists only to satisfy the
-	// RenderContext shape — idle_jokes ignores its fields (no transit targets).
+	// FrameDeps shape — idle_jokes ignores its fields (no transit targets).
 	const idle = radiator.profile.idle ?? SYSTEM_IDLE_DEFAULT;
 	const idlePhase: ProfilePhase = {
 		key: IDLE_PROFILE_PHASE,
