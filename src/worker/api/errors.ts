@@ -34,7 +34,7 @@ export function problemResponse(error: AppError, init: FrameRequestContext = {})
 
 	const headers: Record<string, string> = {
 		'Content-Type': PROBLEM_JSON,
-		'X-Profile-Phase': init.profilePhase ?? 'none', // FIX: revisit when profilePhase is understood
+		'X-Profile-Phase': init.profilePhase ?? 'none', 
 	};
 	const sleep = error.sleepSeconds(init.activePhaseSleepSeconds);
 	if (sleep !== undefined) headers['X-Sleep-Seconds'] = String(sleep);
