@@ -1,8 +1,4 @@
-// Public contract for the minimal_clock feature: prepare the clock frame, with
-// rendering deferred so the conditional-frame path (ADR-0013) never pays for
-// rasterisation. Implementation in prepare-minimal-clock-frame-impl.ts. No
-// external fetch and no error policy — the derivation is pure wall-clock
-// formatting — so this capability never throws.
+// Public contract for minimal_clock: prepare the clock frame with rendering deferred.
 
 export type PrepareMinimalClockFrame = (
 	req: PrepareMinimalClockFrameRequest,

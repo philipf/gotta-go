@@ -1,16 +1,5 @@
-// Domain service for dual_month_calendar (#72/#75): the pure date math that
-// fills the data contract in viewmodel.ts — a full current-date header and two
-// Monday-start month grids (this month and next), each captioned "Month YYYY",
-// with the supplied public holidays (#84) mapped onto their own grid. No fetch,
-// no env: buildCalendarViewModel takes the already-loaded holiday set, so this
-// file answers only "what calendar does this wall instant draw?" and is the
-// feature's domain-granularity test seam. No birthdays (#75; a deferred
-// follow-up that adds a cell pill).
-//
-// Only the wall date (y/m/d) depends on the timezone; once extracted, every
-// derived value (weekday names, grid alignment, month lengths) is computed at
-// UTC midnight of that wall date, so the Date.UTC overflow rules handle the
-// December → January rollover for free.
+// Domain service for dual_month_calendar: builds the view model from wall date and holidays —
+// two Monday-start month grids; domain-granularity test seam between fetch and derivation.
 
 import type { MonthGrid, ViewModel } from './viewmodel';
 

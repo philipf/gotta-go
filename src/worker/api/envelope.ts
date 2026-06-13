@@ -1,10 +1,5 @@
-// Assembles the JSON view-model envelope for the `Accept: application/json`
-// variant of GET /v1/frame (ADR-0004). The envelope leads with the
-// cross-cutting diagnostics fields — the active profile phase, the layout, and
-// the observability `server_time` that also rides the response headers — then
-// spreads the layout's serialised view model (the structured input Satori was
-// fed). `?include_bmp=1` appends `frame_bmp_base64`, decoding to the exact BMP
-// an `Accept: image/bmp` sibling call would have produced at the same instant.
+// Assembles the JSON envelope for Accept: application/json responses: cross-cutting
+// diagnostics fields (phase, layout, server_time) followed by the layout's view model.
 
 export type FrameEnvelopeInit = {
 	profilePhase: string;

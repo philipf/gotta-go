@@ -1,8 +1,5 @@
-// Implementation of the minimal_clock capability: derive the view model — slug
-// + 24-hour HH:MM wall-clock time + "Dow DD Mon" date in the supplied timezone,
-// no external fetch — and return it with rendering deferred (the 304 path must
-// never rasterise — ADR-0013). The derivation is trivial enough to live inline;
-// no domain-service.ts is earned.
+// minimal_clock implementation: derives slug, HH:MM time, and "Dow DD Mon" date in the
+// supplied timezone — no external fetch — and returns the view model with rendering deferred.
 
 import type { PrepareMinimalClockFrame } from './prepare-minimal-clock-frame';
 import { hhmm } from '../../shared/hhmm';

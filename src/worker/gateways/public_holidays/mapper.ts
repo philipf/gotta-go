@@ -1,7 +1,5 @@
-// The only file that performs the wire→domain transformation (ADR-0005 §rule 2):
-// the stored { date, name } entries become a domain Set of ISO date strings. The
-// `name` is dropped — no caller renders it (#84) — and the payload is untrusted, so
-// each entry is validated and a malformed one is dropped, never fatal.
+// Wire→domain mapper for public_holidays: { date, name } entries → Set of ISO date strings;
+// malformed entries are dropped, not fatal.
 
 export function toHolidayDates(entries: unknown[]): Set<string> {
 	return new Set(entries.map(entryDate).filter((d): d is string => d !== null));

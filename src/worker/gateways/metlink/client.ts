@@ -1,7 +1,5 @@
-// Thin HTTP layer for /stop-predictions. Builds URL + headers, calls the
-// injected fetch, returns the raw Response. service_id is deliberately
-// omitted from the query string (silently ignored upstream per ADR-0002);
-// filtering happens client-side in mapper.ts.
+// Thin HTTP layer for /stop-predictions; omits service_id from the query string
+// because it is silently ignored upstream and filtering happens client-side.
 
 const BASE_URL = 'https://api.opendata.metlink.org.nz/v1';
 

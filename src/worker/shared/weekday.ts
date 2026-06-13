@@ -1,11 +1,5 @@
-// Lowercase 3-letter weekday token ("mon".."sun") for an instant in an arbitrary
-// timezone, without a date library — the day-of-week counterpart to hhmm. The
-// Intl.DateTimeFormat is the expensive part, so it is memoised per timezone (the
-// set of timezones is tiny and fixed for a household). en-US `weekday: 'short'`
-// is stable ASCII ("Mon", "Tue", …); lowercasing and slicing to three chars
-// lands directly on the Weekday config tokens, so callers compare with a plain
-// `days.includes(weekday(now, tz))`. DST never shifts the calendar day, so this
-// is day-correct year round even on a switch day.
+// Lowercase 3-letter weekday token ("mon".."sun") for an instant in an arbitrary timezone;
+// Intl.DateTimeFormat memoised per timezone because it is the expensive part.
 
 import type { Weekday } from '../config/config-types';
 

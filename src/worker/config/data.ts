@@ -1,9 +1,4 @@
-// PoC seed data for the PRD global:, profiles: and radiators: blocks. The
-// bedroom profiles leave an overnight gap outside their phases, which the
-// resolver falls through to the idle profile (idle_jokes, #17) — so server
-// time is not always inside a configured phase by design. philip_office covers
-// the full day on weekdays (the idle profile never engages then, #86); on
-// weekends its mon-fri commute (#92) drops out and that slot falls to idle too.
+// Seed data for global, profiles, and radiators config used in local development.
 
 import type { Global, IdleProfile, Profile, TransitTarget, Weekday } from "./config-types";
 

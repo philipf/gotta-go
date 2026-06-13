@@ -1,9 +1,5 @@
-// Inbound request shaper for GET /v1/frame (REPR: the request side). Parses the
-// raw Request once into the FrameRequest the orchestrator works with — radiator
-// identity, telemetry headers, and the negotiated response shape — and derives
-// the observability context spread into every log event. Shared by both frame
-// entry points (handleFrame, handleTestFrame) via renderFrame; knows nothing
-// about orchestration, auth, or response shaping.
+// Parses the raw GET /v1/frame request into FrameRequest: radiator identity, telemetry
+// headers, and the negotiated response shape.
 
 import { resolveResponseFormat } from './format';
 import type { ResponseFormat } from './format';

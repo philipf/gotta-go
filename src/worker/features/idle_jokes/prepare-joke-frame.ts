@@ -1,7 +1,4 @@
-// Public contract for the idle_jokes feature: prepare the joke frame, with
-// rendering deferred so the conditional-frame path (ADR-0013) never pays for
-// rasterisation. Implementation in prepare-joke-frame-impl.ts; error policy in
-// errors.ts (throws a Retryable joke-source-unavailable AppError, ADR-0011).
+// Public contract for idle_jokes: prepare the joke frame with rendering deferred.
 
 import type { FetchJokeResponse } from '../../gateways/icanhazdadjoke/fetch-joke';
 

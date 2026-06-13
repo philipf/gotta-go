@@ -1,8 +1,5 @@
-// Implementation of the idle_jokes capability: fetch a random dad joke via the
-// injected source, map any failure to an AppError (errors.ts), derive the
-// private view model, and return it with rendering deferred (the 304 path must
-// never rasterise — ADR-0013). No wall-clock/date by design (#17): the idle
-// profile sleeps up to 4h, so any rendered time would be stale.
+// idle_jokes implementation: fetches a dad joke, maps failure to an AppError, and returns
+// the view model with rendering deferred; no wall-clock date (idle sleeps up to 4h).
 
 import type { PrepareJokeFrame } from './prepare-joke-frame';
 import { toAppError } from './errors';

@@ -1,9 +1,5 @@
-// Data contract for the priority_split feature: the format-agnostic ViewModel
-// that domain-service.ts builds and view.tsx renders — the strings for the
-// column header, Tiers 1–3, and the marker ratio — plus its two projections:
-// toJsonView (the JSON diagnostics envelope) and serviceName (the column-header
-// label). The domain maths (PRD §5.3 + glossary §3/§5/§6) lives in
-// domain-service.ts; this file holds the shapes and their projections.
+// Data contract for priority_split: the format-agnostic ViewModel (column header, Tiers 1–3,
+// marker ratio) and its JSON and service-name projections.
 
 import type { Mode } from './mode-icon';
 

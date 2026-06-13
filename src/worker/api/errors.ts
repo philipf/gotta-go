@@ -1,8 +1,5 @@
-// Problem+json response shaper (ADR-0011). Turns an AppError (shared/errors.ts)
-// into an RFC 9457 `application/problem+json` response, and shapes the one
-// class-less error — the router's `not-found` — directly. `X-Sleep-Seconds`
-// rides as a header (derived from the error's class), never a body member; the
-// firmware reads it exactly as it read the old plain-text responses.
+// Problem+json response shaper: turns an AppError into an RFC 9457 application/problem+json
+// response; X-Sleep-Seconds is a header derived from the error class, never a body member.
 
 import { ERRORS_DOC_BASE, type AppError } from '../shared/errors';
 

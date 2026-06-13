@@ -1,9 +1,4 @@
-// Public contract for the dual_month_calendar feature: prepare the calendar
-// frame, with rendering deferred so the conditional-frame path (ADR-0013) never
-// pays for rasterisation. Implementation in
-// prepare-dual-month-calendar-frame-impl.ts; date derivation in domain-service.ts.
-// Unlike the transit/joke features this capability never throws: holidays are
-// decoration (#84), so a failed source soft-misses to an unshaded calendar.
+// Public contract for dual_month_calendar: prepare the calendar frame with rendering deferred.
 
 import type { FetchHolidaysResponse } from '../../gateways/public_holidays/fetch-holidays';
 

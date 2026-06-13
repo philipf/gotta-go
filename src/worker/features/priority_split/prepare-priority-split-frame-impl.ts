@@ -1,7 +1,5 @@
-// Implementation of the priority_split capability: one Metlink call per target
-// (uncached by design — ADR-0010), map any classified failure to an AppError
-// (errors.ts) and throw, derive the view model (domain-service.ts), and return it with
-// rendering deferred (the 304 path must never rasterise — ADR-0013).
+// priority_split implementation: one Metlink call per target (uncached by design), maps
+// failures to AppErrors, and returns the view model with rendering deferred.
 
 import type { PreparePrioritySplitFrame } from './prepare-priority-split-frame';
 import type { StopState } from '../../gateways/metlink/fetch-arrivals';

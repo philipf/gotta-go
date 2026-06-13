@@ -1,12 +1,5 @@
-// Orchestrator for GET /v1/frame. Validates the shared token, resolves the
-// radiator.
-// slug → radiator and the active profile phase, asks the feature to
-// prepare the frame (architecture guide: cheap view + version up front, rendering
-// deferred), and hands the result to shapeFrame (response.ts) for the
-// negotiated format. Between prepare and render sits the conditional frame
-// check (ADR-0013): on the image/bmp path a matching If-None-Match answers 304
-// Not Modified without ever rendering. Auth, slug resolution, sleep duration,
-// and the observability headers are identical across every format.
+// Orchestrator for GET /v1/frame: validates auth, resolves slug → active phase, prepares
+// the frame, and routes to response shaping or a 304 for unchanged content.
 
 import type { Radiator } from '../config/lookup';
 import { GLOBAL, lookupRadiator } from '../config/lookup';

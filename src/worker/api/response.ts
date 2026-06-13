@@ -1,9 +1,5 @@
-// Response shaping for GET /v1/frame: the one module where a view model and
-// its rendered artefacts become wire bytes. shapeFrame() owns the per-format
-// encoding — the JSON envelope (ADR-0004), the gzipped SVG/BMP bodies
-// (ADR-0001) — over the narrow per-format shapers, which exist as the single
-// place each status/header combination is spelled out (ADR-0003), plus the
-// 304 Not Modified shaper for conditional frame requests (ADR-0013).
+// Response shaping for GET /v1/frame: encodes a prepared frame into the negotiated format —
+// gzipped BMP/SVG body, JSON envelope, or 304 Not Modified.
 
 import type { RenderResult } from '../features/frame-registry';
 import { gzip } from '../shared/gzip';

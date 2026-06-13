@@ -1,7 +1,5 @@
-// Implementation of the dual_month_calendar capability: load the household
-// public holidays via the injected source (soft-missing to an unshaded calendar
-// on failure — #84), derive the view model (domain-service.ts), and return it
-// with rendering deferred (the 304 path must never rasterise — ADR-0013).
+// dual_month_calendar implementation: loads holidays (soft-missing to unshaded on failure),
+// derives the view model, and returns it with rendering deferred.
 
 import type { PrepareDualMonthCalendarFrame, HolidaySource } from './prepare-dual-month-calendar-frame';
 import { buildCalendarViewModel } from './domain-service';

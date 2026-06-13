@@ -1,14 +1,5 @@
-// Domain service for priority_split: turns already-fetched gateway StopStates
-// into the format-agnostic view model — the wall-clock global header plus one
-// column per transit target, the Tier 1–3 strings and the marker ratio (PRD
-// §5.3 + glossary §3/§5/§6).
-//
-// viewModelFromStopStates is a deliberate domain-granularity test seam: the
-// column/marker behaviour is specified against gateway StopStates because
-// driving those cases through the public capability would mean feeding Metlink
-// wire payloads to a stubbed fetch — dragging the wire format this folder must
-// not know (ADR-0005 quarantine) into its tests. The fetch + error-mapping path
-// is still tested through the public capability.
+// Domain service for priority_split: turns fetched StopStates into the view model;
+// domain-granularity test seam between gateway fetch and column/marker derivation.
 
 import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/config-types';

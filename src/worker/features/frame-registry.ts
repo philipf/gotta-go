@@ -1,13 +1,5 @@
-// Composition root for the feature tier (architecture guide). Maps each layout key to
-// a FramePreparer binder (framePreparers), and exports LayoutKey as the source
-// of truth used by config/config-types.ts so phase config and the registry can never
-// drift. Each binder
-// receives the per-request FrameDeps bundle the orchestrator assembles once
-// (ADR-0005 §DI), binds gateway capabilities to transport, and collapses format
-// negotiation into the feature's own request — the one place that legitimately
-// sees every feature's dependencies. The sin this prevents is a feature
-// importing FrameDeps; features declare their own response types and the
-// `satisfies` check below proves compatibility structurally at the wiring site.
+// Composition root: wires each LayoutKey to its FramePreparer binder and owns FrameDeps,
+// the one place that legitimately sees every feature's dependencies.
 
 import type { Radiator } from '../config/lookup';
 import type { ProfilePhase } from '../config/config-types';

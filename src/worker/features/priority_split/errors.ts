@@ -1,10 +1,5 @@
-// Error policy for the priority_split feature (ADR-0011; architecture guide): the
-// Metlink gateway reports failure as data (ok:false unions, architecture guide); this
-// file turns each kind into policy — a config fault (auth / bad id) backs off
-// hard and logs `error`, a transient blip retries at the active phase's sleep duration and logs
-// `warn` — and prepare throws it. The metlink-* slugs stay in shared's
-// ProblemSlug union (architecture guide: the compiler-checked mirror of the error
-// catalog) — the feature's named residue.
+// Error policy for priority_split: maps Metlink gateway outcomes to AppErrors —
+// config faults back off hard, transient blips retry at the phase sleep duration.
 
 import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 import type { MetlinkGatewayError } from '../../gateways/metlink/fetch-arrivals';

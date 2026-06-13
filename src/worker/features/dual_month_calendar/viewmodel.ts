@@ -1,7 +1,4 @@
-// Data contract for the dual_month_calendar layout: the format-agnostic
-// ViewModel that domain-service.ts builds and view.tsx renders. Deliberately
-// logic-free — a DTO plus its JSON projection — so this file answers only "what
-// shape does this layout draw?"; every derivation lives in domain-service.ts.
+// Data contract for dual_month_calendar: the format-agnostic ViewModel and its JSON projection.
 
 // One rendered month: caption ("June 2026"), rows of 7 cells Monday-start
 // (null = blank leading/trailing cell), the day-of-month to highlight — set

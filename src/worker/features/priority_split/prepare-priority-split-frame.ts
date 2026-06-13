@@ -1,8 +1,4 @@
-// Public contract for the priority_split feature: prepare the transit frame,
-// with rendering deferred so the conditional-frame path (ADR-0013) never pays
-// for rasterisation. Implementation in prepare-priority-split-frame-impl.ts;
-// derivation in domain-service.ts; error policy in errors.ts (throws a mapped Metlink
-// AppError, ADR-0011).
+// Public contract for priority_split: prepare the transit frame with rendering deferred.
 
 import type { FetchArrivalsResponse } from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/config-types';

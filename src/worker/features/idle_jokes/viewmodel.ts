@@ -1,7 +1,4 @@
-// Data contract for the idle_jokes feature: the private, format-agnostic
-// ViewModel that prepare-joke-frame-impl.ts derives and view.tsx renders.
-// Logic-free — a DTO plus its JSON projection — so this file answers only
-// "what shape does this feature draw?"; the derivation lives in the impl.
+// Data contract for idle_jokes: the format-agnostic ViewModel and its JSON projection.
 
 export type ViewModel = {
 	text: string;

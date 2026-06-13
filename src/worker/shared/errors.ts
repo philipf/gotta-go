@@ -1,11 +1,5 @@
-// App-wide exception hierarchy for the RFC 9457 problem+json error contract
-// (ADR-0011). An AppError carries everything the boundary needs to shape a
-// problem document — the `type` slug, `title`, `status`, per-occurrence
-// `detail`, and an optional raw `upstreamDetail` snippet — plus two behavioural
-// dimensions the boundary reads off the subclass: the sleep policy (Fatal backs
-// off hard, Retryable inherits the active phase's sleep duration) and the log level. Anything in
-// the Worker can throw one; renderFrame catches the hierarchy and returns the
-// matching problem+json response (api/errors.ts shapes the wire body).
+// App-wide exception hierarchy for RFC 9457 problem+json: carries type slug, title, status,
+// detail, sleep policy, and log level — everything the failure boundary needs.
 
 // Every `type` URL dereferences to an anchor in docs/api/errors.md (ADR-0011).
 export const ERRORS_DOC_BASE =

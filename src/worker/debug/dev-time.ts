@@ -1,11 +1,5 @@
-// Server-time override for diagnostics. When DEV_TIME_OVERRIDE is enabled (a
-// flag set via .dev.vars locally or a Cloudflare secret in production) and the
-// request carries an X-Debug-Now header with a parseable timestamp, that
-// instant replaces the real clock — letting an operator drive time-of-day phase
-// resolution (e.g. preview morning_school_run outside 07:15–08:30, or diagnose
-// a production phase issue) from curl or the radiator. Returns undefined in
-// every other case — including any request without X-Debug-Now — so the real
-// clock is used unless the override is both enabled and explicitly requested.
+// Server-time override for diagnostics: when DEV_TIME_OVERRIDE is set and the request
+// carries X-Debug-Now, that timestamp replaces the real clock for phase resolution.
 
 export function resolveDevNow(request: Request, env: Env): Date | undefined {
 	if (env.DEV_TIME_OVERRIDE !== 'true') return undefined;

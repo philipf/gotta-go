@@ -1,17 +1,5 @@
-// Conditional frame requests (ADR-0013 / #73): the weak ETag validator and the
-// If-None-Match comparison.
-//
-// The ETag is derived from the layout's serialised view model (the toJsonView
-// output — the fields that drive pixels) plus its LAYOUT_VERSION constant,
-// never the rendered bytes — so a 304 can be answered without running the
-// Satori → resvg → BMP pipeline. Weak (`W/"…"`) because RFC 9110 weak
-// semantics promise semantic equivalence, not byte identity, which is exactly
-// what "same view model, same layout version" guarantees.
-//
-// The hash algorithm is opaque to every consumer (the radiator stores and
-// echoes the string verbatim): FNV-1a 64-bit, chosen because it is synchronous
-// (no crypto.subtle await on the hot path), tiny, and collision-resistant
-// enough for a validator whose worst failure is one extra panel flash.
+// Weak ETag computation and If-None-Match comparison for conditional frame requests.
+// FNV-1a 64-bit: synchronous (no crypto.subtle await on the hot path), tiny, collision-resistant.
 
 // Derives the weak ETag for a frame from its content inputs: the serialised
 // JSON view (observability fields like server_time are already excluded —

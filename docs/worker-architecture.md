@@ -409,6 +409,10 @@ the rule.
   intends. The type makes the missing-vs-invalid distinction structurally
   impossible to leak.
 
+- **File headers are one or two lines: role + one non-obvious why.** Anything
+  longer belongs in the architecture guide or an ADR. See
+  [ADR-0016](adr/0016-file-header-comments.md) for the rule and anti-patterns.
+
 ---
 
 ## Heuristics (when → then)

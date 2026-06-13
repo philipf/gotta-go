@@ -1,8 +1,4 @@
-// Data contract for the minimal_clock layout: the format-agnostic ViewModel
-// that prepare-minimal-clock-frame-impl.ts builds and view.tsx renders.
-// Deliberately logic-free — a DTO plus its JSON projection — so this file
-// answers only "what shape does this layout draw?"; the derivation lives in
-// prepare-minimal-clock-frame-impl.ts.
+// Data contract for minimal_clock: the format-agnostic ViewModel and its JSON projection.
 
 export type ViewModel = {
 	slug: string;

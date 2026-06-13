@@ -1,6 +1,5 @@
-// Shared-token authentication for the X-Radiator-Token header. Returns a flat
-// ok-boolean to keep the OpenAPI's deliberately-indistinguishable
-// missing-vs-invalid auth-failure contract enforced at the type level.
+// Shared-token authentication for X-Radiator-Token; returns a flat boolean so the
+// deliberately-indistinguishable missing-vs-invalid auth failure is type-enforced.
 
 export type AuthResult = { ok: true } | { ok: false };
 

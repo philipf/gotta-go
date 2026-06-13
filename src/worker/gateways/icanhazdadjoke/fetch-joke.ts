@@ -1,7 +1,4 @@
-// Public contract for the icanhazdadjoke gateway — its bulkhead (ADR-0005
-// §Gateways). Kept implementation-free so a caller reads the request, responses,
-// and error surface here without wading through HTTP, JSON, or status handling;
-// those live in client.ts, mapper.ts, and fetch-joke-impl.ts.
+// Public contract for the icanhazdadjoke gateway: request, response, and error surface.
 
 // Expressed as a function type so the contract lives here and the implementation
 // is compiler-bound to it.

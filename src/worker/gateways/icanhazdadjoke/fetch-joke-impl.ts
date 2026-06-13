@@ -1,7 +1,5 @@
-// Orchestration behind the gateway contract. The error surface is deliberately
-// coarse — idle content has no auth key and no per-status policy, so the caller
-// maps every failure to one problem type (#17): `network` (no HTTP response) or
-// `upstream` (non-2xx, or a 2xx with an unusable body).
+// icanhazdadjoke orchestration: composes client and mapper; error surface is coarse by design —
+// idle content maps every failure to network or upstream.
 
 import type { FetchJoke } from './fetch-joke';
 import { fetchRandomJoke } from './client';

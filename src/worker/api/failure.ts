@@ -1,9 +1,5 @@
-// Failure boundary (ADR-0011) for the frame pipeline. Maps any throw to a
-// problem type — known AppErrors pass through, anything else becomes `internal`
-// — then logs it and shapes the problem+json response. No re-throw: the contract
-// owns the status, sleep, and body, so CF never sees a bare 500. This is the
-// throw→response seam; the problem+json shaping it delegates to lives in
-// errors.ts (problemResponse).
+// Failure boundary for the frame pipeline: maps any throw to a typed problem+json response
+// without re-throwing — the Worker never surfaces a bare 500.
 
 import { AppError, internalError } from '../shared/errors';
 import { log } from '../shared/log';
