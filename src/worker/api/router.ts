@@ -1,7 +1,7 @@
 // HTTP router. Matches GET /v1/frame to the frame handler; everything else
 // returns the bare router-level 404.
 
-import { notFound } from "./errors";
+import { notFoundResponse } from "./errors";
 import { handleFrame } from "./frame";
 import { handleTestFrame } from "./test-frame";
 
@@ -20,5 +20,5 @@ export async function route(
       ? handleTestFrame(request, env, now)
       : handleFrame(request, env, now);
   }
-  return notFound(request.method, url.pathname);
+  return notFoundResponse(request.method, url.pathname);
 }

@@ -24,7 +24,7 @@ import { problemResponse } from './errors';
 import { ifNoneMatchSatisfied, weakEtag } from './etag';
 import { resolveResponseFormat } from './format';
 import type { ResponseFormat } from './format';
-import { frameNotModified, shapeFrame } from './response';
+import { frameNotModifiedResponse, shapeFrame } from './response';
 import type { FrameMeta } from './response';
 
 // Maps a radiator slug to a fully-populated radiator, or undefined when the
@@ -136,7 +136,7 @@ export async function renderFrame(
 				format: req.format,
 				notModified: true,
 			});
-			return frameNotModified(meta);
+			return frameNotModifiedResponse(meta);
 		}
 
 		// 3. Response — render the deferred artefacts and shape the negotiated

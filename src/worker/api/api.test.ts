@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { notFound, problemResponse } from './errors';
+import { notFoundResponse, problemResponse } from './errors';
 import { internalError, unauthorizedError, unknownRadiatorError } from '../shared/errors';
 // Metlink problem factories moved to the priority_split feature (ADR-0017 §4);
 // used here only as representative Fatal/Retryable AppError fixtures for the
 // problemResponse shaping tests.
 import { metlinkAuth, metlinkUnavailable } from '../features/priority_split/errors';
-import { frameOk, frameSvg } from './response';
+import { frameBmpResponse, frameSvgResponse } from './response';
 
 const TYPE_BASE = 'https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md';
 
@@ -77,9 +77,9 @@ describe('api.errors.problemResponse — instance + upstream_detail', () => {
 	});
 });
 
-describe('api.errors.notFound', () => {
+describe('api.errors.notFoundResponse', () => {
 	it('returns a class-less 404 problem+json with no sleep/profile headers', async () => {
-		const res = notFound('GET', '/v1/frames');
+		const res = notFoundResponse('GET', '/v1/frames');
 
 		expect(res.status).toBe(404);
 		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
@@ -94,10 +94,10 @@ describe('api.errors.notFound', () => {
 	});
 });
 
-describe('api.response.frameOk', () => {
+describe('api.response.frameBmpResponse', () => {
 	it('sets ADR-0003 observability headers + content-type image/bmp', () => {
 		const body = new Uint8Array([0x42, 0x4d, 0x00, 0x00]);
-		const res = frameOk(body, {
+		const res = frameBmpResponse(body, {
 			gzip: true,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
@@ -117,7 +117,7 @@ describe('api.response.frameOk', () => {
 
 	it('omits Content-Encoding when gzip is false (uncompressed BMP body)', () => {
 		const body = new Uint8Array([0x42, 0x4d, 0x00, 0x00]);
-		const res = frameOk(body, {
+		const res = frameBmpResponse(body, {
 			gzip: false,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
@@ -131,15 +131,15 @@ describe('api.response.frameOk', () => {
 	});
 });
 
-describe('api.response.frameSvg', () => {
+describe('api.response.frameSvgResponse', () => {
 	// The end-to-end SVG path is verified via `pnpm dev` + curl (the bruno Frame
 	// SVG requests), since the Satori pipeline that produces the SVG body is
 	// blocked in the workers-pool sandbox per ADR-0005. These cover the shaper:
-	// the diagnostics SVG carries the same observability headers as frameOk, only
+	// the diagnostics SVG carries the same observability headers as frameBmpResponse, only
 	// the Content-Type differs, and gzip follows the same ADR-0001 rule.
 	it('sets the observability headers + content-type image/svg+xml, gzipped', () => {
 		const body = new Uint8Array([0x1f, 0x8b, 0x08, 0x00]); // a gzip magic stub
-		const res = frameSvg(body, {
+		const res = frameSvgResponse(body, {
 			gzip: true,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
@@ -157,7 +157,7 @@ describe('api.response.frameSvg', () => {
 
 	it('omits Content-Encoding when gzip is false (uncompressed SVG body)', () => {
 		const body = new TextEncoder().encode('<svg/>');
-		const res = frameSvg(body, {
+		const res = frameSvgResponse(body, {
 			gzip: false,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),

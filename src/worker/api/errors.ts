@@ -44,8 +44,7 @@ export function problemResponse(error: AppError, init: ProblemResponseInit = {})
 // never hits. Carried in the same problem+json envelope for one error shape
 // everywhere (ADR-0011), but class-less: no `X-Sleep-Seconds` (the firmware's
 // 300s fallback covers the theoretical case), no profile phase.
-// FIX: response suffix
-export function notFound(method: string, path: string): Response {
+export function notFoundResponse(method: string, path: string): Response {
 	const body = {
 		type: `${ERRORS_DOC_BASE}#not-found`,
 		title: 'Not found',
