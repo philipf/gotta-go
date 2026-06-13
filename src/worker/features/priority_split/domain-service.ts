@@ -11,7 +11,7 @@
 // is still tested through the public capability.
 
 import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
-import type { TransitTarget } from '../../config/types';
+import type { TransitTarget } from '../../config/config-types';
 import { hhmm } from '../../shared/hhmm';
 import { shortDate } from '../../shared/shortDate';
 import type {

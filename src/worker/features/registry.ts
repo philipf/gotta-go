@@ -1,6 +1,6 @@
 // Composition root for the feature tier (ADR-0017 §6). Maps each layout key to
 // a FramePreparer binder (framePreparers), and exports LayoutKey as the source
-// of truth used by config/types.ts so phase config and the registry can never
+// of truth used by config/config-types.ts so phase config and the registry can never
 // drift. Each binder
 // receives the per-request FrameDeps bundle the orchestrator assembles once
 // (ADR-0005 §DI), binds gateway capabilities to transport, and collapses format
@@ -10,7 +10,7 @@
 // `satisfies` check below proves compatibility structurally at the wiring site.
 
 import type { Radiator } from '../config/lookup';
-import type { ProfilePhase } from '../config/types';
+import type { ProfilePhase } from '../config/config-types';
 import type { ResponseFormat } from '../api/format';
 import { prepareJokeFrame } from './idle_jokes/prepare-joke-frame';
 import { fetchJoke } from '../gateways/icanhazdadjoke/fetch-joke';
@@ -118,7 +118,7 @@ function bindDualMonthCalendar(deps: FrameDeps) {
 }
 
 // The implemented layouts, and the source of truth for LayoutKey (consumed by
-// config/types.ts so phase config and the registry can never drift). The
+// config/config-types.ts so phase config and the registry can never drift). The
 // `satisfies Record<LayoutKey, FramePreparer>` below proves the registry covers
 // exactly these keys — a missing binder or a stray one is a compile error.
 export type LayoutKey = 'minimal_clock' | 'priority_split' | 'idle_jokes' | 'dual_month_calendar';

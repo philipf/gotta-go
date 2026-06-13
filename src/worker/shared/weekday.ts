@@ -7,7 +7,7 @@
 // `days.includes(weekday(now, tz))`. DST never shifts the calendar day, so this
 // is day-correct year round even on a switch day.
 
-import type { Weekday } from '../config/types';
+import type { Weekday } from '../config/config-types';
 
 const FMT = new Map<string, Intl.DateTimeFormat>();
 

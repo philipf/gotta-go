@@ -7,10 +7,10 @@
 // (ADR-0003 §"Idle profile" / #17): renders the idle layout and sleeps until
 // the next phase opens, capped at the 4h ceiling.
 
-import type { Radiator } from '../config/lookup';
-import type { ProfilePhase } from '../config/types';
+import type { Radiator } from './lookup';
+import type { ProfilePhase } from './config-types';
 import type { LayoutKey } from '../features/registry';
-import { GLOBAL, SYSTEM_IDLE_DEFAULT } from '../config/data';
+import { GLOBAL, SYSTEM_IDLE_DEFAULT } from './data';
 import { hhmm } from '../shared/hhmm';
 import { weekday } from '../shared/weekday';
 

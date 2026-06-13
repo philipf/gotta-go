@@ -2,9 +2,9 @@
 // resolver, plus re-exports of the domain types and GLOBAL.
 
 import { PROFILES, RADIATOR_REFS } from './data';
-import type { Radiator } from './types';
+import type { Radiator } from './config-types';
 
-export type { Radiator, Profile, ProfilePhase, Global, LayoutKey } from './types';
+export type { Radiator, Profile, ProfilePhase, Global, LayoutKey } from './config-types';
 export { GLOBAL } from './data';
 
 // Resolves a radiator slug to a fully populated Radiator (profile inlined).

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolveProfilePhase } from './resolve';
-import { lookupRadiator } from '../config/lookup';
-import type { Radiator } from '../config/lookup';
+import { lookupRadiator } from './lookup';
+import type { Radiator } from './lookup';
 
 const seedRadiator: Radiator = {
 	slug: 'bedroom-philip-tania',
@@ -70,7 +70,7 @@ const activeDaysRadiator: Radiator = {
 	},
 };
 
-describe('schedule.resolveProfilePhase', () => {
+describe('config.resolveProfilePhase', () => {
 	it('returns the active profile phase, layout, and sleep within [30, 14400]', () => {
 		const result = resolveProfilePhase(seedRadiator, new Date('2026-05-23T06:48:00Z'));
 

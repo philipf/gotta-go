@@ -5,7 +5,7 @@
 // AppError, ADR-0011).
 
 import type { FetchArrivalsResponse } from '../../gateways/metlink/fetch-arrivals';
-import type { TransitTarget } from '../../config/types';
+import type { TransitTarget } from '../../config/config-types';
 
 export type PreparePrioritySplitFrame = (
 	req: PreparePrioritySplitFrameRequest,

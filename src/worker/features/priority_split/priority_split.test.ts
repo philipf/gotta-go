@@ -6,7 +6,7 @@ import {
 	type ArrivalsSource,
 	type PreparePrioritySplitFrameRequest,
 } from './prepare-priority-split-frame';
-import type { TransitTarget } from '../../config/types';
+import type { TransitTarget } from '../../config/config-types';
 import type { Arrival, StopState, MetlinkGatewayError } from '../../gateways/metlink/fetch-arrivals';
 import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 

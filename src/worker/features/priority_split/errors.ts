@@ -8,7 +8,7 @@
 
 import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 import type { MetlinkGatewayError } from '../../gateways/metlink/fetch-arrivals';
-import type { TransitTarget } from '../../config/types';
+import type { TransitTarget } from '../../config/config-types';
 
 // Metlink 401/403 — a bad/expired METLINK_API_KEY. Ours (500), Fatal, error.
 export function metlinkAuth(upstreamStatus: number, upstreamDetail?: string): FatalError {
