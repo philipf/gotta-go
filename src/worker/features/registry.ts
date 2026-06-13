@@ -1,4 +1,4 @@
-// Composition root for the feature tier (ADR-0017 §6). Maps each layout key to
+// Composition root for the feature tier (architecture guide). Maps each layout key to
 // a FramePreparer binder (framePreparers), and exports LayoutKey as the source
 // of truth used by config/config-types.ts so phase config and the registry can never
 // drift. Each binder
@@ -21,7 +21,7 @@ import { fetchHolidays } from '../gateways/public_holidays/fetch-holidays';
 import { prepareMinimalClockFrame } from './minimal_clock/prepare-minimal-clock-frame';
 
 // The per-request dependency bundle every binder receives. It is the union of
-// every feature's needs — acceptable here and only here (ADR-0017 §6): the
+// every feature's needs — acceptable here and only here (architecture guide): the
 // composition root is the one place that legitimately sees everything.
 export type FrameDeps = {
 	radiator: Radiator;
@@ -52,7 +52,7 @@ export type RenderResult = {
 	svg: string | null;
 };
 
-// What the orchestrator needs from every feature (ADR-0017 §6): the cheap JSON
+// What the orchestrator needs from every feature (architecture guide): the cheap JSON
 // view and appearance version (both ETag inputs) up front, and a deferred
 // render closure for the expensive artefacts — so a 304 returns without ever
 // rasterising (ADR-0013). Features declare structurally-compatible response

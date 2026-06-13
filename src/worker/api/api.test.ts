@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { notFoundResponse, problemResponse } from './errors';
 import { internalError, unauthorizedError, unknownRadiatorError } from '../shared/errors';
-// Metlink problem factories moved to the priority_split feature (ADR-0017 §4);
+// Metlink problem factories moved to the priority_split feature (architecture guide);
 // used here only as representative Fatal/Retryable AppError fixtures for the
 // problemResponse shaping tests.
 import { metlinkAuth, metlinkUnavailable } from '../features/priority_split/errors';

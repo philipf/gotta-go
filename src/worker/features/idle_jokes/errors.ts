@@ -1,8 +1,8 @@
-// Error policy for the idle_jokes feature (ADR-0011/ADR-0017 §4): the gateway
+// Error policy for the idle_jokes feature (ADR-0011; architecture guide): the gateway
 // reports failure as data, this file turns that outcome into the one idle
 // problem type and the gateway-error → AppError mapping. prepare throws it; the
 // renderFrame boundary shapes the problem+json. The 'joke-source-unavailable'
-// slug stays in shared's ProblemSlug union (ADR-0017 §4: the union is the
+// slug stays in shared's ProblemSlug union (architecture guide: the union is the
 // compiler-checked mirror of the error catalog) — the feature's named residue.
 
 import { type AppError, RetryableError } from '../../shared/errors';

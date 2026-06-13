@@ -1,7 +1,7 @@
 // Orchestrator for GET /v1/frame. Validates the shared token, resolves the
 // radiator.
 // slug → radiator and the active profile phase, asks the feature to
-// prepare the frame (ADR-0017: cheap view + version up front, rendering
+// prepare the frame (architecture guide: cheap view + version up front, rendering
 // deferred), and hands the result to shapeFrame (response.ts) for the
 // negotiated format. Between prepare and render sits the conditional frame
 // check (ADR-0013): on the image/bmp path a matching If-None-Match answers 304
@@ -73,7 +73,7 @@ export async function renderFrame(
 		// (ADR-0013).
 		resolution = resolveProfilePhase(radiator, now);
 
-		// The per-request dependency bundle (ADR-0017 §6) — the registry binders
+		// The per-request dependency bundle (architecture guide) — the registry binders
 		// build each feature's own request from it.
 		const deps: FrameDeps = {
 			radiator,
@@ -95,7 +95,7 @@ export async function renderFrame(
 		const prepared = await prepare(deps);
 
 		// The weak ETag is derived here (api/etag.ts) from the feature's view +
-		// version, so generation can never drift from validation (ADR-0017 §7).
+		// version, so generation can never drift from validation (architecture guide).
 		const meta: FrameMeta = {
 			sleepSeconds: resolution.sleepSeconds,
 			serverTime: now,
