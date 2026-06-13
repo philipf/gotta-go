@@ -19,10 +19,10 @@ const env = {
 } as Env;
 
 // Friday 07:30 NZST → bedroom-daughter's morning_school_run priority_split
-// phase (mon–fri per #92; refreshIntervalMinutes 2 → 120s phase cadence).
+// phase (mon–fri per #92; refreshIntervalMinutes 2 → 120s active phase sleep).
 // 2026-05-22 is a Friday in NZ.
 const NOW = new Date('2026-05-21T19:30:00Z');
-const PHASE_CADENCE = '120';
+const ACTIVE_PHASE_SLEEP_SECONDS = '120';
 
 function frameReq(extra: Record<string, string> = {}): Request {
 	return new Request('http://localhost/v1/frame', {
@@ -66,7 +66,7 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 		});
 	});
 
-	it('maps a Metlink 5xx to a 502 metlink-unavailable, phase-cadence sleep, warn log', async () => {
+	it('maps a Metlink 5xx to a 502 metlink-unavailable, active-phase-sleep, warn log', async () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		stubFetch(503, 'upstream connect error');
 
@@ -74,7 +74,7 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 
 		expect(res.status).toBe(502);
 		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
-		expect(res.headers.get('X-Sleep-Seconds')).toBe(PHASE_CADENCE);
+		expect(res.headers.get('X-Sleep-Seconds')).toBe(ACTIVE_PHASE_SLEEP_SECONDS);
 		const body = (await res.json()) as Record<string, unknown>;
 		expect(body.type).toMatch(/#metlink-unavailable$/);
 		expect(body.upstream_detail).toBe('upstream connect error');
@@ -85,14 +85,14 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 		});
 	});
 
-	it('maps a Metlink 429 to a 502 metlink-rate-limited at the phase cadence', async () => {
+	it('maps a Metlink 429 to a 502 metlink-rate-limited at the active phase sleep', async () => {
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 		stubFetch(429, 'Too Many Requests');
 
 		const res = await route(frameReq(), env, NOW);
 
 		expect(res.status).toBe(502);
-		expect(res.headers.get('X-Sleep-Seconds')).toBe(PHASE_CADENCE);
+		expect(res.headers.get('X-Sleep-Seconds')).toBe(ACTIVE_PHASE_SLEEP_SECONDS);
 		const body = (await res.json()) as Record<string, unknown>;
 		expect(body.type).toMatch(/#metlink-rate-limited$/);
 	});

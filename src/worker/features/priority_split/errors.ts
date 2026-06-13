@@ -1,7 +1,7 @@
 // Error policy for the priority_split feature (ADR-0011/ADR-0017 §4): the
 // Metlink gateway reports failure as data (ok:false unions, ADR-0016 §3); this
 // file turns each kind into policy — a config fault (auth / bad id) backs off
-// hard and logs `error`, a transient blip retries at the phase cadence and logs
+// hard and logs `error`, a transient blip retries at the active phase's sleep duration and logs
 // `warn` — and prepare throws it. The metlink-* slugs stay in shared's
 // ProblemSlug union (ADR-0017 §4: the compiler-checked mirror of the error
 // catalog) — the feature's named residue.

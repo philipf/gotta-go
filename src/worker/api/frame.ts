@@ -69,10 +69,10 @@ export async function renderFrame(
 		slug: req.slug,
 	};
 
-	// The active phase cadence and key, captured once resolved so the failure
-	// boundary can derive a Retryable sleep and the X-Profile-Phase header. They
-	// stay undefined / 'none' for any error thrown before phase resolution.
-	let phaseCadence: number | undefined;
+	// The active phase's sleep duration and key, captured once resolved so the
+	// failure boundary can derive a Retryable sleep and the X-Profile-Phase header.
+	// They stay undefined / 'none' for any error thrown before phase resolution.
+	let activePhaseSleepSeconds: number | undefined;
 	let resolvedPhase = 'none';
 
 	try {
@@ -95,7 +95,7 @@ export async function renderFrame(
 		// (ADR-0013).
 		// WARN: tuple is getting long, actual some sort of TypeScript unpacking of Request in tuple 
 		const { profilePhase, phase, layout, sleepSeconds } = resolveProfilePhase(radiator, now); 
-		phaseCadence = sleepSeconds;
+		activePhaseSleepSeconds = sleepSeconds;
 		resolvedPhase = profilePhase;
 
 		// The per-request dependency bundle (ADR-0017 §6) — the registry binders
@@ -159,7 +159,7 @@ export async function renderFrame(
 		return failureResponse(err, {
 			obs,
 			requestId: req.requestId,
-			phaseCadence,
+			activePhaseSleepSeconds,
 			profilePhase: resolvedPhase,
 		});
 	}
@@ -211,15 +211,15 @@ function isUnchangedFrame(req: FrameRequest, etag: string): boolean {
 // Failure boundary (ADR-0011). Maps any throw to a problem type — known
 // AppErrors pass through, anything else becomes `internal` — then logs it and
 // returns the problem+json response. No re-throw: the contract owns the
-// status, sleep, and body, so CF never sees a bare 500. phaseCadence /
+// status, sleep, and body, so CF never sees a bare 500. activePhaseSleepSeconds /
 // profilePhase carry whatever the try block resolved before the throw, so a
-// Retryable error can sleep at the phase cadence and name the phase.
+// Retryable error can sleep at the active phase's sleep duration and name the phase.
 function failureResponse(
 	err: unknown,
 	init: {
 		obs: Record<string, unknown>;
 		requestId: string | undefined;
-		phaseCadence: number | undefined;
+		activePhaseSleepSeconds: number | undefined;
 		profilePhase: string;
 	},
 ): Response {
@@ -242,7 +242,7 @@ function failureResponse(
 	else log.warn('frame.error', fields);
 
 	return problemResponse(error, {
-		phaseCadence: init.phaseCadence,
+		activePhaseSleepSeconds: init.activePhaseSleepSeconds,
 		requestId: init.requestId,
 		profilePhase: init.profilePhase,
 	});

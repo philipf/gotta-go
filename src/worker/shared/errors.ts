@@ -3,7 +3,7 @@
 // problem document — the `type` slug, `title`, `status`, per-occurrence
 // `detail`, and an optional raw `upstreamDetail` snippet — plus two behavioural
 // dimensions the boundary reads off the subclass: the sleep policy (Fatal backs
-// off hard, Retryable inherits the phase cadence) and the log level. Anything in
+// off hard, Retryable inherits the active phase's sleep duration) and the log level. Anything in
 // the Worker can throw one; renderFrame catches the hierarchy and returns the
 // matching problem+json response (api/errors.ts shapes the wire body).
 
@@ -69,22 +69,22 @@ export abstract class AppError extends Error {
 		return `${ERRORS_DOC_BASE}#${this.slug}`;
 	}
 
-	// Sleep duration (whole seconds) for this error's class. `phaseCadence` is the
-	// active profile-phase cadence, or undefined when the error preceded phase
-	// resolution. Returning undefined omits `X-Sleep-Seconds` so the firmware's
-	// 300s fallback applies (ADR-0011).
-	abstract sleepSeconds(phaseCadence: number | undefined): number | undefined;
+	// Sleep duration (whole seconds) for this error's class. `phaseSleepSeconds` is
+	// the resolved profile phase's sleep duration, or undefined when the error
+	// preceded phase resolution. Returning undefined omits `X-Sleep-Seconds` so the
+	// firmware's 300s fallback applies (ADR-0011).
+	abstract sleepSeconds(phaseSleepSeconds: number | undefined): number | undefined;
 }
 
-// Transient: the next wake may succeed. Sleeps at the resolved phase cadence
-// (undefined before phase resolution → no header). Logs at `warn` by default.
+// Transient: the next wake may succeed. Sleeps at the resolved phase's sleep
+// duration (undefined before phase resolution → no header). Logs at `warn` by default.
 export class RetryableError extends AppError {
 	constructor(init: AppErrorInit) {
 		super(init, 'warn');
 	}
 
-	sleepSeconds(phaseCadence: number | undefined): number | undefined {
-		return phaseCadence;
+	sleepSeconds(phaseSleepSeconds: number | undefined): number | undefined {
+		return phaseSleepSeconds;
 	}
 }
 

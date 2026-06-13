@@ -8,19 +8,21 @@ import { ERRORS_DOC_BASE, type AppError } from '../shared/errors';
 
 const PROBLEM_JSON = 'application/problem+json';
 
-export type ProblemResponseInit = {
-	// Active profile-phase cadence (seconds), or undefined when the error
-	// preceded phase resolution. Retryable errors inherit it; Fatal ignore it.
-	// FIX: more descriptive name needed
-	phaseCadence?: number;
+// The subset of the resolved request that a problem response needs but the
+// AppError class does not carry — everything here is per-request, not per-error.
+// Each field is optional because errors thrown earlier in the pipeline (auth,
+// unknown radiator) haven't resolved the phase yet.
+export type FrameRequestContext = {
+	// The active profile phase's sleep duration (seconds), or undefined when the
+	// error preceded phase resolution. Retryable errors inherit it; Fatal ignore it.
+	activePhaseSleepSeconds?: number;
 	// Inbound X-Request-Id → the problem `instance` URN. Omitted when absent.
 	requestId?: string;
 	// Resolved profile phase for X-Profile-Phase; 'none' before resolution.
-	// FIX: phaseCadence and profilePhase is request specific
 	profilePhase?: string;
 };
 
-export function problemResponse(error: AppError, init: ProblemResponseInit = {}): Response {
+export function problemResponse(error: AppError, init: FrameRequestContext = {}): Response {
 	const body: Record<string, unknown> = {
 		type: error.type,
 		title: error.title,
@@ -34,7 +36,7 @@ export function problemResponse(error: AppError, init: ProblemResponseInit = {})
 		'Content-Type': PROBLEM_JSON,
 		'X-Profile-Phase': init.profilePhase ?? 'none', // FIX: revisit when profilePhase is understood
 	};
-	const sleep = error.sleepSeconds(init.phaseCadence);
+	const sleep = error.sleepSeconds(init.activePhaseSleepSeconds);
 	if (sleep !== undefined) headers['X-Sleep-Seconds'] = String(sleep);
 
 	return new Response(JSON.stringify(body), { status: error.status, headers });

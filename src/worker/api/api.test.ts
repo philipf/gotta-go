@@ -55,7 +55,7 @@ describe('api.errors.problemResponse — instance + upstream_detail', () => {
 		expect(body.upstream_detail).toBe('{"error":"denied"}');
 	});
 
-	it('omits instance and X-Sleep-Seconds for a Retryable error with no phase cadence', async () => {
+	it('omits instance and X-Sleep-Seconds for a Retryable error with no active phase sleep', async () => {
 		const res = problemResponse(internalError());
 
 		expect(res.status).toBe(500);
@@ -66,9 +66,9 @@ describe('api.errors.problemResponse — instance + upstream_detail', () => {
 		expect(body).not.toHaveProperty('upstream_detail');
 	});
 
-	it('derives a Retryable sleep from the phase cadence', () => {
+	it('derives a Retryable sleep from the active phase sleep duration', () => {
 		const res = problemResponse(metlinkUnavailable('Metlink is unavailable (HTTP 503).'), {
-			phaseCadence: 180,
+			activePhaseSleepSeconds: 180,
 			profilePhase: 'morning_commute',
 		});
 
