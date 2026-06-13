@@ -1,18 +1,20 @@
-// Intent-named scenario slugs for one-click visual smoke (GH #21). A request
-// with X-Radiator-Slug: test-<phaseKey> resolves to a synthetic radiator whose
-// profile holds exactly that phase, widened to all-day — so the frame renders
-// the named phase's *intent* regardless of wall-clock time, and never breaks
-// when schedule windows are re-tuned.
-//
-// Reuses the production transit targets (zero new seed data), and auto-extends:
-// every phase anyone adds to a profile is instantly testable as test-<itsKey>.
-// Unconditional by design — these resolve in every environment, no env gate
-// (see GH #21). The complementary X-Debug-Now override (dev-time.ts) exercises
-// *real* phase selection at a chosen time; these name a phase directly.
+// Resolves test-<phaseKey> slugs to synthetic radiators for visual smoke testing;
+// auto-extends to every new phase without new seed data.
 
 import { PROFILES } from '../config/data';
 import type { Radiator } from '../config/lookup';
 import { renderFrame } from './frame';
+
+// Frame handler for test- scenario slugs: renderFrame with the synthetic
+// resolver injected. Auth and response shaping are single-sourced in
+// renderFrame, identical to the production path.
+export function handleTestFrame(
+	request: Request,
+	env: Env,
+	now: Date,
+): Promise<Response> {
+	return renderFrame(request, env, now, resolveTestRadiator);
+}
 
 const TEST_PREFIX = 'test-';
 
@@ -42,15 +44,4 @@ export function resolveTestRadiator(slug: string): Radiator | undefined {
 		}
 	}
 	return undefined;
-}
-
-// Frame handler for test- scenario slugs: renderFrame with the synthetic
-// resolver injected. Auth and response shaping are single-sourced in
-// renderFrame, identical to the production path.
-export function handleTestFrame(
-	request: Request,
-	env: Env,
-	now: Date,
-): Promise<Response> {
-	return renderFrame(request, env, now, resolveTestRadiator);
 }

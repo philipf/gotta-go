@@ -39,6 +39,21 @@ const MEME_RIGHT_MARGIN = 10;
 const MEME_WIDTH = 250; // 250 + 10 margin = 260 < 288 → no clipping
 const MEME_HEIGHT = Math.round((MEME_WIDTH * 662) / 492);
 
+// Length buckets (characters) → px. Tuned for the ~620px-wide joke column at
+// 540px tall; verify live per ADR-0009. Three steps keep short jokes deliberate
+// and long ones from overflowing.
+const SHORT = 70;
+const MEDIUM = 130;
+const FONT_LARGE = 51;
+const FONT_MEDIUM = 38;
+const FONT_SMALL = 29;
+
+function fontSizeFor(text: string): number {
+	if (text.length <= SHORT) return FONT_LARGE;
+	if (text.length <= MEDIUM) return FONT_MEDIUM;
+	return FONT_SMALL;
+}
+
 function layout(vm: ViewModel): ReactNode {
 	return (
 		<div
@@ -67,7 +82,7 @@ function layout(vm: ViewModel): ReactNode {
 					paddingRight: 24,
 				}}
 			>
-				<div style={{ fontSize: vm.fontSize, lineHeight: 1.25 }}>{vm.text}</div>
+				<div style={{ fontSize: fontSizeFor(vm.text), lineHeight: 1.25 }}>{vm.text}</div>
 			</div>
 
 			{/* Meme column (right) — right-aligned with a small right margin */}

@@ -1,10 +1,8 @@
-// Cloudflare Worker entry. Delegates every request to the API router with a
-// fresh `now` Date so request-time is injected at the edge, not read inside
-// business logic. In dev only, an X-Debug-Now header can override `now` (see
-// dev-time.ts) to exercise time-of-day phase resolution; inert in production.
+// Cloudflare Worker entry: delegates to the API router with a fresh now Date injected at
+// the edge; X-Debug-Now overrides it in dev for time-of-day phase resolution.
 
 import { route } from './api/router';
-import { resolveDevNow } from './dev-time';
+import { resolveDevNow } from './debug/dev-time';
 
 export default {
 	async fetch(request, env): Promise<Response> {

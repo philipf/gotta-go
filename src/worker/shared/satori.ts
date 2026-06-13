@@ -1,8 +1,5 @@
-// Shared Satori + resvg rendering pipeline used by BMP renderers. Lazy-
-// initialises the Yoga + resvg WebAssembly modules once per Worker isolate
-// (deferred to first request to keep cold-start CPU budget low), loads the
-// bundled DejaVu Sans Bold TTF, and exposes jsxToSvg and svgToRgba.
-// Typeface decision: ADR-0009 (replaces the prior Press Start 2P pixel font).
+// Shared Satori + resvg rendering pipeline: lazy-initialises WASM modules once per isolate
+// to keep cold-start cost low, then exposes jsxToSvg and svgToRgba.
 
 import { initWasm as initResvg, Resvg } from '@resvg/resvg-wasm';
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';

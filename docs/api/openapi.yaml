@@ -512,7 +512,7 @@ components:
           `429`; a stop or service id in `config.yaml` is wrong. Logged at
           `error`; sleep `3600`.
         - **`internal`** (Retryable) — any unknown thrown error. Logged at
-          `error`; sleep at the active phase cadence, or the firmware `300 s`
+          `error`; sleep at the active phase's sleep duration, or the firmware `300 s`
           fallback (no `X-Sleep-Seconds`) when the throw happened before a
           profile phase was resolved.
 
@@ -544,7 +544,7 @@ components:
                 detail: Metlink returned HTTP 404 for stop 9999 — check the transit target stop id in config.yaml.
                 upstream_detail: '{"message":"Stop not found"}'
             internal:
-              summary: Unknown thrown error (Retryable, phase cadence)
+              summary: Unknown thrown error (Retryable, phase sleep duration)
               value:
                 type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#internal
                 title: Unexpected error
@@ -555,7 +555,7 @@ components:
       description: |
         A `502` — the fault is **upstream's** (Metlink). Both types are
         Retryable: the radiator simply retries on its next wake cycle, so sleep
-        is the active phase cadence and the log level is `warn`.
+        is the active phase's sleep duration and the log level is `warn`.
 
         - **`metlink-unavailable`** — Metlink `5xx`, network failure, or timeout.
         - **`metlink-rate-limited`** — Metlink `429`.
@@ -650,7 +650,7 @@ components:
       description: |
         The **sleep duration** — whole seconds the radiator must deep-sleep
         before its next wake cycle. Sent on **every Worker response**,
-        including errors, so the Worker stays in control of retry cadence
+        including errors, so the Worker stays in control of retry timing
         during incidents.
 
         **Bounds.**
@@ -682,7 +682,7 @@ components:
 
         - **`metlink-auth`, `metlink-bad-request`** (Fatal) — `3600` (1 h). A
           config error a human must fix; a tight retry loop against it is noise.
-        - **`internal`** (Retryable) — the active **profile phase** cadence (the
+        - **`internal`** (Retryable) — the active **profile phase**'s sleep duration (the
           same value a `200` would have used). Omitted entirely when the error
           was thrown before a phase could be resolved, in which case the
           firmware's `300 s` fallback applies.
@@ -693,7 +693,7 @@ components:
     SleepSecondsUpstream:
       description: |
         On a `502` (`metlink-unavailable`, `metlink-rate-limited`) sleep is the
-        active **profile phase** cadence — the same value a `200` would have
+        active **profile phase**'s sleep duration — the same value a `200` would have
         used. Both types are Retryable: Metlink outages are typically brief, so
         the radiator just retries on its next regular wake cycle rather than
         backing off (ADR-0011).

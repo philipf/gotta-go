@@ -1,16 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { toJsonView, type ColumnViewModel, type ServiceColumn } from './viewmodel';
-import { layout, viewModelFromStopStates, type PrioritySplitContext } from './service';
-import { serviceName } from './service-name';
-import type { TransitTarget } from '../../config/types';
-import type { Arrival, StopState } from '../../gateways/metlink/metlink';
+import { toJsonView, serviceName, type ColumnViewModel, type ServiceColumn } from './viewmodel';
+import { viewModelFromStopStates } from './domain-service';
+import {
+	preparePrioritySplitFrame,
+	type ArrivalsSource,
+	type PreparePrioritySplitFrameRequest,
+} from './prepare-priority-split-frame';
+import type { TransitTarget } from '../../config/config-types';
+import type { Arrival, StopState, MetlinkGatewayError } from '../../gateways/metlink/fetch-arrivals';
 import { type AppError, FatalError, RetryableError } from '../../shared/errors';
 
 // Column/marker behaviour is specified against gateway StopStates through the
-// viewModelFromStopStates seam (see the service.ts header): driving those
-// cases through layout.buildViewModel would drag Metlink wire payloads into
-// this folder (ADR-0005 quarantine). The fetch + error-mapping path *is*
-// driven through the public layout.buildViewModel (last describe block); the
+// viewModelFromStopStates seam (see the domain-service.ts header): driving those cases
+// through the public capability would drag Metlink wire payloads into this
+// folder (ADR-0005 quarantine). The fetch + error-mapping path *is* driven
+// through the public preparePrioritySplitFrame (last describe block); the
 // raster path (Satori → resvg → BMP) is sandbox-blocked per ADR-0005 and
 // exercised via `pnpm dev` + curl.
 
@@ -385,52 +389,46 @@ describe('priority_split.column - Marker', () => {
 	});
 });
 
-// Drives the public buildViewModel phase (#72) through a stubbed fetch so the
-// sandbox-blocked BMP pipeline is never reached while the gateway + caller
-// error path runs for real. Asserts the #59 failure policy: a gateway error
-// short-circuits the frame by throwing the mapped problem type (the
-// renderFrame boundary, tested in router.test.ts, turns it into problem+json)
-// rather than degrading silently to dashes.
-describe('priority_split.layout.buildViewModel - gateway failure → throws problem type (#59)', () => {
-	// PrioritySplitContext — the layout's declared RenderContext slice —
-	// carries exactly the dependencies the layout consumes; METLINK_API_KEY is
-	// typed directly, no Env cast.
-	function ctxWith(fetchFn: typeof fetch): PrioritySplitContext {
+// Drives the public capability (#72) through a domain-typed ArrivalsSource so
+// the sandbox-blocked BMP pipeline is never reached while the caller's error
+// policy runs for real. Asserts the #59 policy: a gateway error short-circuits
+// the frame by throwing the mapped problem type (the renderFrame boundary,
+// tested in frame.test.ts, turns it into problem+json) rather than degrading
+// silently to dashes. The HTTP → error-kind classification is the gateway's own
+// concern (fetch-arrivals.test.ts); here the stubs are domain-typed.
+describe('priority_split.preparePrioritySplitFrame - gateway failure -> throws problem type (#59)', () => {
+	const failingSource =
+		(error: MetlinkGatewayError): ArrivalsSource =>
+		async () => ({ ok: false, error });
+
+	const succeedingSource =
+		(data: StopState): ArrivalsSource =>
+		async () => ({ ok: true, data });
+
+	function requestWith(fetchArrivals: ArrivalsSource): PreparePrioritySplitFrameRequest {
 		return {
-			phase: {
-				key: 'morning_commute',
-				startTime: '07:00',
-				endTime: '09:00',
-				layout: 'priority_split',
-				refreshIntervalMinutes: 5,
-				transitTargets: [busTarget],
-			},
+			targets: [busTarget],
+			fetchArrivals,
 			timezone: TZ,
-			stopPredictionLimit: 5,
 			now: NOW,
-			format: 'json',
 			includeBmp: false,
-			env: { METLINK_API_KEY: 'test-key' },
-			fetchFn,
+			includeSvg: false,
 		};
 	}
 
-	// Captures the AppError buildViewModel() throws, failing loudly if it
-	// unexpectedly resolves — keeps the return type a clean AppError (not
-	// AppError | ViewModel).
-	async function buildError(ctx: PrioritySplitContext): Promise<AppError> {
+	// Captures the AppError prepare throws, failing loudly if it unexpectedly
+	// resolves — keeps the return type a clean AppError.
+	async function prepareError(fetchArrivals: ArrivalsSource): Promise<AppError> {
 		try {
-			await layout.buildViewModel(ctx);
+			await preparePrioritySplitFrame(requestWith(fetchArrivals));
 		} catch (e) {
 			return e as AppError;
 		}
-		throw new Error('expected buildViewModel() to throw');
+		throw new Error('expected preparePrioritySplitFrame() to throw');
 	}
 
-	it('throws a Fatal metlink-auth on a Metlink 401, carrying the upstream snippet', async () => {
-		const fetchFn: typeof fetch = async () => new Response('Unauthorized', { status: 401 });
-
-		const err = await buildError(ctxWith(fetchFn));
+	it('throws a Fatal metlink-auth on a gateway auth error, carrying the upstream snippet', async () => {
+		const err = await prepareError(failingSource({ kind: 'auth', status: 401, detail: 'Unauthorized' }));
 
 		expect(err).toBeInstanceOf(FatalError);
 		expect(err.slug).toBe('metlink-auth');
@@ -439,36 +437,36 @@ describe('priority_split.layout.buildViewModel - gateway failure → throws prob
 		expect(err.upstreamDetail).toBe('Unauthorized');
 	});
 
-	it('throws a Fatal metlink-bad-request on a Metlink 4xx config fault, naming the stop', async () => {
-		const fetchFn: typeof fetch = async () => new Response('{"message":"Stop not found"}', { status: 404 });
-
-		const err = await buildError(ctxWith(fetchFn));
+	it('throws a Fatal metlink-bad-request on a client_error, naming the stop', async () => {
+		const err = await prepareError(
+			failingSource({ kind: 'client_error', status: 404, detail: '{"message":"Stop not found"}' }),
+		);
 
 		expect(err).toBeInstanceOf(FatalError);
 		expect(err.slug).toBe('metlink-bad-request');
 		expect(err.detail).toContain('stop 3234');
 	});
 
-	it.each([
-		[429, 'metlink-rate-limited'],
-		[500, 'metlink-unavailable'],
-	])('throws a Retryable %s problem on Metlink HTTP %i', async (status, slug) => {
-		const fetchFn: typeof fetch = async () => new Response('nope', { status });
-
-		const err = await buildError(ctxWith(fetchFn));
+	it('throws a Retryable metlink-rate-limited on a rate_limited error', async () => {
+		const err = await prepareError(failingSource({ kind: 'rate_limited', status: 429, detail: 'Too Many Requests' }));
 
 		expect(err).toBeInstanceOf(RetryableError);
-		expect(err.slug).toBe(slug);
+		expect(err.slug).toBe('metlink-rate-limited');
 		expect(err.status).toBe(502);
 		expect(err.logLevel).toBe('warn');
 	});
 
-	it('throws a Retryable metlink-unavailable on a network failure', async () => {
-		const fetchFn: typeof fetch = async () => {
-			throw new TypeError('connection refused');
-		};
+	it('throws a Retryable metlink-unavailable on an upstream 5xx error', async () => {
+		const err = await prepareError(failingSource({ kind: 'upstream', status: 500, detail: 'nope' }));
 
-		const err = await buildError(ctxWith(fetchFn));
+		expect(err).toBeInstanceOf(RetryableError);
+		expect(err.slug).toBe('metlink-unavailable');
+		expect(err.status).toBe(502);
+		expect(err.logLevel).toBe('warn');
+	});
+
+	it('throws a Retryable metlink-unavailable on a network failure (no snippet)', async () => {
+		const err = await prepareError(failingSource({ kind: 'network' }));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe('metlink-unavailable');
@@ -476,11 +474,8 @@ describe('priority_split.layout.buildViewModel - gateway failure → throws prob
 	});
 
 	it('still builds a normal view model for a legitimate closed/empty-feed stop (no throw)', async () => {
-		const fetchFn: typeof fetch = async () =>
-			new Response(JSON.stringify({ closed: true, departures: [] }), { status: 200 });
+		const prepared = await preparePrioritySplitFrame(requestWith(succeedingSource({ kind: 'closed' })));
 
-		const vm = await layout.buildViewModel(ctxWith(fetchFn));
-
-		expect(vm.columns).toHaveLength(1);
+		expect((prepared.view as { columns: unknown[] }).columns).toHaveLength(1);
 	});
 });

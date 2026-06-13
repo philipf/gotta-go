@@ -62,6 +62,7 @@ The panel renders at native **960×540, 1-bit monochrome**, landscape. No backli
 | [UI/UX Design Reference](docs/UI/Home%20Transit%20Radiator%20%E2%80%94%20UI_UX%20Design%20Reference.md) | Screen scenarios, design rationale, do/don't build guidance |
 | [OpenAPI 3.1 spec](docs/api/openapi.yaml) | Authoritative radiator ↔ Worker wire contract |
 | [Glossary](docs/glossary.md) | Ubiquitous language — every term used in conversation, config, code, and docs |
+| [Worker Architecture](docs/worker-architecture.md) | Canonical guide to how Worker code is built — pillars, gateway/feature/endpoint patterns, conventions, and the reasoning behind them |
 
 ### Architecture Decision Records
 

@@ -1,11 +1,6 @@
-// PoC seed data for the PRD global:, profiles: and radiators: blocks. The
-// bedroom profiles leave an overnight gap outside their phases, which the
-// resolver falls through to the idle profile (idle_jokes, #17) — so server
-// time is not always inside a configured phase by design. philip_office covers
-// the full day on weekdays (the idle profile never engages then, #86); on
-// weekends its mon-fri commute (#92) drops out and that slot falls to idle too.
+// Seed data for global, profiles, and radiators config used in local development.
 
-import type { Global, IdleProfile, Profile, TransitTarget, Weekday } from "./types";
+import type { Global, IdleProfile, Profile, TransitTarget, Weekday } from "./config-types";
 
 // Active days for the commute/school rituals (glossary "Active days", #92 /
 // ADR-0015): Monday–Friday. Shared so the four weekday-only phases can't drift
@@ -108,7 +103,7 @@ export const PROFILES: Record<string, Profile> = {
       // above — stop/service rationale lives on the constant). Listed before
       // daytime_calendar so its 15:15–21:00 window wins over the calendar
       // during the evening commute (resolver picks the first matching phase —
-      // see schedule/resolve.ts).
+      // see resolve.ts).
       {
         key: "afternoon_commute",
         startTime: "15:15",

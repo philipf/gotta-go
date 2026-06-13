@@ -4,7 +4,7 @@ import { ifNoneMatchSatisfied, weakEtag } from './etag';
 // The weak ETag validator (ADR-0013 / #73): content-input equivalence, not
 // byte identity. The hash algorithm is opaque to consumers — these tests pin
 // the contract shape and the change-detection semantics, not FNV-1a itself.
-describe('api.etag — weakEtag', () => {
+describe('api.etag - weakEtag', () => {
 	const view = { slug: 'office', months: ['June 2026', 'July 2026'], today: 7 };
 
 	it('produces an RFC 9110 weak entity tag: W/"<16 hex chars>"', () => {
@@ -24,7 +24,7 @@ describe('api.etag — weakEtag', () => {
 	});
 });
 
-describe('api.etag — ifNoneMatchSatisfied', () => {
+describe('api.etag - ifNoneMatchSatisfied', () => {
 	const etag = weakEtag({ a: 1 }, 1);
 
 	it('matches the stored ETag echoed back verbatim (the firmware path)', () => {
@@ -39,7 +39,7 @@ describe('api.etag — ifNoneMatchSatisfied', () => {
 		expect(ifNoneMatchSatisfied(weakEtag({ a: 2 }, 1), etag)).toBe(false);
 	});
 
-	it('compares weakly per RFC 9110 §8.8.3.2 — a curl user dropping W/ still matches', () => {
+	it('compares weakly per RFC 9110 section 8.8.3.2 - a curl user dropping W/ still matches', () => {
 		expect(ifNoneMatchSatisfied(etag.slice(2), etag)).toBe(true);
 	});
 

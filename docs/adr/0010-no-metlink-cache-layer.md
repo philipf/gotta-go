@@ -41,7 +41,7 @@ This makes [ADR-0005](0005-worker-source-architecture.md)'s default — "Caching
 ### Negative / follow-ups
 
 - **Loss of the stale-served resilience fallback.** [ADR-0003](0003-radiator-worker-contract.md) ("Metlink staleness preferred over 502") and the PRD §8 error model served *stale, past-TTL* cache data as `200 X-Cache-Status: stale-served` on a Metlink outage instead of `502`. **With no cache there is nothing stale to fall back on**, so a Metlink outage must produce an explicit error/idle frame instead. This resilience question moves to **[#56](https://github.com/philipf/gotta-go/issues/56)** (Metlink failure policy). The `X-Cache-Status` (`hit`/`miss`/`stale-served`) and `X-Metlink-Fetched-At` informational headers and the `stale-served` contract behaviour are now **vestigial**; retiring or repurposing them is a wire-contract change (ADR-0003 / OpenAPI) and is intentionally **not** done in this ADR — fold it into #56.
-- **Every `priority_split` frame pays the full ~500 ms Metlink latency.** Acceptable: it is a background refresh on a multi-minute cadence, not an interactive request.
+- **Every `priority_split` frame pays the full ~500 ms Metlink latency.** Acceptable: it is a background refresh on a multi-minute interval, not an interactive request.
 
 ### Retained evidence
 

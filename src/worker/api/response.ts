@@ -1,14 +1,54 @@
-// Response shaping for GET /v1/frame: the one module where a view model and
-// its rendered artefacts become wire bytes. shapeFrame() owns the per-format
-// encoding — the JSON envelope (ADR-0004), the gzipped SVG/BMP bodies
-// (ADR-0001) — over the narrow per-format shapers, which exist as the single
-// place each status/header combination is spelled out (ADR-0003), plus the
-// 304 Not Modified shaper for conditional frame requests (ADR-0013).
+// Response shaping for GET /v1/frame: encodes a prepared frame into the negotiated format —
+// gzipped BMP/SVG body, JSON envelope, or 304 Not Modified.
 
-import type { RenderResult } from '../features/registry';
+import type { RenderResult } from '../features/frame-registry';
 import { gzip } from '../shared/gzip';
 import { buildFrameEnvelope } from './envelope';
 import type { ResponseFormat } from './format';
+
+// Encodes & shapes the negotiated format from the same view model the ETag
+// was derived from: the JSON view-model envelope, the gzipped intermediate
+// SVG, or the gzipped BMP frame. The renderer has already produced exactly
+// the artefacts the format needs (null otherwise), so each arm just encodes
+// and picks its shaper.
+export async function shapeFrame(init: ShapeFrameInit): Promise<Response> {
+	const { meta } = init;
+	switch (init.format) {
+		case 'json': {
+			const envelope = buildFrameEnvelope({
+				profilePhase: meta.profilePhase,
+				layout: init.layout,
+				serverTime: meta.serverTime,
+				viewModel: init.view,
+				bmp: init.rendered.frame,
+			});
+			return frameJsonResponse(envelope, meta);
+		}
+		case 'svg': {
+			// The renderer always produces the SVG for `format: 'svg'`. Gzipped per
+			// ADR-0001 like the BMP body, honouring Accept-Encoding the same way.
+			const svgBytes = new TextEncoder().encode(init.rendered.svg as string);
+			const body = init.acceptsGzip ? await gzip(svgBytes) : svgBytes;
+			return frameSvgResponse(body, { gzip: init.acceptsGzip, ...meta });
+		}
+		case 'bmp': {
+			// The renderer always rasterises a frame for `format: 'bmp'`.
+			const frame = init.rendered.frame as Uint8Array;
+			const body = init.acceptsGzip ? await gzip(frame) : frame;
+			return frameBmpResponse(body, { gzip: init.acceptsGzip, ...meta });
+		}
+	}
+}
+
+export type ShapeFrameInit = {
+	format: ResponseFormat;
+	layout: string;
+	// The layout's serialised view model (toJsonView output).
+	view: Record<string, unknown>;
+	rendered: RenderResult;
+	acceptsGzip: boolean;
+	meta: FrameMeta;
+};
 
 // The cross-format response metadata: every 200 and 304 carries these four,
 // identically, whatever the body shape — sleep authority, the observability
@@ -23,99 +63,27 @@ export type FrameMeta = {
 	etag: string;
 };
 
-export type FrameOkInit = FrameMeta & { gzip: boolean };
+export type FrameBodyInit = FrameMeta & { gzip: boolean };
 
-// Encodes & shapes the negotiated format from the same view model the ETag
-// was derived from: the JSON view-model envelope, the gzipped intermediate
-// SVG, or the gzipped BMP frame. The renderer has already produced exactly
-// the artefacts the format needs (null otherwise), so each arm just encodes
-// and picks its shaper.
-export type ShapeFrameInit = {
-	format: ResponseFormat;
-	layout: string;
-	// The layout's serialised view model (toJsonView output).
-	view: Record<string, unknown>;
-	rendered: RenderResult;
-	acceptsGzip: boolean;
-	meta: FrameMeta;
-};
-
-export async function shapeFrame(init: ShapeFrameInit): Promise<Response> {
-	const { meta } = init;
-	switch (init.format) {
-		case 'json': {
-			const envelope = buildFrameEnvelope({
-				profilePhase: meta.profilePhase,
-				layout: init.layout,
-				serverTime: meta.serverTime,
-				viewModel: init.view,
-				bmp: init.rendered.frame,
-			});
-			return frameJson(envelope, meta);
-		}
-		case 'svg': {
-			// The renderer always produces the SVG for `format: 'svg'`. Gzipped per
-			// ADR-0001 like the BMP body, honouring Accept-Encoding the same way.
-			const svgBytes = new TextEncoder().encode(init.rendered.svg as string);
-			const body = init.acceptsGzip ? await gzip(svgBytes) : svgBytes;
-			return frameSvg(body, { gzip: init.acceptsGzip, ...meta });
-		}
-		case 'bmp': {
-			// The renderer always rasterises a frame for `format: 'bmp'`.
-			const frame = init.rendered.frame as Uint8Array;
-			const body = init.acceptsGzip ? await gzip(frame) : frame;
-			return frameOk(body, { gzip: init.acceptsGzip, ...meta });
-		}
-	}
-}
-
-// Shared shaper for the byte-body frame variants — the BMP (ADR-0003) and the
-// diagnostics SVG (ADR-0004). Both carry the identical observability headers and
-// follow the same ADR-0001 gzip transport rule; only the Content-Type differs.
-function frameBody(
-	contentType: string,
-	body: Uint8Array,
-	init: FrameOkInit,
-): Response {
-	const headers: Record<string, string> = {
-		'Content-Type': contentType,
-		ETag: init.etag,
-		'X-Sleep-Seconds': String(init.sleepSeconds),
-		'X-Server-Time': init.serverTime.toISOString(),
-		'X-Profile-Phase': init.profilePhase,
-	};
-	if (init.gzip) headers['Content-Encoding'] = 'gzip';
-
-	// encodeBody: 'manual' stops the Workers runtime from re-gzipping a body
-	// we already compressed ourselves. The runtime's 'automatic' default
-	// re-encodes any Content-Encoding: gzip response, producing double-gzipped
-	// wire bytes — see GH #13 for the discovery + verification.
-	return new Response(body, {
-		status: 200,
-		headers,
-		encodeBody: init.gzip ? 'manual' : 'automatic',
-	});
-}
-
-export function frameOk(body: Uint8Array, init: FrameOkInit): Response {
+export function frameBmpResponse(body: Uint8Array, init: FrameBodyInit): Response {
 	return frameBody('image/bmp', body, init);
 }
 
 // 200-OK SVG diagnostics response for the `Accept: image/svg+xml` variant
 // (ADR-0004). Returns the intermediate Satori SVG that the BMP encoder
 // rasterises, gzipped per ADR-0001 like the BMP body. Carries the identical
-// observability headers to frameOk so the variants are indistinguishable to a
-// human comparing them; only the body and Content-Type differ.
-export function frameSvg(body: Uint8Array, init: FrameOkInit): Response {
+// observability headers to frameBmpResponse so the variants are indistinguishable
+// to a human comparing them; only the body and Content-Type differ.
+export function frameSvgResponse(body: Uint8Array, init: FrameBodyInit): Response {
 	return frameBody('image/svg+xml', body, init);
 }
 
 // 200-OK JSON diagnostics response for the `Accept: application/json` variant
-// (ADR-0004). Carries the identical observability headers to frameOk so the two
-// variants are indistinguishable to a human comparing them; only the body shape
-// and Content-Type differ. Never gzipped — the diagnostics path is curl-facing
-// and small, and the radiator never negotiates JSON.
-export function frameJson(envelope: unknown, init: FrameMeta): Response {
+// (ADR-0004). Carries the identical observability headers to frameBmpResponse so
+// the two variants are indistinguishable to a human comparing them; only the body
+// shape and Content-Type differ. Never gzipped — the diagnostics path is
+// curl-facing and small, and the radiator never negotiates JSON.
+export function frameJsonResponse(envelope: unknown, init: FrameMeta): Response {
 	return new Response(JSON.stringify(envelope), {
 		status: 200,
 		headers: {
@@ -141,7 +109,7 @@ export function frameJson(envelope: unknown, init: FrameMeta): Response {
 // null body). Harmless — RFC 9110 permits representation metadata on a 304
 // and there is no body to decode — and documented as incidental in the
 // OpenAPI contract.
-export function frameNotModified(init: FrameMeta): Response {
+export function frameNotModifiedResponse(init: FrameMeta): Response {
 	return new Response(null, {
 		status: 304,
 		headers: {
@@ -150,5 +118,33 @@ export function frameNotModified(init: FrameMeta): Response {
 			'X-Server-Time': init.serverTime.toISOString(),
 			'X-Profile-Phase': init.profilePhase,
 		},
+	});
+}
+
+// Shared shaper for the byte-body frame variants — the BMP (ADR-0003) and the
+// diagnostics SVG (ADR-0004). Both carry the identical observability headers and
+// follow the same ADR-0001 gzip transport rule; only the Content-Type differs.
+function frameBody(
+	contentType: string,
+	body: Uint8Array,
+	init: FrameBodyInit,
+): Response {
+	const headers: Record<string, string> = {
+		'Content-Type': contentType,
+		ETag: init.etag,
+		'X-Sleep-Seconds': String(init.sleepSeconds),
+		'X-Server-Time': init.serverTime.toISOString(),
+		'X-Profile-Phase': init.profilePhase,
+	};
+	if (init.gzip) headers['Content-Encoding'] = 'gzip';
+
+	// encodeBody: 'manual' stops the Workers runtime from re-gzipping a body
+	// we already compressed ourselves. The runtime's 'automatic' default
+	// re-encodes any Content-Encoding: gzip response, producing double-gzipped
+	// wire bytes — see GH #13 for the discovery + verification.
+	return new Response(body, {
+		status: 200,
+		headers,
+		encodeBody: init.gzip ? 'manual' : 'automatic',
 	});
 }

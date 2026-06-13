@@ -1,11 +1,5 @@
-// App-wide exception hierarchy for the RFC 9457 problem+json error contract
-// (ADR-0011). An AppError carries everything the boundary needs to shape a
-// problem document — the `type` slug, `title`, `status`, per-occurrence
-// `detail`, and an optional raw `upstreamDetail` snippet — plus two behavioural
-// dimensions the boundary reads off the subclass: the sleep policy (Fatal backs
-// off hard, Retryable inherits the phase cadence) and the log level. Anything in
-// the Worker can throw one; renderFrame catches the hierarchy and returns the
-// matching problem+json response (api/errors.ts shapes the wire body).
+// App-wide exception hierarchy for RFC 9457 problem+json: carries type slug, title, status,
+// detail, sleep policy, and log level — everything the failure boundary needs.
 
 // Every `type` URL dereferences to an anchor in docs/api/errors.md (ADR-0011).
 export const ERRORS_DOC_BASE =
@@ -69,22 +63,22 @@ export abstract class AppError extends Error {
 		return `${ERRORS_DOC_BASE}#${this.slug}`;
 	}
 
-	// Sleep duration (whole seconds) for this error's class. `phaseCadence` is the
-	// active profile-phase cadence, or undefined when the error preceded phase
-	// resolution. Returning undefined omits `X-Sleep-Seconds` so the firmware's
-	// 300s fallback applies (ADR-0011).
-	abstract sleepSeconds(phaseCadence: number | undefined): number | undefined;
+	// Sleep duration (whole seconds) for this error's class. `phaseSleepSeconds` is
+	// the resolved profile phase's sleep duration, or undefined when the error
+	// preceded phase resolution. Returning undefined omits `X-Sleep-Seconds` so the
+	// firmware's 300s fallback applies (ADR-0011).
+	abstract sleepSeconds(phaseSleepSeconds: number | undefined): number | undefined;
 }
 
-// Transient: the next wake may succeed. Sleeps at the resolved phase cadence
-// (undefined before phase resolution → no header). Logs at `warn` by default.
+// Transient: the next wake may succeed. Sleeps at the resolved phase's sleep
+// duration (undefined before phase resolution → no header). Logs at `warn` by default.
 export class RetryableError extends AppError {
 	constructor(init: AppErrorInit) {
 		super(init, 'warn');
 	}
 
-	sleepSeconds(phaseCadence: number | undefined): number | undefined {
-		return phaseCadence;
+	sleepSeconds(phaseSleepSeconds: number | undefined): number | undefined {
+		return phaseSleepSeconds;
 	}
 }
 
@@ -106,71 +100,6 @@ export class FatalError extends AppError {
 // the title/status/class live in exactly one place; callers supply only the
 // per-occurrence prose and any upstream snippet.
 // -----------------------------------------------------------------------
-
-// Metlink 401/403 — a bad/expired METLINK_API_KEY. Ours (500), Fatal, error.
-export function metlinkAuth(upstreamStatus: number, upstreamDetail?: string): FatalError {
-	return new FatalError({
-		slug: 'metlink-auth',
-		title: 'Transit data unavailable',
-		status: 500,
-		detail: `Metlink rejected the configured API key (HTTP ${upstreamStatus}). Check METLINK_API_KEY.`,
-		upstreamDetail,
-	});
-}
-
-// Metlink 4xx other than 429 — a bad stop/service id in config. Ours (500),
-// Fatal, error.
-export function metlinkBadRequest(
-	upstreamStatus: number,
-	stopId: string,
-	upstreamDetail?: string,
-): FatalError {
-	return new FatalError({
-		slug: 'metlink-bad-request',
-		title: 'Transit target misconfigured',
-		status: 500,
-		detail: `Metlink returned HTTP ${upstreamStatus} for stop ${stopId} — check the transit target stop id in config.yaml.`,
-		upstreamDetail,
-	});
-}
-
-// Metlink 5xx / network failure / timeout / unusable body. Upstream's (502),
-// Retryable, warn. `detail` describes the specific cause.
-export function metlinkUnavailable(detail: string, upstreamDetail?: string): RetryableError {
-	return new RetryableError({
-		slug: 'metlink-unavailable',
-		title: 'Transit data unavailable',
-		status: 502,
-		detail,
-		upstreamDetail,
-	});
-}
-
-// Metlink 429 — we exceeded its rate limit. Upstream's (502), Retryable, warn.
-export function metlinkRateLimited(upstreamDetail?: string): RetryableError {
-	return new RetryableError({
-		slug: 'metlink-rate-limited',
-		title: 'Transit data unavailable',
-		status: 502,
-		detail: 'Metlink returned HTTP 429 (rate limited). The radiator will retry on its next wake cycle.',
-		upstreamDetail,
-	});
-}
-
-// idle_jokes content source (icanhazdadjoke) unreachable / 5xx / unusable body.
-// Treated exactly like Metlink (#17): a 502, Retryable, warn — so an overnight
-// joke-API blip retries on the next idle wake at the idle phase cadence rather
-// than wedging. No bundled fallback by design; the firmware shows the error
-// screen per ADR-0011.
-export function jokeSourceUnavailable(detail: string, upstreamDetail?: string): RetryableError {
-	return new RetryableError({
-		slug: 'joke-source-unavailable',
-		title: 'Idle content unavailable',
-		status: 502,
-		detail,
-		upstreamDetail,
-	});
-}
 
 // Any unhandled thrown error. Retryable (most throws are transient) but logged
 // at `error` because an unexpected throw warrants a human's eyes (ADR-0011).

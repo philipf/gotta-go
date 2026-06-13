@@ -1,11 +1,5 @@
-// Dependency-free structured logger for Cloudflare Workers observability (GH #25).
-// Each call emits a single JSON line via the console method matching its level,
-// so CF Workers Logs both (a) classifies the entry under its native Level facet
-// — driven by the console method, not the payload — and (b) indexes every field
-// for querying (e.g. event, hardwareId, durationMs). `event` is a dotted name
-// (e.g. "frame.completed") that forms the dashboard query vocabulary; `fields`
-// are merged in flat alongside `level` and `event`. No timestamp — CF stamps
-// each event itself.
+// Structured JSON logger for Cloudflare Workers: one JSON line per call via the console
+// method matching the level, so CF Workers Logs classifies and indexes every field.
 
 type Fields = Record<string, unknown>;
 

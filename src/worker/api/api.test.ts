@@ -1,17 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { notFound, problemResponse } from './errors';
-import {
-	internalError,
-	metlinkAuth,
-	metlinkUnavailable,
-	unauthorizedError,
-	unknownRadiatorError,
-} from '../shared/errors';
-import { frameOk, frameSvg } from './response';
+import { notFoundResponse, problemResponse } from './errors';
+import { FatalError, RetryableError, internalError, unauthorizedError, unknownRadiatorError } from '../shared/errors';
+import { frameBmpResponse, frameSvgResponse } from './response';
 
 const TYPE_BASE = 'https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md';
 
-describe('api.errors.problemResponse — unauthorized', () => {
+describe('api.errors.problemResponse - unauthorized', () => {
 	it('shapes a 401 problem+json with type #unauthorized and X-Sleep-Seconds 3600', async () => {
 		const res = problemResponse(unauthorizedError());
 
@@ -28,7 +22,7 @@ describe('api.errors.problemResponse — unauthorized', () => {
 	});
 });
 
-describe('api.errors.problemResponse — unknown-radiator', () => {
+describe('api.errors.problemResponse - unknown-radiator', () => {
 	it('shapes a 404 problem+json naming the slug, X-Sleep-Seconds 3600', async () => {
 		const res = problemResponse(unknownRadiatorError('bedroom-attic'));
 
@@ -41,9 +35,9 @@ describe('api.errors.problemResponse — unknown-radiator', () => {
 	});
 });
 
-describe('api.errors.problemResponse — instance + upstream_detail', () => {
+describe('api.errors.problemResponse - instance + upstream_detail', () => {
 	it('adds an instance URN from the request id and an upstream_detail snippet', async () => {
-		const res = problemResponse(metlinkAuth(403, '{"error":"denied"}'), {
+		const res = problemResponse(new FatalError({ slug: 'metlink-auth', title: 'Transit data unavailable', status: 500, detail: 'Metlink rejected the configured API key (HTTP 403). Check METLINK_API_KEY.', upstreamDetail: '{"error":"denied"}' }), {
 			requestId: 'abc',
 			profilePhase: 'morning_commute',
 		});
@@ -57,7 +51,7 @@ describe('api.errors.problemResponse — instance + upstream_detail', () => {
 		expect(body.upstream_detail).toBe('{"error":"denied"}');
 	});
 
-	it('omits instance and X-Sleep-Seconds for a Retryable error with no phase cadence', async () => {
+	it('omits instance and X-Sleep-Seconds for a Retryable error with no active phase sleep', async () => {
 		const res = problemResponse(internalError());
 
 		expect(res.status).toBe(500);
@@ -68,9 +62,9 @@ describe('api.errors.problemResponse — instance + upstream_detail', () => {
 		expect(body).not.toHaveProperty('upstream_detail');
 	});
 
-	it('derives a Retryable sleep from the phase cadence', () => {
-		const res = problemResponse(metlinkUnavailable('Metlink is unavailable (HTTP 503).'), {
-			phaseCadence: 180,
+	it('derives a Retryable sleep from the active phase sleep duration', () => {
+		const res = problemResponse(new RetryableError({ slug: 'metlink-unavailable', title: 'Transit data unavailable', status: 502, detail: 'Metlink is unavailable (HTTP 503).' }), {
+			activePhaseSleepSeconds: 180,
 			profilePhase: 'morning_commute',
 		});
 
@@ -79,9 +73,9 @@ describe('api.errors.problemResponse — instance + upstream_detail', () => {
 	});
 });
 
-describe('api.errors.notFound', () => {
+describe('api.errors.notFoundResponse', () => {
 	it('returns a class-less 404 problem+json with no sleep/profile headers', async () => {
-		const res = notFound('GET', '/v1/frames');
+		const res = notFoundResponse('GET', '/v1/frames');
 
 		expect(res.status).toBe(404);
 		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
@@ -96,10 +90,10 @@ describe('api.errors.notFound', () => {
 	});
 });
 
-describe('api.response.frameOk', () => {
+describe('api.response.frameBmpResponse', () => {
 	it('sets ADR-0003 observability headers + content-type image/bmp', () => {
 		const body = new Uint8Array([0x42, 0x4d, 0x00, 0x00]);
-		const res = frameOk(body, {
+		const res = frameBmpResponse(body, {
 			gzip: true,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
@@ -119,7 +113,7 @@ describe('api.response.frameOk', () => {
 
 	it('omits Content-Encoding when gzip is false (uncompressed BMP body)', () => {
 		const body = new Uint8Array([0x42, 0x4d, 0x00, 0x00]);
-		const res = frameOk(body, {
+		const res = frameBmpResponse(body, {
 			gzip: false,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
@@ -133,15 +127,15 @@ describe('api.response.frameOk', () => {
 	});
 });
 
-describe('api.response.frameSvg', () => {
+describe('api.response.frameSvgResponse', () => {
 	// The end-to-end SVG path is verified via `pnpm dev` + curl (the bruno Frame
 	// SVG requests), since the Satori pipeline that produces the SVG body is
 	// blocked in the workers-pool sandbox per ADR-0005. These cover the shaper:
-	// the diagnostics SVG carries the same observability headers as frameOk, only
+	// the diagnostics SVG carries the same observability headers as frameBmpResponse, only
 	// the Content-Type differs, and gzip follows the same ADR-0001 rule.
 	it('sets the observability headers + content-type image/svg+xml, gzipped', () => {
 		const body = new Uint8Array([0x1f, 0x8b, 0x08, 0x00]); // a gzip magic stub
-		const res = frameSvg(body, {
+		const res = frameSvgResponse(body, {
 			gzip: true,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),
@@ -159,7 +153,7 @@ describe('api.response.frameSvg', () => {
 
 	it('omits Content-Encoding when gzip is false (uncompressed SVG body)', () => {
 		const body = new TextEncoder().encode('<svg/>');
-		const res = frameSvg(body, {
+		const res = frameSvgResponse(body, {
 			gzip: false,
 			sleepSeconds: 300,
 			serverTime: new Date('2026-05-23T06:48:12Z'),

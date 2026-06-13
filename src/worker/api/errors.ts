@@ -1,24 +1,25 @@
-// Problem+json response shaper (ADR-0011). Turns an AppError (shared/errors.ts)
-// into an RFC 9457 `application/problem+json` response, and shapes the one
-// class-less error — the router's `not-found` — directly. `X-Sleep-Seconds`
-// rides as a header (derived from the error's class), never a body member; the
-// firmware reads it exactly as it read the old plain-text responses.
+// Problem+json response shaper: turns an AppError into an RFC 9457 application/problem+json
+// response; X-Sleep-Seconds is a header derived from the error class, never a body member.
 
 import { ERRORS_DOC_BASE, type AppError } from '../shared/errors';
 
 const PROBLEM_JSON = 'application/problem+json';
 
-export type ProblemResponseInit = {
-	// Active profile-phase cadence (seconds), or undefined when the error
-	// preceded phase resolution. Retryable errors inherit it; Fatal ignore it.
-	phaseCadence?: number;
+// The subset of the resolved request that a problem response needs but the
+// AppError class does not carry — everything here is per-request, not per-error.
+// Each field is optional because errors thrown earlier in the pipeline (auth,
+// unknown radiator) haven't resolved the phase yet.
+export type FrameRequestContext = {
+	// The active profile phase's sleep duration (seconds), or undefined when the
+	// error preceded phase resolution. Retryable errors inherit it; Fatal ignore it.
+	activePhaseSleepSeconds?: number;
 	// Inbound X-Request-Id → the problem `instance` URN. Omitted when absent.
 	requestId?: string;
 	// Resolved profile phase for X-Profile-Phase; 'none' before resolution.
 	profilePhase?: string;
 };
 
-export function problemResponse(error: AppError, init: ProblemResponseInit = {}): Response {
+export function problemResponse(error: AppError, init: FrameRequestContext = {}): Response {
 	const body: Record<string, unknown> = {
 		type: error.type,
 		title: error.title,
@@ -30,9 +31,9 @@ export function problemResponse(error: AppError, init: ProblemResponseInit = {})
 
 	const headers: Record<string, string> = {
 		'Content-Type': PROBLEM_JSON,
-		'X-Profile-Phase': init.profilePhase ?? 'none',
+		'X-Profile-Phase': init.profilePhase ?? 'none', 
 	};
-	const sleep = error.sleepSeconds(init.phaseCadence);
+	const sleep = error.sleepSeconds(init.activePhaseSleepSeconds);
 	if (sleep !== undefined) headers['X-Sleep-Seconds'] = String(sleep);
 
 	return new Response(JSON.stringify(body), { status: error.status, headers });
@@ -42,7 +43,7 @@ export function problemResponse(error: AppError, init: ProblemResponseInit = {})
 // never hits. Carried in the same problem+json envelope for one error shape
 // everywhere (ADR-0011), but class-less: no `X-Sleep-Seconds` (the firmware's
 // 300s fallback covers the theoretical case), no profile phase.
-export function notFound(method: string, path: string): Response {
+export function notFoundResponse(method: string, path: string): Response {
 	const body = {
 		type: `${ERRORS_DOC_BASE}#not-found`,
 		title: 'Not found',

@@ -307,7 +307,7 @@ A named, catalogued failure (`metlink-auth`, `metlink-unavailable`, `unauthorize
 - **Appears as:** the `type` member of a **problem document**; one `## <slug>` section per type in `api/errors.md`.
 
 ### Fatal / Retryable
-The self-heal axis of a **problem type**. **Fatal** — a human must act; the Worker backs off hard (`X-Sleep-Seconds: 3600`) and logs at `error` (config errors) or `warn` (auth/slug). **Retryable** — transient; the next **wake cycle** may succeed, so the Worker sleeps at the active **profile phase** cadence and logs at `warn` (or `error` for `internal`).
+The self-heal axis of a **problem type**. **Fatal** — a human must act; the Worker backs off hard (`X-Sleep-Seconds: 3600`) and logs at `error` (config errors) or `warn` (auth/slug). **Retryable** — transient; the next **wake cycle** may succeed, so the Worker sleeps at the active **profile phase**'s **sleep duration** and logs at `warn` (or `error` for `internal`).
 - **Appears as:** prose, `api/errors.md` per-type entries, [ADR-0011](adr/0011-error-contract-problem-details.md).
 - **Not to be confused with:** **mode** / **profile phase** (unrelated axes).
 
@@ -363,10 +363,11 @@ Each row is a violation of the language. If you find one in the PRD, UI doc, con
 | 4 MIN (unlabelled hero) | label every number — hero is `LEAVE IN` followed by the value |
 | plain-text error body (one lowercase string, radiator-ignored) | problem document (`application/problem+json`, RFC 9457 — ADR-0011) |
 | all_day_clock | daytime_calendar (the phase) / dual_month_calendar (the layout it runs) — the clock-era phase is gone |
+| cadence (phase cadence, wake cadence, retry cadence, sleep cadence) | sleep duration (the per-response sleep value a phase sets) / wake cycle (one wake→fetch→flush→sleep iteration) — "cadence" is not a domain term |
 
 ---
 
 ## 11. Open questions (language work still pending)
 
 1. **Naming of the strike-through above a cancelled service.** Currently unnamed — we have "cancelled service" (the rendered struck line) and "replacement service" (Tier 1 below it). Probably fine without a third name, but flag if it surfaces in conversation.
-2. **`refresh_interval_minutes` vs `sleep duration`.** Config-side cadence vs response-side instruction. They have now drifted by design: the sleep duration is the refresh interval truncated at the next phase boundary (see **Sleep duration**), so the two names earn their keep.
+2. **`refresh_interval_minutes` vs `sleep duration`.** Config-side interval vs response-side instruction. They have now drifted by design: the sleep duration is the refresh interval truncated at the next phase boundary (see **Sleep duration**), so the two names earn their keep.

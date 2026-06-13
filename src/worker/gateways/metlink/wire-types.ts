@@ -1,7 +1,6 @@
-// Wire-format types for Metlink's /stop-predictions response. Confined to
-// the gateway folder per ADR-0005 §Verification rule 2 — only mapper.ts
-// performs the wire→domain transformation; nothing outside this folder
-// references these field names.
+// The raw wire shapes of Metlink's /stop-predictions response — distinct from
+// the domain/contract types in fetch-arrivals.ts. Quarantined per ADR-0005 §rule
+// 2: only mapper.ts reads these field names.
 
 export type WireDeparture = {
 	stop_id: string;

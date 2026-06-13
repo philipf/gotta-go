@@ -19,10 +19,10 @@ const env = {
 } as Env;
 
 // Friday 07:30 NZST → bedroom-daughter's morning_school_run priority_split
-// phase (mon–fri per #92; refreshIntervalMinutes 2 → 120s phase cadence).
+// phase (mon–fri per #92; refreshIntervalMinutes 2 → 120s active phase sleep).
 // 2026-05-22 is a Friday in NZ.
 const NOW = new Date('2026-05-21T19:30:00Z');
-const PHASE_CADENCE = '120';
+const ACTIVE_PHASE_SLEEP_SECONDS = '120';
 
 function frameReq(extra: Record<string, string> = {}): Request {
 	return new Request('http://localhost/v1/frame', {
@@ -43,7 +43,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe('renderFrame boundary — Metlink failures → problem+json', () => {
+describe('renderFrame boundary - Metlink failures -> problem+json', () => {
 	it('maps a Metlink 401 (bad key) to a 500 metlink-auth, sleep 3600, error log', async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		stubFetch(401, 'Access denied');
@@ -66,7 +66,7 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 		});
 	});
 
-	it('maps a Metlink 5xx to a 502 metlink-unavailable, phase-cadence sleep, warn log', async () => {
+	it('maps a Metlink 5xx to a 502 metlink-unavailable, active-phase-sleep, warn log', async () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		stubFetch(503, 'upstream connect error');
 
@@ -74,7 +74,7 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 
 		expect(res.status).toBe(502);
 		expect(res.headers.get('Content-Type')).toBe('application/problem+json');
-		expect(res.headers.get('X-Sleep-Seconds')).toBe(PHASE_CADENCE);
+		expect(res.headers.get('X-Sleep-Seconds')).toBe(ACTIVE_PHASE_SLEEP_SECONDS);
 		const body = (await res.json()) as Record<string, unknown>;
 		expect(body.type).toMatch(/#metlink-unavailable$/);
 		expect(body.upstream_detail).toBe('upstream connect error');
@@ -85,14 +85,14 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 		});
 	});
 
-	it('maps a Metlink 429 to a 502 metlink-rate-limited at the phase cadence', async () => {
+	it('maps a Metlink 429 to a 502 metlink-rate-limited at the active phase sleep', async () => {
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 		stubFetch(429, 'Too Many Requests');
 
 		const res = await route(frameReq(), env, NOW);
 
 		expect(res.status).toBe(502);
-		expect(res.headers.get('X-Sleep-Seconds')).toBe(PHASE_CADENCE);
+		expect(res.headers.get('X-Sleep-Seconds')).toBe(ACTIVE_PHASE_SLEEP_SECONDS);
 		const body = (await res.json()) as Record<string, unknown>;
 		expect(body.type).toMatch(/#metlink-rate-limited$/);
 	});
@@ -127,7 +127,7 @@ describe('renderFrame boundary — Metlink failures → problem+json', () => {
 // the numeric batteryMv field; garbage is dropped silently, never rejected. The
 // success path uses a test- slug (offline dual_month_calendar, no Metlink
 // fetch) so frame.completed fires for real without the Satori → BMP pipeline.
-describe('renderFrame observability — battery telemetry', () => {
+describe('renderFrame observability - battery telemetry', () => {
 	function loggedEvent(spy: ReturnType<typeof vi.spyOn>, event: string): Record<string, unknown> {
 		const line = spy.mock.calls
 			.map((c) => JSON.parse(c[0] as string) as Record<string, unknown>)
@@ -158,7 +158,7 @@ describe('renderFrame observability — battery telemetry', () => {
 		expect(loggedEvent(logSpy, 'frame.completed')).not.toHaveProperty('batteryMv');
 	});
 
-	it('drops an unparseable value silently — request handling unchanged', async () => {
+	it('drops an unparseable value silently - request handling unchanged', async () => {
 		for (const garbage of ['abc', '-5', '39.5', '']) {
 			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -197,7 +197,7 @@ describe('renderFrame observability — battery telemetry', () => {
 // 304 *proves* the render never ran — reaching it would fail the test. The
 // stale-validator → 200 + new-ETag flow is exercised live per ADR-0013
 // §Verification (`pnpm dev` + curl).
-describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () => {
+describe('renderFrame conditional requests - ETag / If-None-Match (#73)', () => {
 	const NOON = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_calendar
 	const clockReq = (extra: Record<string, string> = {}): Request =>
 		frameReq({ 'X-Radiator-Slug': 'bedroom-philip-tania', ...extra });
@@ -221,7 +221,7 @@ describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () =
 		expect(await learnEtag()).toBe(etag);
 	});
 
-	it('answers 304 with no body on the bmp path when If-None-Match matches — render skipped', async () => {
+	it('answers 304 with no body on the bmp path when If-None-Match matches - render skipped', async () => {
 		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 		const etag = await learnEtag();
 
@@ -284,7 +284,7 @@ describe('renderFrame conditional requests — ETag / If-None-Match (#73)', () =
 	});
 });
 
-describe('renderFrame boundary — unknown throw → internal', () => {
+describe('renderFrame boundary - unknown throw -> internal', () => {
 	it('maps an unexpected throw to a 500 internal, logged at error', async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const throwingResolver = () => {

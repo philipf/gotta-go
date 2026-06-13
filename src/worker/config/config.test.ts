@@ -59,7 +59,7 @@ describe('config.lookupRadiator', () => {
 		expect(evening?.refreshIntervalMinutes).toBe(240);
 	});
 
-	it('shares one city→home transit-target constant between the bedroom and office commute phases (#86)', () => {
+	it('shares one city->home transit-target constant between the bedroom and office commute phases (#86)', () => {
 		const bedroom = lookupRadiator('bedroom-philip-tania')?.profile.phases.find(
 			(p) => p.key === 'afternoon_commute',
 		);
@@ -118,7 +118,7 @@ describe('active days (#92)', () => {
 
 	// The four commute/school rituals are weekday-only so they stop firing — and
 	// stop burning battery / Metlink calls — on weekends (#92 / ADR-0015).
-	it('restricts the commute and school-run phases to mon–fri', () => {
+	it('restricts the commute and school-run phases to mon-fri', () => {
 		const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
 		for (const key of [
 			'morning_commute',

@@ -1,77 +1,70 @@
 import { describe, it, expect } from 'vitest';
-import { layout, type JokesContext } from './service';
+import {
+	prepareJokeFrame,
+	type JokeSource,
+	type PrepareJokeFrameRequest,
+} from './prepare-joke-frame';
+import type { JokeGatewayError } from '../../gateways/icanhazdadjoke/fetch-joke';
 import { type AppError, RetryableError } from '../../shared/errors';
+import { LAYOUT_VERSION } from './view';
 
-// Drives the public two-phase entry (#72) through a stubbed fetch on the
-// diagnostics path (format: 'json', includeBmp: false) so it never enters the
-// sandbox-blocked Satori/resvg rasteriser (ADR-0005). JokesContext — the
-// layout's declared RenderContext slice — carries exactly the dependencies
-// the layout consumes: the outbound fetch and the negotiated format.
-const ctxWith = (fetchFn: typeof fetch): JokesContext => ({
-	fetchFn,
-	format: 'json',
+// Drives the public capability with a domain-typed JokeSource — the ADR-0005
+// wire quarantine reaches the feature's tests: no Response objects, no wire
+// JSON. Both artefact flags off keeps render() out of the sandbox-blocked
+// Satori/resvg pipeline (ADR-0005) and proves the deferred closure is safe to
+// call on the 304 path.
+const jokeSource =
+	(id: string, text: string): JokeSource =>
+	async () => ({ ok: true, data: { id, text } });
+
+const failingSource =
+	(error: JokeGatewayError): JokeSource =>
+	async () => ({ ok: false, error });
+
+const requestWith = (fetchJoke: JokeSource): PrepareJokeFrameRequest => ({
+	fetchJoke,
 	includeBmp: false,
+	includeSvg: false,
 });
 
-const jokeFetch = (id: string, joke: string): typeof fetch =>
-	async () => new Response(JSON.stringify({ id, joke, status: 200 }), { status: 200 });
-
-async function buildError(ctx: JokesContext): Promise<AppError> {
+async function prepareError(fetchJoke: JokeSource): Promise<AppError> {
 	try {
-		await layout.buildViewModel(ctx);
+		await prepareJokeFrame(requestWith(fetchJoke));
 	} catch (e) {
 		return e as AppError;
 	}
-	throw new Error('expected buildViewModel() to throw');
+	throw new Error('expected prepareJokeFrame() to throw');
 }
 
-describe('idle_jokes.layout', () => {
-	it('carries the joke text + id through to the view model', async () => {
-		const vm = await layout.buildViewModel(
-			ctxWith(jokeFetch('abc123', 'Why did the scarecrow win an award?')),
+describe('idle_jokes.prepareJokeFrame', () => {
+	it('carries the joke text + id into the view as { joke, jokeId } only', async () => {
+		const prepared = await prepareJokeFrame(
+			requestWith(jokeSource('abc123', 'Why did the scarecrow win an award?')),
 		);
 
-		expect(vm.text).toBe('Why did the scarecrow win an award?');
-		expect(vm.id).toBe('abc123');
+		expect(prepared.view).toEqual({
+			joke: 'Why did the scarecrow win an award?',
+			jokeId: 'abc123',
+		});
 	});
 
-	it('gives a longer joke a smaller font than a short one-liner', async () => {
-		const short = await layout.buildViewModel(
-			ctxWith(jokeFetch('s', 'I used to hate facial hair, but then it grew on me.')),
-		);
-		const long = await layout.buildViewModel(
-			ctxWith(
-				jokeFetch(
-					'l',
-					'My dog used to chase people on a bike a lot. It got so bad I had to take his bike away. Now he just sits there plotting his revenge in total silence.',
-				),
-			),
-		);
+	it('reports the view LAYOUT_VERSION as the appearance version', async () => {
+		const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.')));
 
-		expect(long.fontSize).toBeLessThan(short.fontSize);
+		expect(prepared.version).toBe(LAYOUT_VERSION);
 	});
 
-	it('projects the JSON view as { joke, jokeId } only (no render-only fields)', async () => {
-		const vm = await layout.buildViewModel(ctxWith(jokeFetch('abc123', 'A short joke.')));
+	it('defers rendering; with both artefact flags off it resolves to neither', async () => {
+		const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.')));
 
-		expect(layout.toJsonView(vm)).toEqual({ joke: 'A short joke.', jokeId: 'abc123' });
+		const rendered = await prepared.render();
+
+		expect(rendered.frame).toBeNull();
+		expect(rendered.svg).toBeNull();
 	});
 
-	it('builds a joke view model on a successful fetch; render skips both artefacts', async () => {
-		const ctx = ctxWith(jokeFetch('abc', 'A wee joke.'));
-
-		const vm = await layout.buildViewModel(ctx);
-		const result = await layout.render(vm, ctx);
-
-		expect(result.frame).toBeNull();
-		expect(result.svg).toBeNull();
-		expect(layout.toJsonView(vm)).toEqual({ joke: 'A wee joke.', jokeId: 'abc' });
-	});
-
-	it('throws a Retryable joke-source-unavailable 502 on a non-2xx, carrying the snippet', async () => {
-		const fetchFn: typeof fetch = async () => new Response('boom', { status: 503 });
-
-		const err = await buildError(ctxWith(fetchFn));
+	it('throws a Retryable joke-source-unavailable 502 on an upstream failure, carrying the snippet', async () => {
+		const err = await prepareError(failingSource({ kind: 'upstream', status: 503, detail: 'boom' }));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe('joke-source-unavailable');
@@ -81,11 +74,7 @@ describe('idle_jokes.layout', () => {
 	});
 
 	it('throws a Retryable joke-source-unavailable on a network failure (no snippet)', async () => {
-		const fetchFn: typeof fetch = async () => {
-			throw new TypeError('connection refused');
-		};
-
-		const err = await buildError(ctxWith(fetchFn));
+		const err = await prepareError(failingSource({ kind: 'network' }));
 
 		expect(err).toBeInstanceOf(RetryableError);
 		expect(err.slug).toBe('joke-source-unavailable');

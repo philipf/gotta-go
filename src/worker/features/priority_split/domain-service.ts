@@ -1,80 +1,16 @@
-// Public two-phase entry for the priority_split layout (#72) and the home of
-// its derivation. buildViewModel fetches each transit target's arrivals from
-// the Metlink gateway (uncached by design — ADR-0010), maps any classified
-// failure onto its problem type, and fills the data contract in viewmodel.ts:
-// the wall-clock global header plus one column per transit target — the Tier
-// 1–3 strings and the marker ratio, all maths per PRD §5.3 + glossary
-// §3/§5/§6. render is the pure view-model → artefacts pipeline, producing
-// only what the negotiated format needs (ADR-0004). PrioritySplitContext
-// declares the slice of RenderContext this layout consumes — its dependency
-// manifest; the radiator and every binding but METLINK_API_KEY are
-// unreachable by construction.
-//
-// viewModelFromStopStates is a deliberate domain-granularity test seam: the
-// column/marker behaviour is specified against gateway StopStates because
-// driving those cases through layout.buildViewModel would mean feeding
-// Metlink wire payloads to a stubbed fetch — dragging the wire format this
-// folder must not know (ADR-0005 quarantine) into its tests. The layout's
-// fetch + error-mapping path is still tested through the public surface.
+// Domain service for priority_split: turns fetched StopStates into the view model;
+// domain-granularity test seam between gateway fetch and column/marker derivation.
 
-import type { Layout, RenderContext } from '../registry';
-import { fetchArrivals, type Arrival, type StopState } from '../../gateways/metlink/metlink';
-import type { GatewayError } from '../../gateways/metlink/metlink';
-import type { TransitTarget } from '../../config/types';
-import {
-	type AppError,
-	metlinkAuth,
-	metlinkBadRequest,
-	metlinkRateLimited,
-	metlinkUnavailable,
-} from '../../shared/errors';
+import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
+import type { TransitTarget } from '../../config/config-types';
 import { hhmm } from '../../shared/hhmm';
 import { shortDate } from '../../shared/shortDate';
-import {
-	toJsonView,
-	type ColumnViewModel,
-	type NoServiceColumn,
-	type PrioritySplitViewModel,
-	type ServiceColumn,
+import type {
+	ColumnViewModel,
+	NoServiceColumn,
+	PrioritySplitViewModel,
+	ServiceColumn,
 } from './viewmodel';
-import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
-
-// The slice of RenderContext this layout actually consumes (registry Ctx
-// parameter): the resolved phase (transit targets), the outbound fetch with
-// its Metlink key and prediction limit, and the timezone/clock — no radiator
-// fields, no other bindings.
-export type PrioritySplitContext = Pick<
-	RenderContext,
-	'phase' | 'timezone' | 'stopPredictionLimit' | 'now' | 'format' | 'includeBmp' | 'fetchFn'
-> & {
-	env: Pick<Env, 'METLINK_API_KEY'>;
-};
-
-// Maps a classified gateway failure onto its problem type (ADR-0011). The
-// gateway stays a typed-Result bulkhead (ADR-0005); this is where kind becomes
-// policy and the error is thrown — a config fault (auth / bad id) backs off hard
-// and logs `error`, a transient blip retries at the phase cadence and logs
-// `warn`. Note a `closed:true` envelope is a *successful* fetch (the stop is
-// shut), not an error — it never reaches here, so it still renders normally.
-function toAppError(error: GatewayError, target: TransitTarget): AppError {
-	switch (error.kind) {
-		case 'auth':
-			return metlinkAuth(error.status, error.detail);
-		case 'client_error':
-			return metlinkBadRequest(error.status, target.stopId, error.detail);
-		case 'rate_limited':
-			return metlinkRateLimited(error.detail);
-		case 'upstream':
-			return metlinkUnavailable(
-				`Metlink is unavailable (HTTP ${error.status}). The radiator will retry on its next wake cycle.`,
-				error.detail,
-			);
-		case 'network':
-			return metlinkUnavailable(
-				'Metlink is unreachable (network error). The radiator will retry on its next wake cycle.',
-			);
-	}
-}
 
 const MS_PER_MIN = 60_000;
 const DASH = '—';
@@ -209,7 +145,7 @@ function buildColumn(
 // aligned by index with targets). A single target yields one column, which the
 // renderer auto-scales to full frame width. Exported as the domain-granularity
 // test seam (see the header comment); production code reaches it only through
-// layout.buildViewModel.
+// the prepare capability.
 export function viewModelFromStopStates(
 	targets: TransitTarget[],
 	states: StopState[],
@@ -222,41 +158,3 @@ export function viewModelFromStopStates(
 		columns: targets.map((target, i) => buildColumn(target, states[i], tz, now)),
 	};
 }
-
-export const layout: Layout<PrioritySplitViewModel, PrioritySplitContext> = {
-	version: LAYOUT_VERSION,
-	async buildViewModel(ctx) {
-		const targets = ctx.phase.transitTargets ?? [];
-
-		// One gateway call per target. A failed fetch short-circuits the frame by
-		// throwing the mapped problem type (#59) rather than silently degrading to a
-		// closed stop — the renderFrame boundary turns the throw into a problem+json
-		// response. A successful fetch (including a legitimate `closed`/empty-feed
-		// stop) still flows through to the view model and renders a normal frame.
-		const states: StopState[] = await Promise.all(
-			targets.map(async (t) => {
-				const result = await fetchArrivals({
-					fetch: ctx.fetchFn,
-					apiKey: ctx.env.METLINK_API_KEY,
-					stopId: t.stopId,
-					serviceId: t.serviceId,
-					destinationStopId: t.destinationStopId,
-					destinationNameIncludes: t.destinationNameIncludes,
-					limit: ctx.stopPredictionLimit,
-				});
-				if (result.ok) return result.data;
-				throw toAppError(result.error, t);
-			}),
-		);
-
-		return viewModelFromStopStates(targets, states, ctx.timezone, ctx.now);
-	},
-	async render(vm, ctx) {
-		const needsBmp = ctx.format === 'bmp' || ctx.includeBmp;
-		return {
-			frame: needsBmp ? await renderBmp(vm) : null,
-			svg: ctx.format === 'svg' ? await renderSvg(vm) : null,
-		};
-	},
-	toJsonView,
-};

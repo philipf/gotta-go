@@ -41,7 +41,7 @@ Two scoping rules keep the hash honest:
 - **Observability fields are excluded.** The envelope's `server_time` changes on every request; hashing it would mean no `304` ever fires. The hash covers the layout's `toJsonView` fields only — the values Satori is fed — not the envelope's diagnostics mirror.
 - **`LAYOUT_VERSION` busts the cache on code changes.** A layout tweak (new cell styling, moved header) changes the pixels *without* changing the view model. Bumping the layout's `LAYOUT_VERSION` constant in the same commit changes the ETag, so every radiator redraws on its next wake. Forgetting the bump is the failure mode to watch in review: the symptom is a visual change that deployed but never appears on panels.
 
-Layouts whose view model changes every wake (`priority_split` — the marker moves; `minimal_clock` — the time string) simply never match, and keep their flush-every-wake behaviour with no special-casing. The mechanism is uniform; the *content* decides the cadence.
+Layouts whose view model changes every wake (`priority_split` — the marker moves; `minimal_clock` — the time string) simply never match, and keep their flush-every-wake behaviour with no special-casing. The mechanism is uniform; the *content* decides the refresh frequency.
 
 ### The flow at a glance
 
@@ -140,7 +140,7 @@ The following terms are added to [`../glossary.md`](../glossary.md):
 | **ETag** | §8 | **Add.** The weak validator (`W/"…"`) derived from the layout's serialised view model + `LAYOUT_VERSION` — content inputs, not rendered bytes. |
 | **Unchanged-frame skip** | §8 | **Add.** The firmware behaviour on `304`: parse `X-Sleep-Seconds`, do not touch the panel, keep the stored ETag, deep-sleep. |
 | **`dual_month_calendar`** | §2 (Layout) | **Add** to the layout list: current-date header + this-month and next-month grids, Monday-start, today inverted ([#75](https://github.com/philipf/gotta-go/issues/75)). |
-| **`daytime_calendar`** | §7 (Profiles & modes) | **Add.** The office radiator's full-day phase running `dual_month_calendar` at the 4 h cadence cap; replaces the all-day clock ([#76](https://github.com/philipf/gotta-go/issues/76)). |
+| **`daytime_calendar`** | §7 (Profiles & modes) | **Add.** The office radiator's full-day phase running `dual_month_calendar` at the 4 h sleep-duration cap; replaces the all-day clock ([#76](https://github.com/philipf/gotta-go/issues/76)). |
 
 ## Verification
 

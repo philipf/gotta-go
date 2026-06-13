@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import { modeIcon, MODE_GRIDS } from './mode-icon';
-import { serviceName } from './service-name';
+import { serviceName } from './viewmodel';
 import type {
 	ColumnViewModel,
 	NoServiceColumn,

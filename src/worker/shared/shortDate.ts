@@ -1,11 +1,5 @@
-// "Dow DD Mon" wall-date formatting in an arbitrary timezone, without a date
-// library — the date sibling of shared/hhmm. The Intl.DateTimeFormat is the
-// expensive part, so it is memoised per timezone (the set of timezones is tiny
-// and fixed for a household). en-GB gives the short weekday/month forms; we join
-// the parts ourselves because en-GB's default format inserts a comma
-// ("Sat, 31 May") we don't want. Lifted out of minimal_clock per the
-// worker-architecture heuristic when priority_split became the 2nd consumer
-// (the same move that produced shared/hhmm).
+// "Dow DD Mon" wall-date formatting in an arbitrary timezone; Intl.DateTimeFormat
+// memoised per timezone because it is the expensive part.
 
 const FMT = new Map<string, Intl.DateTimeFormat>();
 

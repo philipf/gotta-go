@@ -23,15 +23,15 @@ Two orthogonal axes classify each type:
   `502` is *upstream's* (Metlink). `401`/`404` are the standard auth/identity/path cases.
 - **`class` — will it self-heal?** **Fatal** → a human must act (sleep `3600 s`,
   log at `error`); **Retryable** → transient, the next wake may succeed (sleep at
-  the active **profile phase** cadence, log at `warn`).
+  the active **profile phase**'s sleep duration, log at `warn`).
 
 | `type` | status | class | sleep | log |
 |---|---|---|---|---|
 | [`metlink-auth`](#metlink-auth) | 500 | Fatal | 3600 | error |
 | [`metlink-bad-request`](#metlink-bad-request) | 500 | Fatal | 3600 | error |
-| [`metlink-unavailable`](#metlink-unavailable) | 502 | Retryable | phase cadence | warn |
-| [`metlink-rate-limited`](#metlink-rate-limited) | 502 | Retryable | phase cadence | warn |
-| [`internal`](#internal) | 500 | Retryable | phase cadence (300 pre-resolution) | error |
+| [`metlink-unavailable`](#metlink-unavailable) | 502 | Retryable | phase sleep duration | warn |
+| [`metlink-rate-limited`](#metlink-rate-limited) | 502 | Retryable | phase sleep duration | warn |
+| [`internal`](#internal) | 500 | Retryable | phase sleep duration (300 pre-resolution) | error |
 | [`unauthorized`](#unauthorized) | 401 | Fatal | 3600 | warn |
 | [`unknown-radiator`](#unknown-radiator) | 404 | Fatal | 3600 | warn |
 | [`not-found`](#not-found) | 404 | — | none (firmware 300 fallback) | — |
@@ -68,20 +68,20 @@ against Metlink's stop/service catalogue. `detail` names the rejected id;
 
 ## `metlink-unavailable`
 
-- **Status:** `502` (upstream's) · **Class:** Retryable · **Sleep:** phase cadence · **Log:** `warn`
+- **Status:** `502` (upstream's) · **Class:** Retryable · **Sleep:** phase sleep duration · **Log:** `warn`
 - **Title:** Transit data unavailable
 
 Metlink is failing or unreachable — a `5xx`, a network error, or a timeout.
 This is upstream's problem and usually brief.
 
 **What to do:** nothing, usually. The radiator retries on its next regular wake
-cycle (no special back-off — the phase cadence already paces it). If it
+cycle (no special back-off — the phase sleep duration already paces it). If it
 persists, check [Metlink's status](https://www.metlink.org.nz/) and the Worker
 logs. `upstream_detail` carries whatever Metlink (or the edge) returned.
 
 ## `metlink-rate-limited`
 
-- **Status:** `502` (upstream's) · **Class:** Retryable · **Sleep:** phase cadence · **Log:** `warn`
+- **Status:** `502` (upstream's) · **Class:** Retryable · **Sleep:** phase sleep duration · **Log:** `warn`
 - **Title:** Transit data unavailable
 
 Metlink returned `429` — we exceeded its rate limit. At household scale this
@@ -89,12 +89,12 @@ should be rare (Metlink allows 10 req/s sustained); a burst of synchronised
 wakes is the likely cause.
 
 **What to do:** nothing for a one-off — the next wake cycle retries. If it
-recurs, the wake cadence across radiators watching the same stops may need
+recurs, the wake timing across radiators watching the same stops may need
 spreading out. `upstream_detail` carries Metlink's retry hint.
 
 ## `internal`
 
-- **Status:** `500` (ours) · **Class:** Retryable · **Sleep:** phase cadence (`300` if pre-resolution) · **Log:** `error`
+- **Status:** `500` (ours) · **Class:** Retryable · **Sleep:** phase sleep duration (`300` if pre-resolution) · **Log:** `error`
 - **Title:** Unexpected error
 
 Any unhandled thrown error inside the Worker. Retryable by default — most are
@@ -102,7 +102,7 @@ transient (a deploy mid-flight, a hiccup) — but always logged at `error`
 because an unexpected throw warrants a human's eyes.
 
 **What to do:** read the Worker logs for the stack. If the throw happened before
-a **profile phase** was resolved there is no cadence to inherit, so no
+a **profile phase** was resolved there is no sleep duration to inherit, so no
 `X-Sleep-Seconds` is sent and the firmware's `300 s` fallback applies.
 
 ## `unauthorized`

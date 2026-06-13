@@ -2,8 +2,8 @@
 // the only file that performs the wire→domain transformation. Consumers of
 // the gateway see domain-shaped types only — never Metlink field names.
 
-import type { WireDeparture, WireResponse } from './types';
-import type { Arrival, StopState } from './metlink';
+import type { WireDeparture, WireResponse } from './wire-types';
+import type { Arrival, StopState } from './fetch-arrivals';
 
 // Normalises the single-or-any-of config shape shared by the target filters;
 // undefined stays undefined (filter absent).

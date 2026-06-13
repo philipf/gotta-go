@@ -10,7 +10,7 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 Single-context layout. The canonical vocabulary lives in `docs/glossary.md`. See `docs/agents/domain.md`.
 
 ### Worker architecture
-Pillars (Deep Modules, Feature Folders, REPR), heuristics, anti-patterns. See `docs/agents/worker-architecture.md`; underlying decisions in ADR-0005 and ADR-0007.
+**`docs/worker-architecture.md` is the canonical guide** to how Worker code is built — pillars (Deep Modules, Feature Folders, REPR), the gateway/feature/endpoint patterns, conventions, heuristics, anti-patterns, and the reasons behind them. **Code wins; the guide follows.** Read it first for principles, then the code for a working example. Where code *lives* (the tier map) is ADR-0005.
 
 ## Worker tech stack to use
 - TypeScript

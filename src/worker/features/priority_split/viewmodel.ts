@@ -1,9 +1,5 @@
-// Data contract for the priority_split layout: the format-agnostic ViewModel
-// that service.ts builds (phase 1) and view.tsx renders (phase 2) — the
-// rendered strings for the column header, Tiers 1–3, and the marker ratio.
-// Deliberately logic-free — DTOs plus their JSON projection — so this file
-// answers only "what shape does this layout draw?"; every derivation (the
-// PRD §5.3 + glossary §3/§5/§6 maths) lives in service.ts.
+// Data contract for priority_split: the format-agnostic ViewModel (column header, Tiers 1–3,
+// marker ratio) and its JSON and service-name projections.
 
 import type { Mode } from './mode-icon';
 
@@ -74,4 +70,24 @@ export function toJsonView(vm: PrioritySplitViewModel): Record<string, unknown> 
 					},
 		),
 	};
+}
+
+// Composes the **service name** — the column-header label that answers "which
+// service is this", combining the upstream `service_id` (e.g. "1") with the
+// human-readable `trip_headsign` (e.g. "Island Bay") as `1 · Island Bay`
+// (glossary §2). A projection of the view model, kept here rather than in
+// view.tsx so it stays unit-testable without the Satori path that is
+// sandbox-blocked in vitest (ADR-0005).
+//
+// Padded middot: under the proportional DejaVu Sans Bold metric (ADR-0009) the
+// surrounding spaces cost little and read cleanly — unlike the old mono font,
+// where padding spent three full em-widths and forced a tight separator.
+const SERVICE_NAME_SEP = ' · ';
+
+// `tripHeadsign` is the Metlink field passed through as-is; the gateway mapper
+// defaults it to '' when Metlink omits it, and a degraded column has no service
+// at all. In either case drop the separator and show the id alone, rather than
+// rendering a dangling "1 · ".
+export function serviceName(serviceId: string, tripHeadsign: string): string {
+	return tripHeadsign ? `${serviceId}${SERVICE_NAME_SEP}${tripHeadsign}` : serviceId;
 }

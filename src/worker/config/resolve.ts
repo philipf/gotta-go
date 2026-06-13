@@ -1,16 +1,10 @@
-// Profile-phase resolver. Maps (radiator, now) → active profile phase, its
-// layout, and the clamped sleep duration (30s ≤ n ≤ 14400s per glossary §8).
-// An active phase's sleep is its refresh interval truncated at the next phase
-// boundary (any phase start or the active phase's own end), so a long-interval
-// phase never oversleeps into the next phase or the idle handoff. When server
-// time is outside every configured phase, falls through to the idle profile
-// (ADR-0003 §"Idle profile" / #17): renders the idle layout and sleeps until
-// the next phase opens, capped at the 4h ceiling.
+// Profile-phase resolver: maps (radiator, now) to the active phase, its layout, and
+// a sleep duration clamped to the next phase boundary or the 4h ceiling.
 
-import type { Radiator } from '../config/lookup';
-import type { ProfilePhase } from '../config/types';
-import type { LayoutKey } from '../features/registry';
-import { GLOBAL, SYSTEM_IDLE_DEFAULT } from '../config/data';
+import type { Radiator } from './lookup';
+import type { ProfilePhase } from './config-types';
+import type { LayoutKey } from '../features/frame-registry';
+import { GLOBAL, SYSTEM_IDLE_DEFAULT } from './data';
 import { hhmm } from '../shared/hhmm';
 import { weekday } from '../shared/weekday';
 
@@ -99,7 +93,7 @@ export function resolveProfilePhase(radiator: Radiator, now: Date): ProfilePhase
 
 	// Idle fall-through (ADR-0003). Wake exactly when the next configured phase
 	// opens, capped at 4h. The synthesised phase exists only to satisfy the
-	// RenderContext shape — idle_jokes ignores its fields (no transit targets).
+	// FrameDeps shape — idle_jokes ignores its fields (no transit targets).
 	const idle = radiator.profile.idle ?? SYSTEM_IDLE_DEFAULT;
 	const idlePhase: ProfilePhase = {
 		key: IDLE_PROFILE_PHASE,
