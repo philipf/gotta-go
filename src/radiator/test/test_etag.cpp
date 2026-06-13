@@ -4,14 +4,14 @@
 // bodiless 304 must never reach the inflate path) and the stored-ETag
 // bookkeeping in etag.h (store only after a flushed 200, keep while the panel
 // is untouched, clear whenever the panel shows anything other than a frame).
-#include "doctest.h"
+#include "vendor/doctest.h"
 
 #include "etag.h"
 #include "net.h"
 
 // An HttpResponse with the fields the classifier reads; sleep/etag stay zeroed.
-static HttpResponse makeResponse(int status, bool truncated = false,
-                                 bool gzipped = false, size_t bodyLen = 0) {
+static HttpResponse makeResponse(int status, bool truncated = false, bool gzipped = false,
+                                 size_t bodyLen = 0) {
     HttpResponse r = {status, bodyLen, truncated, gzipped, {false, 0}, ""};
     return r;
 }
@@ -53,7 +53,8 @@ TEST_CASE("classifyResponse: reachable non-2xx is a Worker error") {
     CHECK(classifyResponse(makeResponse(404)) == ResponseArm::WorkerError);
     CHECK(classifyResponse(makeResponse(500)) == ResponseArm::WorkerError);
     CHECK(classifyResponse(makeResponse(502)) == ResponseArm::WorkerError);
-    CHECK(classifyResponse(makeResponse(301)) == ResponseArm::WorkerError);  // other 3xx are not skips
+    CHECK(classifyResponse(makeResponse(301)) ==
+          ResponseArm::WorkerError);  // other 3xx are not skips
 }
 
 TEST_CASE("classifyResponse: a truncated 200 is BodyTooLarge") {
@@ -93,7 +94,8 @@ TEST_CASE("chooseEtagAction: an untouched panel keeps the stored ETag") {
     // failures, and a 200 whose body failed inflate/parse — the panel still
     // shows the old frame, so the old validator still names it (rule 2).
     CHECK(chooseEtagAction(PanelState::Unchanged, false) == EtagAction::Keep);
-    CHECK(chooseEtagAction(PanelState::Unchanged, true) == EtagAction::Keep);   // 304 repeats the ETag — still keep
+    CHECK(chooseEtagAction(PanelState::Unchanged, true) ==
+          EtagAction::Keep);  // 304 repeats the ETag — still keep
 }
 
 TEST_CASE("chooseEtagAction: an error screen clears the stored ETag (rule 3)") {
@@ -101,5 +103,6 @@ TEST_CASE("chooseEtagAction: an error screen clears the stored ETag (rule 3)") {
     // once an error screen is up that is false, and a later 304 would strand
     // the error screen forever. Clear forces a 200 redraw on the next wake.
     CHECK(chooseEtagAction(PanelState::ErrorScreen, false) == EtagAction::Clear);
-    CHECK(chooseEtagAction(PanelState::ErrorScreen, true) == EtagAction::Clear);  // even if the non-2xx carried one
+    CHECK(chooseEtagAction(PanelState::ErrorScreen, true) ==
+          EtagAction::Clear);  // even if the non-2xx carried one
 }

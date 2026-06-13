@@ -28,7 +28,7 @@ static const size_t PROBLEM_UPSTREAM_CAP = 512;
 // generic fallback message but are not drawn. Empty title/detail signal a parse
 // failure to resolveErrorScreen(), which then falls back to the generic screen.
 struct ProblemDoc {
-    int  httpStatus;
+    int httpStatus;
     char title[PROBLEM_TITLE_CAP];
     char detail[PROBLEM_DETAIL_CAP];
     char upstream[PROBLEM_UPSTREAM_CAP];
@@ -42,27 +42,26 @@ struct ProblemDoc {
 struct ErrorScreen {
     char title[PROBLEM_TITLE_CAP];
     char detail[PROBLEM_DETAIL_CAP];
-    const char *upstream;
+    const char* upstream;
 };
 
 // Parse a problem+json body (json[0..len)) into doc's string fields. doc's
 // httpStatus is set by the caller beforehand. On any parse failure — empty
 // body, malformed JSON, missing members — the string fields are left empty so
 // resolveErrorScreen() falls back to the generic screen (Decision 8).
-void parseProblem(const char *json, size_t len, ProblemDoc *doc);
+void parseProblem(const char* json, size_t len, ProblemDoc* doc);
 
 // Apply the ADR-0011 fallback rules to a parsed problem document: empty title →
 // "Unexpected error", empty detail → a generic "HTTP <status>" line, and
 // upstream shown only when verbose && doc.hasUpstream. Pure — no panel I/O, so
 // the policy is host-testable. The returned ErrorScreen aliases doc (see above).
-ErrorScreen resolveErrorScreen(const ProblemDoc &doc, bool verbose);
+ErrorScreen resolveErrorScreen(const ProblemDoc& doc, bool verbose);
 
 // Render a generic error screen: title as the heading, detail as the body, and
 // (when non-null) upstreamOrNull underneath. Neutral content in, panel out
 // (Decision 10) — #47 reuses this with locally-sourced strings for the
 // worker-unreachable case.
-void renderErrorScreen(const char *title, const char *detail,
-                       const char *upstreamOrNull);
+void renderErrorScreen(const char* title, const char* detail, const char* upstreamOrNull);
 
 // Common-path entry for a Worker error response: parse a problem+json body
 // (json[0..len), already de-gzipped by the caller), resolve it against httpStatus
@@ -71,5 +70,4 @@ void renderErrorScreen(const char *title, const char *detail,
 // pair (and its aliasing lifetime, see ErrorScreen above) stays contained here.
 // An empty/unparseable body resolves to the generic screen (Decision 8). The
 // lower-level seams remain public for #47 reuse and host tests.
-void renderProblemScreen(const char *json, size_t len, int httpStatus,
-                         bool verbose);
+void renderProblemScreen(const char* json, size_t len, int httpStatus, bool verbose);

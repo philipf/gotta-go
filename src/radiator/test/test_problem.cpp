@@ -2,7 +2,7 @@
 // behaviour locked in by GH #63's first TU split; going forward, new logic in
 // this module (and the net/frame/sleep modules to come) is written test-first.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest.h"
+#include "vendor/doctest.h"
 
 #include "problem.h"
 
@@ -11,8 +11,7 @@
 
 // Build a ProblemDoc the way the firmware does — via snprintf into the caps —
 // so truncation behaviour matches the real parse path.
-static ProblemDoc makeDoc(const char *title, const char *detail,
-                          const char *upstream, int status) {
+static ProblemDoc makeDoc(const char* title, const char* detail, const char* upstream, int status) {
     ProblemDoc d{};
     d.httpStatus = status;
     std::snprintf(d.title, sizeof(d.title), "%s", title);
@@ -27,7 +26,7 @@ static ProblemDoc makeDoc(const char *title, const char *detail,
 // ---------- resolveErrorScreen (pure fallback rules) ----------
 
 TEST_CASE("resolveErrorScreen passes a fully-populated doc straight through") {
-    ProblemDoc d = makeDoc("Radiator not authorised", "Your token was rejected.", "", 401);
+    ProblemDoc d   = makeDoc("Radiator not authorised", "Your token was rejected.", "", 401);
     ErrorScreen es = resolveErrorScreen(d, false);
     CHECK(std::strcmp(es.title, "Radiator not authorised") == 0);
     CHECK(std::strcmp(es.detail, "Your token was rejected.") == 0);
@@ -35,22 +34,21 @@ TEST_CASE("resolveErrorScreen passes a fully-populated doc straight through") {
 }
 
 TEST_CASE("resolveErrorScreen falls back to a generic title when title is empty") {
-    ProblemDoc d = makeDoc("", "Something specific.", "", 500);
+    ProblemDoc d   = makeDoc("", "Something specific.", "", 500);
     ErrorScreen es = resolveErrorScreen(d, false);
     CHECK(std::strcmp(es.title, "Unexpected error") == 0);
     CHECK(std::strcmp(es.detail, "Something specific.") == 0);
 }
 
 TEST_CASE("resolveErrorScreen synthesises an HTTP-status detail when detail is empty") {
-    ProblemDoc d = makeDoc("Boom", "", "", 502);
+    ProblemDoc d   = makeDoc("Boom", "", "", 502);
     ErrorScreen es = resolveErrorScreen(d, false);
-    CHECK(std::strcmp(es.detail,
-                      "The display service returned an error (HTTP 502).") == 0);
+    CHECK(std::strcmp(es.detail, "The display service returned an error (HTTP 502).") == 0);
 }
 
 TEST_CASE("resolveErrorScreen gates upstream on the verbose flag") {
-    ProblemDoc d = makeDoc("Transit data unavailable", "Metlink is down.",
-                           "504 Gateway Timeout", 502);
+    ProblemDoc d =
+        makeDoc("Transit data unavailable", "Metlink is down.", "504 Gateway Timeout", 502);
 
     SUBCASE("hidden when not verbose") {
         ErrorScreen es = resolveErrorScreen(d, false);
@@ -65,7 +63,7 @@ TEST_CASE("resolveErrorScreen gates upstream on the verbose flag") {
 }
 
 TEST_CASE("resolveErrorScreen never shows upstream when the doc carries none") {
-    ProblemDoc d = makeDoc("Internal error", "Oops.", "", 500);
+    ProblemDoc d   = makeDoc("Internal error", "Oops.", "", 500);
     ErrorScreen es = resolveErrorScreen(d, true);  // verbose, but no upstream present
     CHECK(es.upstream == nullptr);
 }
@@ -73,7 +71,7 @@ TEST_CASE("resolveErrorScreen never shows upstream when the doc carries none") {
 // ---------- parseProblem (ArduinoJson-backed) ----------
 
 TEST_CASE("parseProblem lifts title/detail/upstream from a problem+json body") {
-    const char *json =
+    const char* json =
         "{\"type\":\"https://errors/metlink-unavailable\","
         "\"title\":\"Transit data unavailable\",\"status\":502,"
         "\"detail\":\"Upstream timed out.\","
@@ -88,7 +86,7 @@ TEST_CASE("parseProblem lifts title/detail/upstream from a problem+json body") {
 }
 
 TEST_CASE("parseProblem omits upstream when the member is absent") {
-    const char *json = "{\"title\":\"Radiator not authorised\",\"detail\":\"Bad token.\"}";
+    const char* json = "{\"title\":\"Radiator not authorised\",\"detail\":\"Bad token.\"}";
     ProblemDoc d{};
     parseProblem(json, std::strlen(json), &d);
     CHECK(std::strcmp(d.title, "Radiator not authorised") == 0);
@@ -96,7 +94,7 @@ TEST_CASE("parseProblem omits upstream when the member is absent") {
 }
 
 TEST_CASE("parseProblem leaves fields empty on malformed JSON (generic-fallback signal)") {
-    const char *json = "{not valid json";
+    const char* json = "{not valid json";
     ProblemDoc d{};
     parseProblem(json, std::strlen(json), &d);
     CHECK(d.title[0] == '\0');
@@ -119,7 +117,6 @@ TEST_CASE("an empty body resolves to the generic error screen") {
     parseProblem("", 0, &d);
     ErrorScreen es = resolveErrorScreen(d, true);
     CHECK(std::strcmp(es.title, "Unexpected error") == 0);
-    CHECK(std::strcmp(es.detail,
-                      "The display service returned an error (HTTP 401).") == 0);
+    CHECK(std::strcmp(es.detail, "The display service returned an error (HTTP 401).") == 0);
     CHECK(es.upstream == nullptr);
 }

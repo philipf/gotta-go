@@ -52,12 +52,12 @@
 
 #include "epd_driver.h"  // epd_init() — panel bring-up
 #include "battery.h"     // sampleBatteryMv — must run before connectWiFi (ADC2)
-#include "net.h"         // connectWiFi, WifiResult, fetchFrame, classifyResponse, inflateGzip, decodeBodyText, HttpResponse, BodyText
-#include "frame.h"       // flushToPanel, EXPECTED_BMP_BYTES
-#include "problem.h"     // parseProblem, resolveErrorScreen, renderErrorScreen
-#include "etag.h"        // ETAG_CAP, PanelState, EtagAction, panelStateAfter, chooseEtagAction
-#include "sleep.h"       // CycleResult, SleepHeader, sleepFor
-#include "settings.h"    // RADIATOR_VERBOSE (creds/URL are net.cpp's)
+#include "net.h"  // connectWiFi, WifiResult, fetchFrame, classifyResponse, inflateGzip, decodeBodyText, HttpResponse, BodyText
+#include "frame.h"     // flushToPanel, EXPECTED_BMP_BYTES
+#include "problem.h"   // parseProblem, resolveErrorScreen, renderErrorScreen
+#include "etag.h"      // ETAG_CAP, PanelState, EtagAction, panelStateAfter, chooseEtagAction
+#include "sleep.h"     // CycleResult, SleepHeader, sleepFor
+#include "settings.h"  // RADIATOR_VERBOSE (creds/URL are net.cpp's)
 
 // Verbose: gate rendering of upstream_detail on the error screen. Default off;
 // override in settings.h. Namespaced like RADIATOR_TOKEN / RADIATOR_SLUG. The
@@ -89,17 +89,20 @@ RTC_DATA_ATTR char storedEtag[ETAG_CAP];
 
 // PSRAM scratch buffers. Re-allocated per cycle (deep sleep wipes the heap on
 // wake anyway), but declared here so the wake-path code reads top-down.
-static uint8_t *compressedBuf = nullptr;
-static uint8_t *inflatedBuf = nullptr;
-static uint8_t *uzlibDict = nullptr;
+static uint8_t* compressedBuf = nullptr;
+static uint8_t* inflatedBuf   = nullptr;
+static uint8_t* uzlibDict     = nullptr;
 
 // ---------- Helpers ----------
 
-static const char *wakeReasonStr(esp_sleep_wakeup_cause_t cause) {
+static const char* wakeReasonStr(esp_sleep_wakeup_cause_t cause) {
     switch (cause) {
-        case ESP_SLEEP_WAKEUP_TIMER: return "timer (deep-sleep wake)";
-        case ESP_SLEEP_WAKEUP_UNDEFINED: return "power-on / hard reset (cold boot)";
-        default: return "other";
+        case ESP_SLEEP_WAKEUP_TIMER:
+            return "timer (deep-sleep wake)";
+        case ESP_SLEEP_WAKEUP_UNDEFINED:
+            return "power-on / hard reset (cold boot)";
+        default:
+            return "other";
     }
 }
 
@@ -107,32 +110,30 @@ static const char *wakeReasonStr(esp_sleep_wakeup_cause_t cause) {
 
 // 200 OK: inflate the gzipped BMP into the frame buffer, size-check it, and
 // flush it to the panel (ADR-0008 one-shot inflate; ADR-0003 happy path).
-static CycleResult handleFrameResponse(const HttpResponse &r) {
+static CycleResult handleFrameResponse(const HttpResponse& r) {
     const uint32_t inflateStart = millis();
-    const long produced = inflateGzip(compressedBuf, r.bodyLen, inflatedBuf,
-                                      EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
+    const long produced = inflateGzip(compressedBuf, r.bodyLen, inflatedBuf, EXPECTED_BMP_BYTES,
+                                      uzlibDict, UZLIB_DICT_BYTES);
     if (produced < 0) {
         return CycleResult::InflateFailed;
     }
-    Serial.printf("inflate: ok %ld bytes in %lu ms\n",
-                  produced, (unsigned long)(millis() - inflateStart));
+    Serial.printf("inflate: ok %ld bytes in %lu ms\n", produced,
+                  (unsigned long)(millis() - inflateStart));
     if ((size_t)produced != EXPECTED_BMP_BYTES) {
-        Serial.printf("inflate: size mismatch (expected %u)\n",
-                      (unsigned)EXPECTED_BMP_BYTES);
+        Serial.printf("inflate: size mismatch (expected %u)\n", (unsigned)EXPECTED_BMP_BYTES);
         return CycleResult::InflateFailed;
     }
-    return flushToPanel(inflatedBuf, (size_t)produced) ? CycleResult::Ok
-                                                       : CycleResult::BmpInvalid;
+    return flushToPanel(inflatedBuf, (size_t)produced) ? CycleResult::Ok : CycleResult::BmpInvalid;
 }
 
 // Reachable non-2xx: decode the body (inflating iff the edge gzipped it in
 // transit, Decision 2) via net and render the error screen. An empty or
 // unparseable body leaves the doc empty, which resolveErrorScreen() turns into
 // the generic screen using the HTTP status (ADR-0011, Decision 8).
-static void renderWorkerError(const HttpResponse &r) {
+static void renderWorkerError(const HttpResponse& r) {
     Serial.printf("worker-error: reachable status=%d — rendering error screen\n", r.status);
-    const BodyText body = decodeBodyText(r, compressedBuf, inflatedBuf,
-                                         EXPECTED_BMP_BYTES, uzlibDict, UZLIB_DICT_BYTES);
+    const BodyText body = decodeBodyText(r, compressedBuf, inflatedBuf, EXPECTED_BMP_BYTES,
+                                         uzlibDict, UZLIB_DICT_BYTES);
     renderProblemScreen(body.ptr, body.len, r.status, RADIATOR_VERBOSE);
 }
 
@@ -141,11 +142,10 @@ static void renderWorkerError(const HttpResponse &r) {
 // strings (Decision 10), so a dead AP / wrong password is visible instead of the
 // panel silently holding while the cycle repeats (GH #66). The outcome stays
 // HttpError, so the sleep/retry policy is unchanged.
-static void renderWifiErrorScreen(const WifiResult &wifi) {
+static void renderWifiErrorScreen(const WifiResult& wifi) {
     Serial.printf("wifi-error: \"%s\" — %s\n", wifi.ssid, wifi.reason);
     char detail[PROBLEM_DETAIL_CAP];
-    snprintf(detail, sizeof(detail), "Could not connect to \"%s\".\n%s",
-             wifi.ssid, wifi.reason);
+    snprintf(detail, sizeof(detail), "Could not connect to \"%s\".\n%s", wifi.ssid, wifi.reason);
     renderErrorScreen("No Wi-Fi connection", detail, nullptr);
 }
 
@@ -153,21 +153,21 @@ static void renderWifiErrorScreen(const WifiResult &wifi) {
 // render the error screen or flush the frame as a side effect, and return the
 // outcome that drives the sleep policy. The arm decision itself is net.h's pure
 // classifyResponse() — host-tested, including the 304-before-body ordering.
-static CycleResult dispatchResponse(const HttpResponse &r) {
+static CycleResult dispatchResponse(const HttpResponse& r) {
     switch (classifyResponse(r)) {
         case ResponseArm::Transport:
-            return CycleResult::HttpError;        // transport failure — panel untouched (#47)
+            return CycleResult::HttpError;  // transport failure — panel untouched (#47)
         case ResponseArm::NotModified:
             Serial.println("frame: 304 unchanged — skipping panel flush (ADR-0013)");
-            return CycleResult::NotModified;      // unchanged-frame skip — panel keeps its frame
+            return CycleResult::NotModified;  // unchanged-frame skip — panel keeps its frame
         case ResponseArm::WorkerError:
-            renderWorkerError(r);                 // reachable non-2xx — error screen
+            renderWorkerError(r);  // reachable non-2xx — error screen
             return CycleResult::WorkerError;
         case ResponseArm::BodyTooLarge:
             Serial.printf("body: exceeds %u byte cap\n", (unsigned)MAX_COMPRESSED_BYTES);
             return CycleResult::BodyTooLarge;
         case ResponseArm::Frame:
-            return handleFrameResponse(r);        // 200 OK — frame to panel
+            return handleFrameResponse(r);  // 200 OK — frame to panel
     }
     return CycleResult::HttpError;
 }
@@ -175,7 +175,7 @@ static CycleResult dispatchResponse(const HttpResponse &r) {
 // Apply an ADR-0013 bookkeeping decision to the RTC-backed ETag, keeping the
 // invariant "storedEtag names the frame the panel shows" true. newEtag is the
 // response's ETag (consulted only on Store).
-static void applyEtagAction(EtagAction action, const char *newEtag) {
+static void applyEtagAction(EtagAction action, const char* newEtag) {
     switch (action) {
         case EtagAction::Store:
             strlcpy(storedEtag, newEtag, sizeof(storedEtag));
@@ -204,15 +204,13 @@ static void applyEtagAction(EtagAction action, const char *newEtag) {
 // nothing unless someone is on the port, so it is opt-in via RADIATOR_DEBUG.
 static void announceWake() {
     Serial.begin(115200);
-    if (RADIATOR_DEBUG ||
-        esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    if (RADIATOR_DEBUG || esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) {
         delay(1000);  // let the host re-attach the CDC after the wake re-enumeration
     }
 
     wakeCount++;
     Serial.println();
-    Serial.printf("=== GottaGo wake cycle #%lu — wake reason: %s ===\n",
-                  (unsigned long)wakeCount,
+    Serial.printf("=== GottaGo wake cycle #%lu — wake reason: %s ===\n", (unsigned long)wakeCount,
                   wakeReasonStr(esp_sleep_get_wakeup_cause()));
 }
 
@@ -220,9 +218,9 @@ static void announceWake() {
 // sleeps on the firmware fallback and retries next wake. Re-allocated every
 // cycle because deep sleep wipes the heap on wake anyway.
 static bool allocateScratchBuffers() {
-    compressedBuf = (uint8_t *)heap_caps_malloc(MAX_COMPRESSED_BYTES, MALLOC_CAP_SPIRAM);
-    inflatedBuf   = (uint8_t *)heap_caps_malloc(EXPECTED_BMP_BYTES,   MALLOC_CAP_SPIRAM);
-    uzlibDict     = (uint8_t *)heap_caps_malloc(UZLIB_DICT_BYTES,     MALLOC_CAP_SPIRAM);
+    compressedBuf = (uint8_t*)heap_caps_malloc(MAX_COMPRESSED_BYTES, MALLOC_CAP_SPIRAM);
+    inflatedBuf   = (uint8_t*)heap_caps_malloc(EXPECTED_BMP_BYTES, MALLOC_CAP_SPIRAM);
+    uzlibDict     = (uint8_t*)heap_caps_malloc(UZLIB_DICT_BYTES, MALLOC_CAP_SPIRAM);
     return compressedBuf && inflatedBuf && uzlibDict;
 }
 
@@ -244,17 +242,16 @@ void setup() {
     // which the radio owns once up (GH #79). ~10 ms of already-awake CPU.
     const uint32_t batteryMv = sampleBatteryMv();
 
-    SleepHeader sleep = {false, 0};
+    SleepHeader sleep   = {false, 0};
     CycleResult outcome = CycleResult::HttpError;
 
     const WifiResult wifi = connectWiFi();
     if (wifi.connected) {
-        const HttpResponse r = fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES,
-                                          batteryMv, storedEtag);
-        sleep = r.sleep;
+        const HttpResponse r =
+            fetchFrame(compressedBuf, MAX_COMPRESSED_BYTES, batteryMv, storedEtag);
+        sleep   = r.sleep;
         outcome = dispatchResponse(r);
-        applyEtagAction(chooseEtagAction(panelStateAfter(outcome), r.etag[0] != '\0'),
-                        r.etag);
+        applyEtagAction(chooseEtagAction(panelStateAfter(outcome), r.etag[0] != '\0'), r.etag);
     } else {
         renderWifiErrorScreen(wifi);  // show why, instead of silently holding (#66)
         // The error screen replaced the frame, so the stored ETag is no longer

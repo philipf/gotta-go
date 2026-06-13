@@ -15,8 +15,8 @@ void sleepFor(CycleResult outcome, SleepHeader sleep, uint32_t awakeMs, uint32_t
     const SleepDecision d = chooseSleep(sleep);
 
     Serial.printf("Cycle #%lu: outcome=%s, awake %lu ms, sleeping %lu s (%s)\n",
-                  (unsigned long)cycle, cycleResultStr(outcome),
-                  (unsigned long)awakeMs, (unsigned long)d.seconds, d.source);
+                  (unsigned long)cycle, cycleResultStr(outcome), (unsigned long)awakeMs,
+                  (unsigned long)d.seconds, d.source);
     Serial.flush();  // drain the USB CDC FIFO before the peripheral powers down
 
     esp_sleep_enable_timer_wakeup((uint64_t)d.seconds * 1000000ULL);

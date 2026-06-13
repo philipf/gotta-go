@@ -2,7 +2,7 @@
 // parser, the present-vs-fallback decision, and the outcome→log-token map. Guards
 // the strictness contract — anything not a clean in-range integer signals absent
 // so the orchestrator applies the firmware fallback rather than a bad cadence.
-#include "doctest.h"
+#include "vendor/doctest.h"
 
 #include "sleep.h"
 
@@ -22,7 +22,7 @@ TEST_CASE("parseSleepSecondsValue accepts the range boundaries") {
 }
 
 TEST_CASE("parseSleepSecondsValue rejects values outside [1, 86400]") {
-    CHECK_FALSE(parseSleepSecondsValue("0").present);       // hot-loop guard
+    CHECK_FALSE(parseSleepSecondsValue("0").present);  // hot-loop guard
     CHECK_FALSE(parseSleepSecondsValue("86401").present);
     CHECK_FALSE(parseSleepSecondsValue("999999").present);
     CHECK_FALSE(parseSleepSecondsValue("-5").present);
@@ -30,8 +30,8 @@ TEST_CASE("parseSleepSecondsValue rejects values outside [1, 86400]") {
 
 TEST_CASE("parseSleepSecondsValue rejects non-integers and trailing garbage") {
     CHECK_FALSE(parseSleepSecondsValue("garbage").present);
-    CHECK_FALSE(parseSleepSecondsValue("300x").present);    // trailing junk
-    CHECK_FALSE(parseSleepSecondsValue("3.5").present);     // strtol stops at '.'
+    CHECK_FALSE(parseSleepSecondsValue("300x").present);  // trailing junk
+    CHECK_FALSE(parseSleepSecondsValue("3.5").present);   // strtol stops at '.'
     CHECK_FALSE(parseSleepSecondsValue("").present);
 }
 

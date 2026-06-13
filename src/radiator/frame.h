@@ -22,8 +22,8 @@ static const size_t EXPECTED_BMP_BYTES = 64862;
 // (white) EPD framebuffer fb. Returns false — leaving fb untouched-or-partial —
 // when the bytes are not a panel-sized (960x540) uncompressed 1bpp BMP. Pure
 // apart from the per-pixel epd_draw_pixel writes into fb, so it's host-testable.
-bool decodeBmpToFramebuffer(const uint8_t *bmp, uint32_t len, uint8_t *fb);
+bool decodeBmpToFramebuffer(const uint8_t* bmp, uint32_t len, uint8_t* fb);
 
 // Allocate a framebuffer, decode bmp into it, and latch it on the panel. Returns
 // false on a bad BMP or PSRAM exhaustion (→ BmpInvalid). Device-only.
-bool flushToPanel(const uint8_t *bmp, size_t bmpLen);
+bool flushToPanel(const uint8_t* bmp, size_t bmpLen);

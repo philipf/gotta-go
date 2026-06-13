@@ -3,3 +3,4 @@ node = "latest"
 # npm backend, not the default aqua backend: pnpm 11 renamed its GitHub
 # release assets and mise <2026.6 (current Arch repo) can't resolve them.
 "npm:pnpm" = "11"
+prettier = "latest"

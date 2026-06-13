@@ -11,17 +11,22 @@
 
 // ESP heap-caps allocator → plain malloc host-side; the capability flag is moot.
 #define MALLOC_CAP_SPIRAM 0
-inline void *heap_caps_malloc(size_t size, uint32_t) { return std::malloc(size); }
+inline void* heap_caps_malloc(size_t size, uint32_t) {
+    return std::malloc(size);
+}
 
 // millis(): firmware timing reads; a fixed value keeps host runs deterministic.
-inline unsigned long millis() { return 0; }
+inline unsigned long millis() {
+    return 0;
+}
 
 // Minimal Serial: firmware logging is a no-op host-side. Tests assert on
 // behaviour and return values, never on serial output.
 struct HostSerial {
-    template <typename... Args> void printf(const char *, Args...) {}
-    void println(const char * = "") {}
-    void print(const char *) {}
+    template <typename... Args>
+    void printf(const char*, Args...) {}
+    void println(const char* = "") {}
+    void print(const char*) {}
     void flush() {}
     void begin(unsigned long) {}
 };

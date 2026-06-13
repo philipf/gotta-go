@@ -21,12 +21,16 @@ static const uint32_t WIFI_TIMEOUT_MS = 15000;
 // ready cause. The common timeout cases (idle / still-disconnected) collapse to
 // "timed out"; the distinct ones (AP missing, auth rejected) get their own line
 // so a wrong SSID or password reads differently from a flaky signal.
-static const char *wifiStatusReason(wl_status_t status) {
+static const char* wifiStatusReason(wl_status_t status) {
     switch (status) {
-        case WL_NO_SSID_AVAIL:   return "Network not found.";
-        case WL_CONNECT_FAILED:  return "Wrong password or authentication failed.";
-        case WL_CONNECTION_LOST: return "Connection lost.";
-        default:                 return "Connection timed out.";
+        case WL_NO_SSID_AVAIL:
+            return "Network not found.";
+        case WL_CONNECT_FAILED:
+            return "Wrong password or authentication failed.";
+        case WL_CONNECTION_LOST:
+            return "Connection lost.";
+        default:
+            return "Connection timed out.";
     }
 }
 
@@ -41,14 +45,13 @@ WifiResult connectWiFi() {
     }
     const wl_status_t status = WiFi.status();
     if (status != WL_CONNECTED) {
-        const char *reason = wifiStatusReason(status);
+        const char* reason = wifiStatusReason(status);
         Serial.printf("Wi-Fi: FAILED within %lu ms (status=%d: %s)\n",
                       (unsigned long)WIFI_TIMEOUT_MS, (int)status, reason);
         return {false, WIFI_SSID, reason};
     }
     Serial.printf("Wi-Fi: connected in %lu ms — IP %s, RSSI %d dBm\n",
-                  (unsigned long)(millis() - t0),
-                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
+                  (unsigned long)(millis() - t0), WiFi.localIP().toString().c_str(), WiFi.RSSI());
     return {true, WIFI_SSID, nullptr};
 }
 
@@ -65,11 +68,11 @@ void disconnectWiFi() {
 // truncate. Handles the HTTP/1.0 connection-close path the cloudflared tunnel
 // forces. Returns bytes read; sets *truncated when the body filled the buffer.
 // The caller (not this helper) calls https.end().
-static size_t drainBody(HTTPClient &https, uint8_t *buf, size_t cap, bool *truncated) {
-    WiFiClient *stream = https.getStreamPtr();
-    const int expectedSize = https.getSize();  // -1 when server omits Content-Length
-    size_t total = 0;
-    *truncated = false;
+static size_t drainBody(HTTPClient& https, uint8_t* buf, size_t cap, bool* truncated) {
+    WiFiClient* stream       = https.getStreamPtr();
+    const int expectedSize   = https.getSize();  // -1 when server omits Content-Length
+    size_t total             = 0;
+    *truncated               = false;
     const uint32_t readStart = millis();
     while ((millis() - readStart) < 10000) {
         while (stream->available() && total < cap) {
@@ -79,7 +82,8 @@ static size_t drainBody(HTTPClient &https, uint8_t *buf, size_t cap, bool *trunc
             *truncated = true;
             break;
         }
-        if (expectedSize != -1 && total >= (size_t)expectedSize) break;
+        if (expectedSize != -1 && total >= (size_t)expectedSize)
+            break;
         if (!https.connected()) {
             // Drain any tail bytes the TLS layer still has buffered after the
             // server closed the connection. Bound by expectedSize when known
@@ -96,13 +100,13 @@ static size_t drainBody(HTTPClient &https, uint8_t *buf, size_t cap, bool *trunc
     return total;
 }
 
-long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap,
-                 uint8_t *dict, size_t dictCap) {
+long inflateGzip(const uint8_t* src, size_t srcLen, uint8_t* dst, size_t dstCap, uint8_t* dict,
+                 size_t dictCap) {
     uzlib_init();
     TINF_DATA d;
     memset(&d, 0, sizeof(d));
-    d.source = src;
-    d.source_limit = src + srcLen;
+    d.source         = src;
+    d.source_limit   = src + srcLen;
     d.source_read_cb = NULL;
 
     uzlib_uncompress_init(&d, dict, dictCap);
@@ -114,38 +118,35 @@ long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap,
     }
 
     d.dest_start = d.dest = dst;
-    d.dest_limit = dst + dstCap;
-    const int res = uzlib_uncompress_chksum(&d);
+    d.dest_limit          = dst + dstCap;
+    const int res         = uzlib_uncompress_chksum(&d);
     // TINF_OK (0) = success while filling dest; TINF_DONE (1) = success with
     // end-of-stream marker observed. Either means dst holds valid inflated
     // bytes. Negative values are real failures.
     if (res != TINF_DONE && res != TINF_OK) {
-        Serial.printf("inflate: failed (res=%d, produced=%ld bytes)\n",
-                      res, (long)(d.dest - dst));
+        Serial.printf("inflate: failed (res=%d, produced=%ld bytes)\n", res, (long)(d.dest - dst));
         return -1;
     }
     return (long)(d.dest - dst);
 }
 
-BodyText decodeBodyText(const HttpResponse &r, const uint8_t *body,
-                        uint8_t *scratch, size_t scratchCap,
-                        uint8_t *dict, size_t dictCap) {
+BodyText decodeBodyText(const HttpResponse& r, const uint8_t* body, uint8_t* scratch,
+                        size_t scratchCap, uint8_t* dict, size_t dictCap) {
     if (!r.gzipped) {
-        return { (const char *)body, r.bodyLen };
+        return {(const char*)body, r.bodyLen};
     }
     const long produced = inflateGzip(body, r.bodyLen, scratch, scratchCap, dict, dictCap);
     if (produced < 0) {
         Serial.println("problem: gzip inflate failed — generic fallback");
-        return { "", 0 };
+        return {"", 0};
     }
     Serial.printf("problem: inflating gzip body -> %ld bytes\n", produced);
-    return { (const char *)scratch, (size_t)produced };
+    return {(const char*)scratch, (size_t)produced};
 }
 
 // ---------- HTTP fetch ----------
 
-HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv,
-                        const char *ifNoneMatch) {
+HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char* ifNoneMatch) {
     HttpResponse r = {0, 0, false, false, {false, 0}, ""};
 
     // The TLS client and HTTP session live only for this request — constructed
@@ -207,26 +208,24 @@ HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv,
 
     // Retain the diagnostic headers we want to read off the response.
     // Content-Length is tracked internally by HTTPClient regardless of this list.
-    static const char *kept[] = {"X-Sleep-Seconds", "X-Profile-Phase",
-                                 "X-Server-Time", "Content-Encoding", "ETag"};
+    static const char* kept[] = {"X-Sleep-Seconds", "X-Profile-Phase", "X-Server-Time",
+                                 "Content-Encoding", "ETag"};
     https.collectHeaders(kept, sizeof(kept) / sizeof(kept[0]));
 
-    const uint32_t t0 = millis();
-    const int status = https.GET();
+    const uint32_t t0    = millis();
+    const int status     = https.GET();
     const uint32_t reqMs = millis() - t0;
-    r.status = status;
-    r.sleep = parseSleepSecondsValue(https.header("X-Sleep-Seconds").c_str());
+    r.status             = status;
+    r.sleep              = parseSleepSecondsValue(https.header("X-Sleep-Seconds").c_str());
 
     if (status <= 0) {
         Serial.printf("HTTPS: request failed: %s (%lu ms)\n",
-                      HTTPClient::errorToString(status).c_str(),
-                      (unsigned long)reqMs);
+                      HTTPClient::errorToString(status).c_str(), (unsigned long)reqMs);
         https.end();
         return r;
     }
-    Serial.printf("HTTPS: status %d, content-length %d, sleep=%s (%lu ms)\n",
-                  status, https.getSize(),
-                  r.sleep.present ? String(r.sleep.seconds).c_str() : "(missing)",
+    Serial.printf("HTTPS: status %d, content-length %d, sleep=%s (%lu ms)\n", status,
+                  https.getSize(), r.sleep.present ? String(r.sleep.seconds).c_str() : "(missing)",
                   (unsigned long)reqMs);
 
     // ETag capture (ADR-0013): verbatim — the radiator never inspects it. An

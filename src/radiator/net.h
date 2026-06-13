@@ -36,12 +36,12 @@ static const size_t UZLIB_DICT_BYTES = 32768;
 // X-Sleep-Seconds directive (honoured even on a non-2xx); etag is the response's
 // ETag header verbatim ("" when absent or over ETAG_CAP — see etag.h).
 struct HttpResponse {
-    int         status;
-    size_t      bodyLen;
-    bool        truncated;  // body filled the buffer (cap reached)
-    bool        gzipped;    // Content-Encoding: gzip
+    int status;
+    size_t bodyLen;
+    bool truncated;  // body filled the buffer (cap reached)
+    bool gzipped;    // Content-Encoding: gzip
     SleepHeader sleep;
-    char        etag[ETAG_CAP];
+    char etag[ETAG_CAP];
 };
 
 // The response arm a fetched HttpResponse routes to — the ADR-0003/0011/0013
@@ -50,21 +50,25 @@ struct HttpResponse {
 // Content-Encoding: gzip the Workers runtime appends to the bodiless 304 (#73,
 // ADR-0013 §What a 304 carries) can never route it through the inflate path.
 enum class ResponseArm {
-    Transport,    // status <= 0 — no response. panel untouched.
-    NotModified,  // 304 — unchanged-frame skip (ADR-0013). no body, by status.
-    WorkerError,  // reachable non-2xx — problem+json → error screen (ADR-0011).
-    BodyTooLarge, // 2xx but the body overran the caller's buffer.
-    Frame,        // 2xx — gzipped BMP for the panel.
+    Transport,     // status <= 0 — no response. panel untouched.
+    NotModified,   // 304 — unchanged-frame skip (ADR-0013). no body, by status.
+    WorkerError,   // reachable non-2xx — problem+json → error screen (ADR-0011).
+    BodyTooLarge,  // 2xx but the body overran the caller's buffer.
+    Frame,         // 2xx — gzipped BMP for the panel.
 };
 
 // Classify a fetched response onto its arm. The 304 check sits before the
 // non-2xx check (304 is outside 2xx but is not an error) and before any body
 // concern (a 304 has none, per RFC 9110 §15.4.5). Pure — host-testable.
-inline ResponseArm classifyResponse(const HttpResponse &r) {
-    if (r.status <= 0) return ResponseArm::Transport;
-    if (r.status == 304) return ResponseArm::NotModified;
-    if (r.status < 200 || r.status >= 300) return ResponseArm::WorkerError;
-    if (r.truncated) return ResponseArm::BodyTooLarge;
+inline ResponseArm classifyResponse(const HttpResponse& r) {
+    if (r.status <= 0)
+        return ResponseArm::Transport;
+    if (r.status == 304)
+        return ResponseArm::NotModified;
+    if (r.status < 200 || r.status >= 300)
+        return ResponseArm::WorkerError;
+    if (r.truncated)
+        return ResponseArm::BodyTooLarge;
     return ResponseArm::Frame;
 }
 
@@ -73,9 +77,9 @@ inline ResponseArm classifyResponse(const HttpResponse &r) {
 // On failure connected is false and reason is a short human-readable cause (a
 // static string) for the on-panel error screen; on success reason is nullptr.
 struct WifiResult {
-    bool        connected;
-    const char *ssid;
-    const char *reason;
+    bool connected;
+    const char* ssid;
+    const char* reason;
 };
 
 // Associate with the configured AP, or give up within WIFI_TIMEOUT_MS so a flaky
@@ -94,22 +98,21 @@ void disconnectWiFi();
 // because GPIO 14 is ADC2, which the radio owns once up). ifNoneMatch is the
 // stored ETag to send as If-None-Match (ADR-0013); null/empty omits the header
 // so the Worker answers 200 as before. See HttpResponse for the returned facts.
-HttpResponse fetchFrame(uint8_t *buf, size_t cap, uint32_t batteryMv,
-                        const char *ifNoneMatch);
+HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char* ifNoneMatch);
 
 // Inflate a gzip stream src[0..srcLen) into dst[0..dstCap) using the caller's
 // dictionary scratch. Returns bytes produced, or -1 on any uzlib error. Shared
 // by the frame path and the error path (ADR-0008 one-shot inflate).
-long inflateGzip(const uint8_t *src, size_t srcLen, uint8_t *dst, size_t dstCap,
-                 uint8_t *dict, size_t dictCap);
+long inflateGzip(const uint8_t* src, size_t srcLen, uint8_t* dst, size_t dstCap, uint8_t* dict,
+                 size_t dictCap);
 
 // A response body as text ready to parse. ptr aliases either body (identity —
 // the body wasn't gzipped) or the caller's scratch (inflated). len is 0 with
 // ptr = "" on an inflate failure, so the caller renders its generic fallback
 // (ADR-0011 Decision 8).
 struct BodyText {
-    const char *ptr;
-    size_t      len;
+    const char* ptr;
+    size_t len;
 };
 
 // Return the response body as text ready to parse: identity bytes when the body
@@ -117,6 +120,5 @@ struct BodyText {
 // Owns the "inflate iff r.gzipped" decision (Decision 2) so the orchestrator
 // doesn't. body is the buffer fetchFrame drained into. On inflate failure
 // returns {"", 0}.
-BodyText decodeBodyText(const HttpResponse &r, const uint8_t *body,
-                        uint8_t *scratch, size_t scratchCap,
-                        uint8_t *dict, size_t dictCap);
+BodyText decodeBodyText(const HttpResponse& r, const uint8_t* body, uint8_t* scratch,
+                        size_t scratchCap, uint8_t* dict, size_t dictCap);

@@ -26,7 +26,7 @@
 // wake-cycle PoC; if poc/lilygo/wake-cycle-32/secrets.h already exists on
 // this machine, copy those two lines straight from it.
 
-#define WIFI_SSID     "your-ssid"
+#define WIFI_SSID "your-ssid"
 #define WIFI_PASSWORD "your-password"
 
 // The Worker's /v1/frame endpoint. For local development, this is the

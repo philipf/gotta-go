@@ -42,13 +42,15 @@ enum class PanelState {
 // there. Pure — host-testable.
 inline PanelState panelStateAfter(CycleResult outcome) {
     switch (outcome) {
-        case CycleResult::Ok:            return PanelState::FrameFlushed;
-        case CycleResult::WorkerError:   return PanelState::ErrorScreen;
-        case CycleResult::NotModified:   // 304 skip — the panel keeps its frame
-        case CycleResult::HttpError:     // transport failure — untouched (#47's arm)
-        case CycleResult::BodyTooLarge:  // drain/inflate/decode failures all bail
-        case CycleResult::InflateFailed: //   before any panel write, so the old
-        case CycleResult::BmpInvalid:    //   frame (and its ETag) remain the truth
+        case CycleResult::Ok:
+            return PanelState::FrameFlushed;
+        case CycleResult::WorkerError:
+            return PanelState::ErrorScreen;
+        case CycleResult::NotModified:    // 304 skip — the panel keeps its frame
+        case CycleResult::HttpError:      // transport failure — untouched (#47's arm)
+        case CycleResult::BodyTooLarge:   // drain/inflate/decode failures all bail
+        case CycleResult::InflateFailed:  //   before any panel write, so the old
+        case CycleResult::BmpInvalid:     //   frame (and its ETag) remain the truth
             return PanelState::Unchanged;
     }
     return PanelState::Unchanged;

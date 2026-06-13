@@ -36,12 +36,15 @@ struct SleepHeader {
 // string, non-integer, trailing garbage, or out-of-range value. The strictness
 // is deliberate per ADR-0003: a Worker that hands us "0" or "garbage" gets the
 // firmware fallback, not a 0-second hot loop. Pure — host-testable.
-inline SleepHeader parseSleepSecondsValue(const char *raw) {
-    if (raw == nullptr || raw[0] == '\0') return {false, 0};
-    char *end = nullptr;
+inline SleepHeader parseSleepSecondsValue(const char* raw) {
+    if (raw == nullptr || raw[0] == '\0')
+        return {false, 0};
+    char* end         = nullptr;
     const long parsed = strtol(raw, &end, 10);
-    if (end == raw || *end != '\0') return {false, 0};
-    if (parsed < (long)SLEEP_S_MIN || parsed > (long)SLEEP_S_MAX) return {false, 0};
+    if (end == raw || *end != '\0')
+        return {false, 0};
+    if (parsed < (long)SLEEP_S_MIN || parsed > (long)SLEEP_S_MAX)
+        return {false, 0};
     return {true, (uint32_t)parsed};
 }
 
@@ -66,8 +69,8 @@ enum class CycleResult {
 // The chosen next-wake delay plus a human label naming which source picked it
 // (for the serial log). source points at a string literal — no ownership.
 struct SleepDecision {
-    uint32_t    seconds;
-    const char *source;
+    uint32_t seconds;
+    const char* source;
 };
 
 // Pick the next-wake delay: the validated X-Sleep-Seconds directive when present,
@@ -78,15 +81,22 @@ inline SleepDecision chooseSleep(SleepHeader sleep) {
 }
 
 // Short log token for a cycle outcome (the ADR-0003 table row that fired). Pure.
-inline const char *cycleResultStr(CycleResult outcome) {
+inline const char* cycleResultStr(CycleResult outcome) {
     switch (outcome) {
-        case CycleResult::Ok:            return "ok";
-        case CycleResult::NotModified:   return "not-modified";
-        case CycleResult::HttpError:     return "http-error";
-        case CycleResult::WorkerError:   return "worker-error";
-        case CycleResult::BodyTooLarge:  return "body-too-large";
-        case CycleResult::InflateFailed: return "inflate-failed";
-        case CycleResult::BmpInvalid:    return "bmp-invalid";
+        case CycleResult::Ok:
+            return "ok";
+        case CycleResult::NotModified:
+            return "not-modified";
+        case CycleResult::HttpError:
+            return "http-error";
+        case CycleResult::WorkerError:
+            return "worker-error";
+        case CycleResult::BodyTooLarge:
+            return "body-too-large";
+        case CycleResult::InflateFailed:
+            return "inflate-failed";
+        case CycleResult::BmpInvalid:
+            return "bmp-invalid";
     }
     return "?";
 }
