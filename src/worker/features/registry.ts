@@ -1,6 +1,7 @@
 // Composition root for the feature tier (ADR-0017 §6). Maps each layout key to
-// a FramePreparer binder, and exports LayoutKey as the source of truth used by
-// config/types.ts so phase config and the registry can never drift. Each binder
+// a FramePreparer binder (framePreparers), and exports LayoutKey as the source
+// of truth used by config/types.ts so phase config and the registry can never
+// drift. Each binder
 // receives the per-request FrameDeps bundle the orchestrator assembles once
 // (ADR-0005 §DI), binds gateway capabilities to transport, and collapses format
 // negotiation into the feature's own request — the one place that legitimately
@@ -64,48 +65,67 @@ export type PreparedFrame = {
 
 export type FramePreparer = (deps: FrameDeps) => Promise<PreparedFrame>;
 
-export const layouts = {
-	minimal_clock: (deps) =>
-		prepareMinimalClockFrame({
-			slug: deps.radiator.slug,
-			timezone: deps.timezone,
-			now: deps.now,
-			includeBmp: deps.format === 'bmp' || deps.includeBmp,
-			includeSvg: deps.format === 'svg',
-		}),
-	priority_split: (deps) =>
-		preparePrioritySplitFrame({
-			targets: deps.phase.transitTargets ?? [],
-			fetchArrivals: (target) =>
-				fetchArrivals({
-					fetch: deps.fetchFn,
-					apiKey: deps.env.METLINK_API_KEY,
-					stopId: target.stopId,
-					serviceId: target.serviceId,
-					destinationStopId: target.destinationStopId,
-					destinationNameIncludes: target.destinationNameIncludes,
-					limit: deps.stopPredictionLimit,
-				}),
-			timezone: deps.timezone,
-			now: deps.now,
-			includeBmp: deps.format === 'bmp' || deps.includeBmp,
-			includeSvg: deps.format === 'svg',
-		}),
-	idle_jokes: (deps) =>
-		prepareJokeFrame({
-			fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
-			includeBmp: deps.format === 'bmp' || deps.includeBmp,
-			includeSvg: deps.format === 'svg',
-		}),
-	dual_month_calendar: (deps) =>
-		prepareDualMonthCalendarFrame({
-			fetchHolidays: () => fetchHolidays({ kv: deps.env.PUBLIC_HOLIDAYS }),
-			slug: deps.radiator.slug,
-			timezone: deps.timezone,
-			now: deps.now,
-			includeBmp: deps.format === 'bmp' || deps.includeBmp,
-			includeSvg: deps.format === 'svg',
-		}),
-} satisfies Record<string, FramePreparer>;
+function renderFlagsFrom(deps: Pick<FrameDeps, 'format' | 'includeBmp'>) {
+	return {
+		includeBmp: deps.format === 'bmp' || deps.includeBmp,
+		includeSvg: deps.format === 'svg',
+	};
+}
 
-export type LayoutKey = keyof typeof layouts;
+function bindMinimalClock(deps: FrameDeps) {
+	return prepareMinimalClockFrame({
+		slug: deps.radiator.slug,
+		timezone: deps.timezone,
+		now: deps.now,
+		...renderFlagsFrom(deps),
+	});
+}
+
+function bindPrioritySplit(deps: FrameDeps) {
+	return preparePrioritySplitFrame({
+		targets: deps.phase.transitTargets ?? [],
+		fetchArrivals: (target) =>
+			fetchArrivals({
+				fetch: deps.fetchFn,
+				apiKey: deps.env.METLINK_API_KEY,
+				stopId: target.stopId,
+				serviceId: target.serviceId,
+				destinationStopId: target.destinationStopId,
+				destinationNameIncludes: target.destinationNameIncludes,
+				limit: deps.stopPredictionLimit,
+			}),
+		timezone: deps.timezone,
+		now: deps.now,
+		...renderFlagsFrom(deps),
+	});
+}
+
+function bindIdleJokes(deps: FrameDeps) {
+	return prepareJokeFrame({
+		fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
+		...renderFlagsFrom(deps),
+	});
+}
+
+function bindDualMonthCalendar(deps: FrameDeps) {
+	return prepareDualMonthCalendarFrame({
+		fetchHolidays: () => fetchHolidays({ kv: deps.env.PUBLIC_HOLIDAYS }),
+		slug: deps.radiator.slug,
+		timezone: deps.timezone,
+		now: deps.now,
+		...renderFlagsFrom(deps),
+	});
+}
+
+// The implemented layouts, and the source of truth for LayoutKey (consumed by
+// config/types.ts so phase config and the registry can never drift). The
+// `satisfies Record<LayoutKey, FramePreparer>` below proves the registry covers
+// exactly these keys — a missing binder or a stray one is a compile error.
+export type LayoutKey = 'minimal_clock' | 'priority_split' | 'idle_jokes' | 'dual_month_calendar';
+
+export const framePreparers = {
+	minimal_clock: bindMinimalClock,
+	priority_split: bindPrioritySplit,
+	idle_jokes: bindIdleJokes,
+	dual_month_calendar: bindDualMonthCalendar,
+} satisfies Record<LayoutKey, FramePreparer>;

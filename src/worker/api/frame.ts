@@ -10,7 +10,7 @@
 import { validate } from '../auth/validate';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
 import type { Radiator } from '../config/lookup';
-import { layouts } from '../features/registry';
+import { framePreparers } from '../features/registry';
 import type { FrameDeps, FramePreparer } from '../features/registry';
 import { resolveProfilePhase } from '../schedule/resolve';
 import { log } from '../shared/log';
@@ -116,7 +116,7 @@ export async function renderFrame(
 			fetchFn: fetch.bind(globalThis),
 		};
 
-		const prepare: FramePreparer = layouts[layout];
+		const prepare: FramePreparer = framePreparers[layout];
 		const prepared = await prepare(deps);
 
 		// The weak ETag is derived here (api/etag.ts) from the feature's view +
