@@ -1,98 +1,220 @@
 # Worker — `GET /v1/frame` request flow
 
-Sequence diagram and component map for the production worker at [`src/worker/`](../src/worker/). Use this to orient before jumping into the code.
+Sequence diagram and component map for the production worker at
+[`src/worker/`](../src/worker/). Use this to orient before jumping into the
+code: it traces the one request the radiator ever makes, end to end.
+
+**Scope vs. the architecture guide.** This doc is the _concrete request trace_ —
+which file calls which, in what order, with today's names. The principles behind
+the shape (Deep Modules, Feature Folders, REPR, the prepare/defer split) live in
+the canonical [`docs/worker-architecture.md`](worker-architecture.md); read that
+for _why_, this for _what happens_. Where they disagree, the code wins and both
+docs are stale.
 
 ## Sequence diagram
 
-Happy path only — auth/slug failures, gzip negotiation, and the render-pipeline internals are covered in the component map below.
+Happy path, `Accept: image/bmp` (the radiator's path). The conditional-request
+304 branch is shown inline; auth/slug failures, JSON/SVG diagnostics formats,
+gzip negotiation, and the render-pipeline internals are in the component map
+below.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant R as Radiator firmware
-    participant W as Worker (api/frame.handleFrame)
-    participant A as auth.validate
+    participant Rt as api/router.route
+    participant F as api/frame.renderFrame
+    participant P as parseFrameRequest
+    participant A as api/auth.auth
     participant C as config.lookupRadiator
-    participant S as schedule.resolveProfilePhase
-    participant N as api.resolveResponseFormat
-    participant L as features.registry (layouts[layout])
-    participant V as minimal_clock.buildViewModel
-    participant F as minimal_clock.renderBmp
+    participant S as config.resolveProfilePhase
+    participant Reg as features.framePreparers[layout]
+    participant Ft as feature.prepare → render
+    participant E as api/etag.weakEtag
+    participant Sh as api/response.shapeFrame
 
-    R->>W: GET /v1/frame
-    W->>A: validate(headers, sharedToken)
-    A-->>W: ok
-    W->>C: lookupRadiator(slug)
-    C-->>W: Radiator (slug + profile)
-    W->>S: resolveProfilePhase(radiator, now)
-    S-->>W: { profilePhase, layout, sleepSeconds }
-    W->>N: resolveResponseFormat(Accept)
-    N-->>W: 'bmp'
-    W->>L: layouts[layout](radiator, GLOBAL.timezone, now, 'bmp')
-    L->>V: buildViewModel(radiator, timezone, now)
-    V-->>L: { slug, time, date }
-    L->>F: renderBmp(vm)
-    F-->>L: BMP bytes
-    L-->>W: BMP bytes
-    W-->>R: 200 image/bmp + sleep/phase/server-time headers
+    R->>Rt: GET /v1/frame
+    Rt->>F: renderFrame(request, env, now, resolve)
+    F->>P: parseFrameRequest(request)
+    P-->>F: FrameRequest { slug, format, acceptsGzip, ifNoneMatch, telemetry }
+    F->>A: auth(headers, sharedToken)
+    A-->>F: { ok: true }
+    F->>C: resolve(slug)
+    C-->>F: Radiator (slug + inlined profile)
+    F->>S: resolveProfilePhase(radiator, now)
+    S-->>F: { profilePhase, phase, layout, sleepSeconds }
+    F->>Reg: framePreparers[layout](FrameDeps)
+    Reg->>Ft: prepare(feature request)
+    Ft-->>F: PreparedFrame { view, version, render() }
+    F->>E: weakEtag(view, version)
+    E-->>F: W/"…"
+    alt If-None-Match matches (bmp only)
+        F-->>R: 304 Not Modified (+ sleep/phase/etag headers) — render skipped
+    else changed or no validator
+        F->>Ft: render()
+        Ft-->>F: { frame, svg }
+        F->>Sh: shapeFrame({ format, view, rendered, acceptsGzip, meta })
+        Sh-->>F: 200 image/bmp (gzip if negotiated)
+        F-->>R: 200 + sleep/phase/server-time/etag headers
+    end
 ```
 
 ## Component map
 
 ### Edge & routing
 
-- **`index.ts`** — Worker entry. Calls `route(request, env, new Date())`. The `new Date()` injection point is the only place "now" enters the system; everything downstream takes `now: Date` as a parameter, which keeps schedule/viewmodel logic trivially testable.
-- **`api/router.ts`** — Single-route dispatcher. Matches `GET /v1/frame` → `handleFrame`; everything else → `notFound()` from `api/errors.ts`. Knows zero domain.
-- **`api/frame.ts` (`handleFrame`)** — The only "thick" function in `api/`. It orchestrates the slice: auth → config → schedule → registry dispatch → gzip → response. If you're looking for "what happens on a frame request", start here.
+- **`index.ts`** — Worker entry. Builds `now` (a fresh `new Date()`, or the
+  dev-only `X-Debug-Now` override via `debug/dev-time.ts`) and calls
+  `route(request, env, now)`. This is the only place "now" and Cloudflare
+  bindings enter the system; everything downstream takes them as parameters,
+  which keeps phase/viewmodel logic trivially testable.
+- **`api/router.ts` (`route`)** — Single-route dispatcher. Matches
+  `GET /v1/frame`; everything else → `notFoundResponse`. One branch point: a
+  `test-` prefixed slug routes to `handleTestFrame` (synthetic scenario, GH #21),
+  every real slug to `handleFrame`. Both flow through the same `renderFrame` core.
+- **`api/frame.ts`** — The endpoint. `handleFrame` / (and `api/test-frame.ts`'s
+  `handleTestFrame`) are thin shims that inject a `RadiatorResolver`; the real
+  work is `renderFrame`, the branch-free core that runs Request → Endpoint →
+  Response. If you're looking for "what happens on a frame request", start here.
+- **`api/frame-request.ts` (`parseFrameRequest`)** — Parses the raw `Request`
+  once into the `FrameRequest` the orchestrator works with: slug, negotiated
+  `format`, `includeBmp`, `acceptsGzip`, the `If-None-Match` validator, and
+  telemetry headers. `extractObservabilityInfo` derives the context (slug,
+  hardwareId, requestId, batteryMv) spread into every log line.
 
 ### Gatekeeping
 
-- **`auth/validate.ts` (`validate`)** — Constant-comparison of `X-Radiator-Token` against `env.RADIATOR_SHARED_TOKEN`. Returns a deliberately opaque `{ ok: boolean }` — missing-token and wrong-token are indistinguishable on the wire (per the OpenAPI contract).
-- **`config/lookup.ts` (`lookupRadiator`)** — Resolves a slug to a fully populated `Radiator` (slug + inlined profile) by joining the `RADIATOR_REFS` map (slug → profile-name) against the `PROFILES` map. Fails closed on a dangling profile-name reference.
-- **`config/data.ts`** — Three exports mirroring PRD §9: `GLOBAL` (timezone + default refresh), `PROFILES` (named profiles), `RADIATOR_REFS` (slug → profile-name). Future per-radiator config (display capabilities, etc.) attaches to the radiator reference here.
-- **`config/types.ts`** — `Global`, `Radiator`, `Profile`, `ProfilePhase` types. Type-only imports `LayoutKey` from `features/registry` so the layout union can't drift from the registered set.
+- **`api/auth.ts` (`auth`)** — Compares `X-Radiator-Token` against
+  `env.RADIATOR_SHARED_TOKEN`. Returns a deliberately opaque
+  `{ ok: true } | { ok: false }` — missing-token and wrong-token are
+  indistinguishable at the type level, per the OpenAPI contract.
+- **`config/lookup.ts` (`lookupRadiator`)** — Resolves a slug to a fully
+  populated `Radiator` (slug + inlined profile) by joining `RADIATOR_REFS`
+  (slug → profile-name) against `PROFILES`. Fails closed (→ undefined → 404) on
+  an unknown slug or a dangling profile-name reference.
+- **`config/data.ts`** — `GLOBAL` (timezone, default refresh,
+  `stopPredictionLimit`), `PROFILES`, `RADIATOR_REFS`, and `SYSTEM_IDLE_DEFAULT`.
+- **`config/config-types.ts`** — `Global`, `Radiator`, `Profile`, `ProfilePhase`
+  types. Type-only imports `LayoutKey` from `features/frame-registry` so the
+  configured layout union can't drift from the registered set.
 
-### Schedule
+### Phase resolution
 
-- **`schedule/resolve.ts` (`resolveProfilePhase`)** — Picks the active **profile phase** from the radiator's profile and clamps `refreshIntervalMinutes × 60` into `[30, 14400]` seconds. The PoC config seeds a single all-day phase, so resolution is trivial. Returns `{ profilePhase, layout, sleepSeconds }` — the orchestrator uses `layout` to index the registry, `profilePhase` for the `X-Profile-Phase` response header, and `sleepSeconds` for `X-Sleep-Seconds`. Multi-phase logic + DST land in a follow-up.
+- **`config/resolve.ts` (`resolveProfilePhase`)** — Maps `(radiator, now)` to the
+  active **profile phase**, its `layout`, and the clamped sleep duration
+  (`[30, 14400]` s). Picks the phase whose half-open `[startTime, endTime)`
+  window contains the local wall-clock time _and_ whose active `days` include
+  today (ADR-0015); the active sleep is the refresh interval truncated at the
+  next phase boundary. Outside every window it falls through to the **idle
+  profile** (ADR-0003 / #17), sleeping until the next phase opens (capped at 4h).
+  Returns `{ profilePhase, phase, layout, sleepSeconds }` — `layout` indexes the
+  registry, `profilePhase` is the `X-Profile-Phase` header, `sleepSeconds` is
+  `X-Sleep-Seconds`.
 
 ### Feature dispatch
 
-- **`features/registry.ts`** — Declares `layouts` (a `LayoutKey → render` map) and derives `LayoutKey = keyof typeof layouts`. Adding a layout = registering it here; the type follows automatically. Today: `{ minimal_clock: minimalClockRender }`.
+- **`features/frame-registry.ts`** — The composition root. `framePreparers` maps
+  each `LayoutKey` to a **binder** that turns the per-request `FrameDeps` bundle
+  (assembled once in `renderFrame`) into the feature's own request — binding
+  gateway capabilities to transport (`fetch`, env bindings) and collapsing format
+  negotiation into `includeBmp` / `includeSvg` flags. `LayoutKey` is the source of
+  truth (consumed by `config-types.ts`); the `satisfies Record<LayoutKey,
+  FramePreparer>` proves the registry covers exactly the implemented layouts.
+  Today: `minimal_clock`, `priority_split`, `idle_jokes`, `dual_month_calendar`.
 
-### Per feature (`minimal_clock`)
+### Per feature
 
-- **`features/minimal_clock/service.ts` (`render`)** — Single public entry point: `async render(radiator, timezone, now, format) → Promise<Uint8Array>`. Internally holds a `Record<ResponseFormat, …>` renderer map keyed on the `ResponseFormat` union, so adding a new format surfaces a TypeScript error here until a renderer is supplied. When `json` / `svg` outputs land (#19 / #20) they slot in alongside `bmp`.
-- **`features/minimal_clock/viewmodel.ts` (`buildViewModel`)** — Pure presentation: formats `time` (`HH:MM`, 24h, en-GB) and `date` (`Dow DD Mon`) in the supplied timezone via `Intl.DateTimeFormat`, with a per-tz formatter cache so we don't rebuild per request. No date library.
-- **`features/minimal_clock/bmp.tsx` (`renderBmp`)** — The renderer for `image/bmp`. Builds the JSX layout (centered time + date in DejaVu Sans Bold), then walks the three-stage pipeline: JSX → SVG → RGBA → 1-bpp BMP.
+Each layout is one folder under `features/<layout>/` exposing **one REPR
+capability** — `prepare<Layout>Frame(req) → Promise<{ view, version, render }>`:
 
-### Content negotiation
+- **`view`** — the cheap JSON projection (diagnostics body + ETag input).
+- **`version`** — the `LAYOUT_VERSION` appearance revision (ETag input).
+- **`render()`** — a deferred closure over the private view model that produces
+  the expensive artefacts (`{ frame, svg }`), each non-null only when the format
+  needs it. Deferring lets the 304 path skip rasterisation entirely (ADR-0013).
 
-- **`api/format.ts` (`resolveResponseFormat`)** — Accept header → response format. Today it unconditionally returns `'bmp'`. Stub on purpose; ADR-0004 specifies the `json` / `svg` branches that arrive with later issues.
+The folder splits by role: `<capability>.ts` (contract + re-export),
+`<capability>-impl.ts` (fetch → map → derive → compose), `viewmodel.ts`
+(private VM + `toJsonView`), `view.tsx` (renderer + `LAYOUT_VERSION`), plus
+`errors.ts` / `domain-service.ts` when earned. The four today, by complexity:
+`minimal_clock` (no gateway, pure wall-clock), `idle_jokes` (one gateway, throws
+on failure), `priority_split` (parameterised Metlink calls + domain service),
+`dual_month_calendar` (soft-misses a public-holidays KV gap into an unshaded
+calendar). The feature never sees `fetch`, `Env`, or a wire format.
+
+### Gateways
+
+Features reach every external system through a **gateway** under
+`gateways/<system>/` — one public capability (`fetchArrivals`, `fetchJoke`,
+`fetchHolidays`) reporting failure as data (`{ ok, error }`), with the wire
+format quarantined in `mapper.ts`. The registry binders supply transport; the
+feature's impl decides what a failure _means_ (throw vs. soft-miss).
+
+### Conditional frame (304)
+
+- **`api/etag.ts`** — `weakEtag(view, version)` derives the weak validator
+  (FNV-1a 64-bit over `version + JSON.stringify(view)`) from the feature's cheap
+  outputs — never the rendered bytes — so a 304 can be answered before rendering.
+  `ifNoneMatchSatisfied` does the RFC 9110 weak comparison. `renderFrame` checks
+  this only on the `bmp` path (`isUnchangedFrame`); JSON/SVG diagnostics always
+  return 200. Generation and validation share one module, so they can't drift
+  (ADR-0013 / #73).
+
+### Content negotiation & response shaping
+
+- **`api/format.ts` (`resolveResponseFormat`)** — Accept header → `'bmp'` (radiator,
+  or no Accept) / `'json'` / `'svg'` (diagnostics surfaces, ADR-0004).
+- **`api/response.ts`** — `shapeFrame` owns per-format encoding over the narrow
+  leaf shapers: `frameJsonResponse` (envelope, never gzipped), `frameSvgResponse`
+  and `frameBmpResponse` (gzipped via `frameBody` when the client advertised it),
+  and `frameNotModifiedResponse` (the bodiless 304). `frameBody` sets
+  `encodeBody: 'manual'` whenever it gzips, so the Workers runtime doesn't
+  double-encode an already-compressed body (GH #13). `FrameMeta` (sleep, server
+  time, profile phase, etag) rides every 200 and the 304 identically (ADR-0003).
+- **`api/envelope.ts` (`buildFrameEnvelope`)** — Assembles the JSON diagnostics
+  envelope: cross-cutting fields (`profile_phase`, `layout`, `server_time`) plus
+  the layout's view model, appending `frame_bmp_base64` only on `?include_bmp=1`.
 
 ### Render pipeline (shared)
 
-- **`shared/satori.ts`** — The crown jewel of cold-start defence. Three things to know:
-  1. `import satori, { init as initSatori } from 'satori/standalone'` — the standalone entry does **not** auto-fire yoga's WASM compile on module load (GH #14).
-  2. `yoga.wasm` and resvg's `index_bg.wasm` are imported as values; wrangler/esbuild treat them as `WebAssembly.Module`s pre-compiled at deploy time.
-  3. `ensureWasm()` is a per-isolate memoized `Promise.all([initSatori(yogaWasm), initResvg(resvgWasm)])` — both wasms instantiate lazily, in parallel, exactly once.
-
-  Exposes `jsxToSvg(tree)` and `svgToRgba(svg)`. Both `await ensureWasm()` before doing work.
-- **`shared/bmp.ts` (`rgbaTo1BitBmp`)** — RGBA → 1-bpp BMP1 encoder. Luminance threshold 128 (with alpha-over-white compositing), top-down (negative height), BI_RGB (no compression). Emits the 14-byte file header + 40-byte DIB + 8-byte 2-colour palette + packed bit rows. Output is a constant 64 862 bytes at 960×540. Also the single source of truth for `WIDTH` / `HEIGHT`.
-
-### Wire-level encoding
-
-- **`shared/gzip.ts`** — Thin `CompressionStream('gzip')` wrapper. Only invoked when the client advertises gzip. Returns ~1.5 KB for our 64 862-byte BMP (≈40× saving).
-- **`api/response.ts` (`frameOk`)** — Final response shaper. Sets `Content-Type: image/bmp` and the three ADR-0003 observability headers (`X-Sleep-Seconds`, `X-Server-Time`, `X-Profile-Phase`). When `gzip=true`, also sets `Content-Encoding: gzip` **and** the non-standard `encodeBody: 'manual'` — that flag is the GH #13 fix and tells the Workers runtime "the body is already encoded, don't re-gzip it." The two settings are bound to the same boolean so they cannot drift apart.
+- **`shared/satori.ts`** — Cold-start defence. `satori/standalone` does **not**
+  auto-fire yoga's wasm compile on module load (GH #14); both `yoga.wasm` and
+  resvg's `index_bg.wasm` are imported as pre-compiled `WebAssembly.Module`s and
+  instantiated by a per-isolate memoized `ensureWasm()` on first request. Exposes
+  `jsxToSvg(tree)` and `svgToRgba(svg)`, each `await`ing `ensureWasm()` first.
+- **`shared/bmp.ts` (`rgbaTo1BitBmp`)** — RGBA → 1-bpp BMP encoder. Luminance
+  threshold 128, top-down, no compression; constant output at 960×540. The single
+  source of truth for `WIDTH` / `HEIGHT`.
+- **`shared/gzip.ts`** — Thin `CompressionStream('gzip')` wrapper, invoked only
+  when the client advertises gzip (ADR-0001).
 
 ### Errors
 
-- **`api/errors.ts`** — Three shapers:
-  - `unauthorized()` (401) and `unknownRadiator()` (404) — both set `X-Sleep-Seconds: 3600` (the firmware backs off for an hour on auth/slug failures) and `X-Profile-Phase: none`. Bodies are short lowercase strings the firmware ignores.
-  - `notFound()` (404) — bare router-level 404 for an unknown path. No contract headers — the radiator only ever hits `/v1/frame`, so this branch is a developer/curl condition; firmware falls back to its built-in default sleep if it ever hits this.
+- **`api/failure.ts` (`failureResponse`)** — The pipeline's failure boundary
+  (ADR-0011). The `renderFrame` `catch` routes every throw here: known
+  `AppError`s pass through, anything else becomes `internal`; it logs (with the
+  raw stack for unknowns) and delegates to `problemResponse`. No re-throw, so CF
+  never sees a bare 500. Retryable errors sleep at the resolved phase's duration.
+- **`api/errors.ts`** — `problemResponse` shapes an `AppError` into RFC 9457
+  `application/problem+json` with `X-Sleep-Seconds` / `X-Profile-Phase` headers
+  (used for the 401/404 auth/slug failures). `notFoundResponse` is the class-less
+  router-level 404 for an unknown path — a developer/curl condition the radiator
+  never hits.
+- **`shared/errors.ts`** — The `AppError` class and the closed `ProblemSlug`
+  union (the typed mirror of `docs/api/errors.md`), plus the factory functions
+  (`unauthorizedError`, `unknownRadiatorError`, `internalError`, …).
 
 ## Mental shortcut
 
-> A frame request is **gate → resolve → dispatch → render → encode → shape**.
-> Gate in `auth/` + `config/`. Resolve in `schedule/`. Dispatch via `features/registry` (layout key → render). Render via the feature's `service.render()` (which composes its viewmodel + per-format renderer). Encode in `shared/gzip`. Shape in `api/response`.
-> The two non-obvious bits — `satori/standalone` + memoized `ensureWasm` ([#14](https://github.com/philipf/gotta-go/issues/14)), and `encodeBody: 'manual'` ([#13](https://github.com/philipf/gotta-go/issues/13)) — both have inline comments pointing at the GitHub issues.
+> A frame request is **parse → gate → resolve → prepare → (304?) → render → shape**.
+> Parse in `api/frame-request`. Gate in `api/auth` + `config/lookup`. Resolve the
+> phase in `config/resolve`. Dispatch + prepare via `features/frame-registry`
+> (layout key → binder → the feature's deferred `{ view, version, render }`).
+> Compute the ETag (`api/etag`) and short-circuit to a 304 if it still matches —
+> skipping render entirely. Otherwise `render()` the artefacts and `shapeFrame`
+> the negotiated format (`api/response`), gzipping per `shared/gzip`. Any throw
+> lands in `api/failure`.
+> The two non-obvious bits — `satori/standalone` + memoized `ensureWasm`
+> ([#14](https://github.com/philipf/gotta-go/issues/14)) and `encodeBody: 'manual'`
+> ([#13](https://github.com/philipf/gotta-go/issues/13)) — both have inline
+> comments pointing at the GitHub issues.
