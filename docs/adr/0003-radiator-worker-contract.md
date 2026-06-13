@@ -5,10 +5,7 @@
 - **Deciders:** Philip Fourie
 - **Wire specification:** [`../api/openapi.yaml`](../api/openapi.yaml) — the authoritative *what* (paths, headers, status codes, response shapes, value ranges). This ADR is the *why*.
 - **Language reference:** [`../glossary.md`](../glossary.md) — every term used here is defined there.
-
-> **Superseded in part by [ADR-0011](0011-error-contract-problem-details.md).** The error model below is replaced on three counts: (1) the "plain-text bodies, never JSON" rule → RFC 9457 `problem+json`; (2) the "hold the last frame on any non-2xx" firmware rule → the firmware renders a generic error screen; (3) the "Metlink staleness preferred over 502 / `stale-served`" rule → there is no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)), so a Metlink failure now returns a `502` (`metlink-unavailable` / `metlink-rate-limited`) problem document. The associated `X-Cache-Status` and `X-Metlink-Fetched-At` observability headers are likewise retired. Inline notes mark each superseded passage. Everything else (endpoint shape, header-based auth/identity, the `401`-no-oracle and `404`-unknown-slug choices, sleep authority and bounds, the idle profile, the `X-Radiator-*` namespace) still stands.
-
-> **Amended by [ADR-0013](0013-conditional-frame-requests.md) — conditional frame requests.** The firmware-behaviour table below gains a `304 Not Modified` row: the Worker derives a weak `ETag` from the render's content inputs, the radiator echoes it as `If-None-Match` on each wake, and a match returns `304` (no body, `X-Sleep-Seconds` still set) so the firmware skips the panel flush. A new ETag is stored only on a successfully flushed `200`. Only the `image/bmp` path participates; the diagnostics variants always return `200`. The "exactly two response artefacts" and "binary firmware decision" framings below are likewise amended (the ETag is a third — opaque, never inspected — artefact, and the decision is now ternary: flush / skip / error screen).
+- **Amended by:** [ADR-0011](0011-error-contract-problem-details.md) (error model → RFC 9457 `problem+json` + firmware error screen), [ADR-0010](0010-no-metlink-cache-layer.md) (no caching layer, so a Metlink failure returns `502`), [ADR-0013](0013-conditional-frame-requests.md) (the `304` conditional-frame path). This ADR reflects that current state directly; those ADRs hold the detail.
 
 ## Context
 
@@ -70,15 +67,15 @@ The Worker dictates the next **sleep duration** on **every response**, including
 
 ### Error model
 
-The status-code split is in the OpenAPI; here are the decisions behind it:
+The status-code split is in the OpenAPI; the decisions behind it:
 
+- **Every error is an `application/problem+json` document (RFC 9457).** A short machine- and human-readable body — `type` / `title` / `detail`, plus an optional `upstream_detail` — carries each error, per [ADR-0011](0011-error-contract-problem-details.md). The #56 grill found that a radiator-ignored plain-text body let config errors (e.g. a bad `METLINK_API_KEY`) decay into silent dashes on the panel; errors must be visible and machine-readable instead. The firmware renders a generic error screen from the document (see *Radiator firmware behaviour*).
 - **No "no active profile phase" error.** When server time falls outside every configured phase, the Worker falls through to the **idle profile** and returns `200` with a frame. Treating an unscheduled overnight as an error would mean the radiator's nightly behaviour is driven by an error path, which inverts the relationship.
-- **Metlink staleness preferred over 502.** ~~If Metlink is unreachable but the **KV cache** has any entry — even past its 30 s TTL — the Worker serves the stale frame as `200` with `X-Cache-Status: stale-served`. A `502` only fires when there is no cache at all to fall back to.~~ **Superseded:** there is no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)), so there is nothing stale to serve. A Metlink failure now returns a `502` `problem+json` document (`metlink-unavailable` for `5xx`/network/timeout, `metlink-rate-limited` for `429`) per [ADR-0011](0011-error-contract-problem-details.md), and the firmware shows the error screen.
-- **Plain-text bodies, never JSON.** ~~Error responses carry one short lowercase string. The body is for a human reading `curl` output; the radiator's firmware ignores it. No schema, no encoding, no parser.~~ **Superseded by [ADR-0011](0011-error-contract-problem-details.md):** every error is now an `application/problem+json` document (RFC 9457). The #56 grill found the radiator-ignored body let config errors (a bad `METLINK_API_KEY`) decay into silent dashes; errors must be visible and machine-readable instead.
+- **A Metlink failure returns `502`, not a stale frame.** There is no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)), so there is nothing stale to serve. A Metlink failure surfaces as a `502` `problem+json` document — `metlink-unavailable` for `5xx`/network/timeout, `metlink-rate-limited` for `429` — and the firmware shows the error screen.
 
 ### Worker observability response headers
 
-The Worker sets diagnostic headers (`X-Server-Time`, `X-Profile-Phase`) on every response where the value is meaningful. These are **response-only and radiator-ignored** — they exist for a human running `curl` against `/v1/frame`, or a future polling tool, to diagnose "what did the Worker think when it produced this response" without needing Worker logs. (The cache-era `X-Metlink-Fetched-At` / `X-Cache-Status` headers are retired — there is no caching layer, [ADR-0010](0010-no-metlink-cache-layer.md).)
+The Worker sets diagnostic headers (`X-Server-Time`, `X-Profile-Phase`) on every response where the value is meaningful. These are **response-only and radiator-ignored** — they exist for a human running `curl` against `/v1/frame`, or a future polling tool, to diagnose "what did the Worker think when it produced this response" without needing Worker logs.
 
 Because the radiator ignores them, **new ones are free.** Any future Worker-side response header in the `X-*` namespace can be added without a firmware change or a contract version bump. Document additions in the OpenAPI as the Worker evolves.
 
@@ -90,32 +87,25 @@ The actual layout used by the idle profile, the content source (quote, joke, dat
 
 ### Radiator firmware behaviour
 
-The firmware's loop is fixed by PRD §7 ("the panel retains its last valid frame indefinitely without power"). The Worker's wire contract is in OpenAPI; the radiator's response-handling spec is here, because it's a firmware design decision that does not appear on the wire:
-
-> **The two `Any non-2xx` rows are superseded by [ADR-0011](0011-error-contract-problem-details.md).** Instead of "do not touch panel", the radiator now parses the `problem+json` body and renders a generic error screen (heading = `title`, body = `detail`; `upstream_detail` under the `verbose` flag), then sleeps for `X-Sleep-Seconds` (or the `300 s` fallback if absent). The `200 OK` rows and the "no response at all" row are unchanged.
-
-> **Amended by [ADR-0013](0013-conditional-frame-requests.md).** The table gains a `304 Not Modified` row — parse `X-Sleep-Seconds`, do **not** touch the panel, keep the stored ETag — plus the ETag-handling rules: send `If-None-Match` when an ETag is stored, store a new ETag only after a successfully flushed `200`, and clear it when the error screen is rendered. See ADR-0013 for the full row and rules.
+The firmware's loop is fixed by PRD §7 ("the panel retains its last valid frame indefinitely without power"). The Worker's wire contract is in OpenAPI; the radiator's response-handling spec is here, because it's a firmware design decision that does not appear on the wire.
 
 | Response received | Firmware action |
 |---|---|
-| `200 OK` with valid gzipped BMP + `X-Sleep-Seconds` | Decompress, flush frame to panel, deep-sleep for `X-Sleep-Seconds` |
-| `200 OK` but body decompression/parse fails | Do not touch panel (retains last valid frame). Deep-sleep for `X-Sleep-Seconds` if present, else firmware fallback (300 s) |
-| Any non-2xx with `X-Sleep-Seconds` | Do not touch panel. Deep-sleep for `X-Sleep-Seconds` |
-| Any non-2xx without `X-Sleep-Seconds` | Do not touch panel. Deep-sleep for firmware fallback (300 s) |
+| `200 OK` with valid gzipped BMP + `X-Sleep-Seconds` | Decompress, flush frame to panel, store the new `ETag`, deep-sleep for `X-Sleep-Seconds` |
+| `304 Not Modified` ([ADR-0013](0013-conditional-frame-requests.md)) | Do not touch panel (retains last valid frame), keep the stored `ETag`, deep-sleep for `X-Sleep-Seconds` |
+| `200 OK` but body decompression/parse fails | Do not touch panel. Deep-sleep for `X-Sleep-Seconds` if present, else firmware fallback (300 s) |
+| Any non-2xx (`problem+json`) ([ADR-0011](0011-error-contract-problem-details.md)) | Parse the problem document, render the generic error screen (heading = `title`, body = `detail`; `upstream_detail` under the `verbose` flag), clear the stored `ETag`, deep-sleep for `X-Sleep-Seconds` (or 300 s fallback if absent) |
 | **No response at all** (Wi-Fi fail, DNS fail, TCP timeout, TLS fail, HTTP timeout) | Do not touch panel. Deep-sleep for firmware fallback (300 s) |
 
-The radiator MUST NOT log to flash, ~~MUST NOT alter the panel on any non-2xx,~~ and MUST NOT escalate retry frequency between wake cycles. The wake cycle is the retry. (Per [ADR-0011](0011-error-contract-problem-details.md) the radiator now *does* alter the panel on a non-2xx — it renders the generic error screen; the no-flash-logging and no-retry-escalation rules still hold.)
+**Conditional-frame (`ETag`) rules** ([ADR-0013](0013-conditional-frame-requests.md)): the radiator sends `If-None-Match` when an `ETag` is stored, stores a new `ETag` only after a successfully flushed `200`, and clears it when the error screen is rendered. The `ETag` is opaque — echoed, never inspected.
+
+The radiator MUST NOT log to flash and MUST NOT escalate retry frequency between wake cycles. The wake cycle is the retry.
 
 ---
 
-## Why this preserves "Dumb Radiator, Smart Edge"
+## "Dumb Radiator, Smart Edge" preserved
 
-Per PRD §8 the radiator performs zero data processing. This contract keeps that invariant:
-
-- The radiator parses exactly two response artefacts: the gzipped BMP body (mechanical decompress + flush) and the integer `X-Sleep-Seconds` header.
-- All status codes collapse to a binary firmware decision: "got a frame to flush? yes/no." Everything else is sleep.
-- Telemetry headers (battery, hardware id, RSSI, firmware version) are set by `printf`-grade code on the radiator. No JSON encoding, no schema, no client-side conditional logic.
-- Sleep authority lives entirely on the Worker whenever the radiator reaches it. The firmware constant is a recovery floor, not a participant in normal operation.
+Per PRD §8 the radiator performs zero *semantic* work — no layout, schedule, or transit-data interpretation. It mechanically inflates the gzipped BMP, reads the integer `X-Sleep-Seconds`, echoes the opaque `ETag`, and on an error renders the problem document's `title`/`detail` into a fixed error screen. The Worker still owns 100% of the meaning.
 
 ---
 
@@ -126,15 +116,14 @@ Per PRD §8 the radiator performs zero data processing. This contract keeps that
 - **Single source of truth for sleep duration.** The Worker can adjust radiator wake frequency during incidents (slow them down on 5xx, speed them up after a deploy) without firmware changes.
 - **Header-only telemetry is extensible without a contract bump.** Adding `X-Radiator-Battery-Pct` later is a unilateral firmware change; no Worker change, no ADR.
 - **No oracle on auth failures.** Missing-vs-invalid token cannot be distinguished from the outside.
+- **Errors are visible.** A config or upstream failure renders a legible error screen instead of decaying into silent dashes ([ADR-0011](0011-error-contract-problem-details.md)).
 - **Overnight battery savings via the idle profile.** A 06:30 phase start at 22:00 means one wake until morning instead of 144 minute-clock ticks.
-- **Clear firmware behaviour.** Every response path collapses to "flush or not, sleep for how long" — five rows, no judgement calls.
 - **Machine-readable contract.** OpenAPI gives us Swagger UI, Redoc, codegen for both Worker and integration tests with no hand-maintained mirror.
 
 ### Negative / follow-ups
 
 - **Idle profile content design deferred.** Tracked as issue #17. Until shipped, the idle profile may render `minimal_clock` as a placeholder — the wire contract is unaffected.
 - **URL versioning means a `/v2/` migration is a real cutover.** Bumping the path version requires re-flashing every radiator in the field. Acceptable at 5 units; the cost is intentional — it forces serious consideration before bumping. Side-by-side `/v1/` + `/v2/` operation during migration is easy.
-- ~~**Metlink staleness behaviour surfaced via `X-Cache-Status: stale-served`.**~~ **Superseded** — no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)); a Metlink failure now surfaces as a `502` problem document and the firmware error screen ([ADR-0011](0011-error-contract-problem-details.md)).
 - **`X-Sleep-Seconds: 14400` upper bound.** Idle overnight gaps longer than 4 h will produce intermediate wakes. Battery-suboptimal at the margin but worth it as a safety net for config bugs. Revisit if empirical battery telemetry shows the cap is the limiting factor.
 - **OpenAPI must stay in lock-step with this ADR.** When a decision here changes, the OpenAPI changes in the same PR. The CI lint (Redocly) is the immediate guard against drift; the long-term guard is treating the OpenAPI as the wire spec and this ADR as the rationale — never duplicating field-level detail across them.
 
@@ -146,5 +135,8 @@ Per PRD §8 the radiator performs zero data processing. This contract keeps that
 - [PRD v0.4](../PRD/GottaGo%20PRD%20v0.4.md) §6 (functional requirements), §7 (error handling, power management), §8 (architecture, request/response contract)
 - [Glossary](../glossary.md) §7 (profiles & modes), §8 (radiator ↔ worker contract)
 - [ADR-0001](0001-frame-transport-compression.md) — `Content-Encoding: gzip` on the frame body
+- [ADR-0010](0010-no-metlink-cache-layer.md) — no caching layer; Metlink failure → `502`
+- [ADR-0011](0011-error-contract-problem-details.md) — `problem+json` error contract + firmware error screen
+- [ADR-0013](0013-conditional-frame-requests.md) — conditional frame requests (`ETag` / `304`)
 - [Metlink reference](../reference/metlink-stop-predictions.md) — Metlink upstream contract; cancellation behaviour open question
 - Related issues: #3 (this ADR), #4 (firmware tracer), #5 (`priority_split` slice), #17 (idle-profile layout & content design)

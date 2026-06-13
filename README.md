@@ -63,14 +63,8 @@ The panel renders at native **960×540, 1-bit monochrome**, landscape. No backli
 | [OpenAPI 3.1 spec](docs/api/openapi.yaml) | Authoritative radiator ↔ Worker wire contract |
 | [Glossary](docs/glossary.md) | Ubiquitous language — every term used in conversation, config, code, and docs |
 | [Worker Architecture](docs/worker-architecture.md) | Canonical guide to how Worker code is built — pillars, gateway/feature/endpoint patterns, conventions, and the reasoning behind them |
-
-### Architecture Decision Records
-
-| ADR | Decision |
-| --- | --- |
-| [ADR-0001](docs/adr/0001-frame-transport-compression.md) | Gzip frame transport — 5–12× battery-life improvement per wake cycle |
-| [ADR-0003](docs/adr/0003-radiator-worker-contract.md) | Radiator ↔ Worker HTTP contract |
-| [ADR-0004](docs/adr/0004-diagnostics-view-content-negotiation.md) | Diagnostics view via `Accept`-based content negotiation |
+| [Architecture Decision Records](docs/adr/README.md) | The *why* behind contested choices — indexed, with the lean-ADR style for new records |
+| [Reference](docs/reference/) | External-contract detail too granular for an ADR — e.g. [Metlink stop predictions](docs/reference/metlink-stop-predictions.md) (field maps, sample payloads, verified stop IDs) |
 
 ---
 
