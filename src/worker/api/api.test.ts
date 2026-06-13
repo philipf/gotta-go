@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { notFoundResponse, problemResponse } from './errors';
-import { internalError, unauthorizedError, unknownRadiatorError } from '../shared/errors';
-// Metlink problem factories moved to the priority_split feature (architecture guide);
-// used here only as representative Fatal/Retryable AppError fixtures for the
-// problemResponse shaping tests.
-import { metlinkAuth, metlinkUnavailable } from '../features/priority_split/errors';
+import { FatalError, RetryableError, internalError, unauthorizedError, unknownRadiatorError } from '../shared/errors';
 import { frameBmpResponse, frameSvgResponse } from './response';
 
 const TYPE_BASE = 'https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md';
@@ -41,7 +37,7 @@ describe('api.errors.problemResponse - unknown-radiator', () => {
 
 describe('api.errors.problemResponse - instance + upstream_detail', () => {
 	it('adds an instance URN from the request id and an upstream_detail snippet', async () => {
-		const res = problemResponse(metlinkAuth(403, '{"error":"denied"}'), {
+		const res = problemResponse(new FatalError({ slug: 'metlink-auth', title: 'Transit data unavailable', status: 500, detail: 'Metlink rejected the configured API key (HTTP 403). Check METLINK_API_KEY.', upstreamDetail: '{"error":"denied"}' }), {
 			requestId: 'abc',
 			profilePhase: 'morning_commute',
 		});
@@ -67,7 +63,7 @@ describe('api.errors.problemResponse - instance + upstream_detail', () => {
 	});
 
 	it('derives a Retryable sleep from the active phase sleep duration', () => {
-		const res = problemResponse(metlinkUnavailable('Metlink is unavailable (HTTP 503).'), {
+		const res = problemResponse(new RetryableError({ slug: 'metlink-unavailable', title: 'Transit data unavailable', status: 502, detail: 'Metlink is unavailable (HTTP 503).' }), {
 			activePhaseSleepSeconds: 180,
 			profilePhase: 'morning_commute',
 		});

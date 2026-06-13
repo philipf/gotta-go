@@ -336,16 +336,6 @@ the docs. Anything else left behind is a structure bug.
   (`viewModelFromStopStates`) takes _gateway_ types, not wire payloads — so the
   feature's tests specify behaviour without the wire format ever entering them.
 
-### Open question — who may import a feature
-
-This guide governs a feature's **outbound** imports (sideways/down only). It does
-**not** yet rule on **inbound** imports — who outside the folder may reach in.
-The live exception: `api/api.test.ts` imports `metlinkAuth` / `metlinkUnavailable`
-from `features/priority_split/errors` as problem-shaping fixtures. That is a
-**tolerated exception** pending a decision — see
-[issue #97](https://github.com/philipf/gotta-go/issues/97). Don't copy it as if
-it were sanctioned.
-
 ---
 
 ## Pattern: API endpoint
