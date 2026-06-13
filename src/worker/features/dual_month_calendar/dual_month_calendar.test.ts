@@ -1,72 +1,36 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { layout, type CalendarContext } from './service';
+import { buildCalendarViewModel } from './domain-service';
+import type { ViewModel } from './viewmodel';
+import { LAYOUT_VERSION } from './view';
+import {
+	prepareDualMonthCalendarFrame,
+	type HolidaySource,
+	type PrepareDualMonthCalendarFrameRequest,
+} from './prepare-dual-month-calendar-frame';
+import type { HolidaysGatewayError } from '../../gateways/public_holidays/fetch-holidays';
 import { storedHolidays } from '../../gateways/public_holidays/fixtures';
 
-// Every test drives the public buildViewModel(ctx) phase — pure JS plus a
-// stubbed PUBLIC_HOLIDAYS KV binding holding the stored { date, name } shape
-// (#84). The render(vm, ctx) phase (Satori → resvg → BMP) is wasm-blocked in
-// the workers-pool sandbox per ADR-0005 and is exercised via `pnpm dev` + curl.
-//
-// The fixture builds CalendarContext — the layout's declared RenderContext
-// slice — so it carries exactly the dependencies the layout consumes and
-// nothing else; only the KV binding itself is stubbed.
-type StoredHolidays = { date: string; name: string }[];
+// The date math and holiday mapping are specified against the domain seam
+// buildCalendarViewModel (see domain-service.ts): it takes the already-loaded
+// holiday set, so these cases drive pure JS with no gateway stub. The fetch +
+// soft-miss path is driven through the public prepareDualMonthCalendarFrame
+// (last describe block) with a domain-typed HolidaySource. The render path
+// (Satori → resvg → BMP) is wasm-blocked in the workers-pool sandbox per
+// ADR-0005 and is exercised via `pnpm dev` + curl.
 
-const ctxAt = (iso: string, tz = 'Pacific/Auckland', holidays: StoredHolidays = []): CalendarContext => ({
-	radiator: { slug: 'office-philip' },
-	timezone: tz,
-	now: new Date(iso),
-	format: 'json',
-	includeBmp: false,
-	env: {
-		PUBLIC_HOLIDAYS: { get: async () => holidays } as unknown as KVNamespace,
-	},
-});
+const holidaySet = (...dates: string[]): Set<string> => new Set(dates);
 
-const vmAt = (iso: string, tz?: string, holidays?: StoredHolidays) =>
-	layout.buildViewModel(ctxAt(iso, tz, holidays));
-
-const holidaysOn = (...dates: string[]): StoredHolidays =>
-	dates.map((date) => ({ date, name: 'Holiday' }));
+const vmAt = (iso: string, tz = 'Pacific/Auckland', holidays: Set<string> = new Set()): ViewModel =>
+	buildCalendarViewModel(new Date(iso), tz, 'office-philip', holidays);
 
 afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe('dual_month_calendar.layout.buildViewModel', () => {
-	it('degrades to an unshaded calendar when the holidays KV read fails (#84 soft-miss)', async () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const ctx: CalendarContext = {
-			...ctxAt('2026-06-07T00:00:00Z'),
-			env: {
-				PUBLIC_HOLIDAYS: {
-					get: async () => {
-						throw new Error('KV down');
-					},
-				} as unknown as KVNamespace,
-			},
-		};
-
-		const vm = await layout.buildViewModel(ctx);
-
-		// No throw — the calendar still renders, just unshaded.
-		expect(vm.months[0].holidays).toEqual([]);
-		expect(vm.months[1].holidays).toEqual([]);
-		// The soft-miss is logged by the caller (the gateway is side-effect-free).
-		expect(warn).toHaveBeenCalledOnce();
-	});
-
-	it('fetches holidays from the PUBLIC_HOLIDAYS binding into the view model', async () => {
-		// June 2026: fixtures hold King's Birthday (2026-06-01); July has none.
-		const vm = await vmAt('2026-06-07T00:00:00Z', 'Pacific/Auckland', storedHolidays);
-
-		expect(vm.months[0].holidays).toEqual([1]);
-		expect(vm.months[1].holidays).toEqual([]);
-	});
-
-	it('returns slug, full-date header, and this/next month captions', async () => {
+describe('dual_month_calendar.buildCalendarViewModel', () => {
+	it('returns slug, full-date header, and this/next month captions', () => {
 		// 2026-06-07T00:00:00Z = 2026-06-07T12:00+12:00 (NZST)
-		const vm = await vmAt('2026-06-07T00:00:00Z');
+		const vm = vmAt('2026-06-07T00:00:00Z');
 
 		expect(vm.slug).toBe('office-philip');
 		expect(vm.header).toBe('Sunday 7 June 2026');
@@ -74,8 +38,8 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(vm.months[1].caption).toBe('July 2026');
 	});
 
-	it('aligns Monday-start grids with correct leading blanks', async () => {
-		const vm = await vmAt('2026-06-07T00:00:00Z');
+	it('aligns Monday-start grids with correct leading blanks', () => {
+		const vm = vmAt('2026-06-07T00:00:00Z');
 
 		// June 1 2026 is a Monday — no leading blanks.
 		expect(vm.months[0].weeks[0]).toEqual([1, 2, 3, 4, 5, 6, 7]);
@@ -83,15 +47,15 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(vm.months[1].weeks[0]).toEqual([null, null, 1, 2, 3, 4, 5]);
 	});
 
-	it('marks today only in the this-month grid', async () => {
-		const vm = await vmAt('2026-06-07T00:00:00Z');
+	it('marks today only in the this-month grid', () => {
+		const vm = vmAt('2026-06-07T00:00:00Z');
 
 		expect(vm.months[0].today).toBe(7);
 		expect(vm.months[1].today).toBeNull();
 	});
 
-	it('keeps every week exactly 7 cells and the day count matching the month length', async () => {
-		const vm = await vmAt('2026-06-07T00:00:00Z');
+	it('keeps every week exactly 7 cells and the day count matching the month length', () => {
+		const vm = vmAt('2026-06-07T00:00:00Z');
 
 		for (const month of vm.months) {
 			for (const week of month.weeks) expect(week).toHaveLength(7);
@@ -101,9 +65,9 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(days(vm.months[1].weeks)).toHaveLength(31); // July
 	});
 
-	it('rolls December over to January of the following year', async () => {
+	it('rolls December over to January of the following year', () => {
 		// 2026-12-15T00:00:00Z = 2026-12-15T13:00+13:00 (NZDT)
-		const vm = await vmAt('2026-12-15T00:00:00Z');
+		const vm = vmAt('2026-12-15T00:00:00Z');
 
 		expect(vm.months[0].caption).toBe('December 2026');
 		expect(vm.months[1].caption).toBe('January 2027');
@@ -111,8 +75,8 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(vm.months[1].weeks[0]).toEqual([null, null, null, null, 1, 2, 3]);
 	});
 
-	it('handles leap-year February', async () => {
-		const vm = await vmAt('2028-02-10T00:00:00Z', 'UTC');
+	it('handles leap-year February', () => {
+		const vm = vmAt('2028-02-10T00:00:00Z', 'UTC');
 
 		expect(vm.months[0].caption).toBe('February 2028');
 		const days = vm.months[0].weeks.flat().filter((d) => d !== null);
@@ -121,8 +85,8 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(vm.months[0].weeks[0]).toEqual([null, 1, 2, 3, 4, 5, 6]);
 	});
 
-	it('handles non-leap February with a near-full leading blank row', async () => {
-		const vm = await vmAt('2026-02-10T00:00:00Z', 'UTC');
+	it('handles non-leap February with a near-full leading blank row', () => {
+		const vm = vmAt('2026-02-10T00:00:00Z', 'UTC');
 
 		const days = vm.months[0].weeks.flat().filter((d) => d !== null);
 		expect(days).toHaveLength(28);
@@ -130,45 +94,45 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(vm.months[0].weeks[0]).toEqual([null, null, null, null, null, null, 1]);
 	});
 
-	it('derives the wall date in the configured timezone, not UTC', async () => {
+	it('derives the wall date in the configured timezone, not UTC', () => {
 		// 2026-06-07T13:00:00Z is already Monday 8 June in Pacific/Auckland (+12).
-		const nz = await vmAt('2026-06-07T13:00:00Z');
+		const nz = vmAt('2026-06-07T13:00:00Z');
 		expect(nz.header).toBe('Monday 8 June 2026');
 		expect(nz.months[0].today).toBe(8);
 
-		const utc = await vmAt('2026-06-07T13:00:00Z', 'UTC');
+		const utc = vmAt('2026-06-07T13:00:00Z', 'UTC');
 		expect(utc.header).toBe('Sunday 7 June 2026');
 		expect(utc.months[0].today).toBe(7);
 	});
 
-	it('maps holiday dates to day numbers in their own month grid', async () => {
+	it('maps holiday dates to day numbers in their own month grid', () => {
 		// King's Birthday in the displayed June, Matariki-ish date in July.
-		const vm = await vmAt(
+		const vm = vmAt(
 			'2026-06-07T00:00:00Z',
 			'Pacific/Auckland',
-			holidaysOn('2026-06-01', '2026-07-10'),
+			holidaySet('2026-06-01', '2026-07-10'),
 		);
 
 		expect(vm.months[0].holidays).toEqual([1]);
 		expect(vm.months[1].holidays).toEqual([10]);
 	});
 
-	it('ignores holiday dates outside the two displayed months', async () => {
-		const vm = await vmAt(
+	it('ignores holiday dates outside the two displayed months', () => {
+		const vm = vmAt(
 			'2026-06-07T00:00:00Z',
 			'Pacific/Auckland',
-			holidaysOn('2026-02-06', '2026-08-01', '2027-06-01'),
+			holidaySet('2026-02-06', '2026-08-01', '2027-06-01'),
 		);
 
 		expect(vm.months[0].holidays).toEqual([]);
 		expect(vm.months[1].holidays).toEqual([]);
 	});
 
-	it("shows next January's holidays in the December next-month grid", async () => {
-		const vm = await vmAt(
+	it("shows next January's holidays in the December next-month grid", () => {
+		const vm = vmAt(
 			'2026-12-15T00:00:00Z',
 			'Pacific/Auckland',
-			holidaysOn('2026-12-25', '2027-01-01', '2026-01-01'),
+			holidaySet('2026-12-25', '2027-01-01', '2026-01-01'),
 		);
 
 		expect(vm.months[0].caption).toBe('December 2026');
@@ -177,13 +141,71 @@ describe('dual_month_calendar.layout.buildViewModel', () => {
 		expect(vm.months[1].holidays).toEqual([1]);
 	});
 
-	it('crosses the year boundary in the configured timezone ahead of UTC', async () => {
+	it('crosses the year boundary in the configured timezone ahead of UTC', () => {
 		// 2026-12-31T13:00:00Z = 2027-01-01T02:00+13:00 (NZDT) — already next year.
-		const vm = await vmAt('2026-12-31T13:00:00Z');
+		const vm = vmAt('2026-12-31T13:00:00Z');
 
 		expect(vm.header).toBe('Friday 1 January 2027');
 		expect(vm.months[0].caption).toBe('January 2027');
 		expect(vm.months[0].today).toBe(1);
 		expect(vm.months[1].caption).toBe('February 2027');
+	});
+});
+
+// Drives the public capability through a domain-typed HolidaySource so the
+// sandbox-blocked BMP pipeline is never reached while the #84 soft-miss runs for
+// real. The KV read + wire→Set mapping is the gateway's own concern
+// (fetch-holidays.test.ts); here the source already speaks Set<string>.
+describe('dual_month_calendar.prepareDualMonthCalendarFrame', () => {
+	const succeedingSource =
+		(data: Set<string>): HolidaySource =>
+		async () => ({ ok: true, data });
+
+	const failingSource =
+		(error: HolidaysGatewayError): HolidaySource =>
+		async () => ({ ok: false, error });
+
+	function requestWith(fetchHolidays: HolidaySource): PrepareDualMonthCalendarFrameRequest {
+		return {
+			fetchHolidays,
+			slug: 'office-philip',
+			timezone: 'Pacific/Auckland',
+			now: new Date('2026-06-07T00:00:00Z'),
+			includeBmp: false,
+			includeSvg: false,
+		};
+	}
+
+	it('degrades to an unshaded calendar when the holidays source fails (#84 soft-miss)', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		const prepared = await prepareDualMonthCalendarFrame(
+			requestWith(failingSource({ kind: 'unavailable', detail: 'KV down' })),
+		);
+		const view = prepared.view as unknown as ViewModel;
+
+		// No throw — the calendar still renders, just unshaded.
+		expect(view.months[0].holidays).toEqual([]);
+		expect(view.months[1].holidays).toEqual([]);
+		// The soft-miss is logged by the caller (the gateway is side-effect-free).
+		expect(warn).toHaveBeenCalledOnce();
+	});
+
+	it('flows the fetched holiday set through to the view model', async () => {
+		// June 2026: fixtures hold King's Birthday (2026-06-01); July has none.
+		const prepared = await prepareDualMonthCalendarFrame(
+			requestWith(succeedingSource(new Set(storedHolidays.map((h) => h.date)))),
+		);
+		const view = prepared.view as unknown as ViewModel;
+
+		expect(view.months[0].holidays).toEqual([1]);
+		expect(view.months[1].holidays).toEqual([]);
+	});
+
+	it('defers rendering — render() with both artefact flags false yields neither artefact', async () => {
+		const prepared = await prepareDualMonthCalendarFrame(requestWith(succeedingSource(new Set())));
+
+		expect(prepared.version).toBe(LAYOUT_VERSION);
+		await expect(prepared.render()).resolves.toEqual({ frame: null, svg: null });
 	});
 });

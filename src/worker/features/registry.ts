@@ -15,8 +15,9 @@ import { prepareJokeFrame } from './idle_jokes/prepare-joke-frame';
 import { fetchJoke } from '../gateways/icanhazdadjoke/fetch-joke';
 import { preparePrioritySplitFrame } from './priority_split/prepare-priority-split-frame';
 import { fetchArrivals } from '../gateways/metlink/fetch-arrivals';
+import { prepareDualMonthCalendarFrame } from './dual_month_calendar/prepare-dual-month-calendar-frame';
+import { fetchHolidays } from '../gateways/public_holidays/fetch-holidays';
 import { layout as minimalClockLayout } from './minimal_clock/service';
-import { layout as dualMonthCalendarLayout } from './dual_month_calendar/service';
 
 // The per-request dependency bundle every binder receives. It is the union of
 // every feature's needs — acceptable here and only here (ADR-0017 §6): the
@@ -116,7 +117,15 @@ export const layouts = {
 			includeBmp: deps.format === 'bmp' || deps.includeBmp,
 			includeSvg: deps.format === 'svg',
 		}),
-	dual_month_calendar: fromLayout(dualMonthCalendarLayout),
+	dual_month_calendar: (deps) =>
+		prepareDualMonthCalendarFrame({
+			fetchHolidays: () => fetchHolidays({ kv: deps.env.PUBLIC_HOLIDAYS }),
+			slug: deps.radiator.slug,
+			timezone: deps.timezone,
+			now: deps.now,
+			includeBmp: deps.format === 'bmp' || deps.includeBmp,
+			includeSvg: deps.format === 'svg',
+		}),
 } satisfies Record<string, FramePreparer>;
 
 export type LayoutKey = keyof typeof layouts;
