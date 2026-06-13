@@ -104,7 +104,7 @@ The firmware's loop is fixed by PRD §7 ("the panel retains its last valid frame
 | Any non-2xx without `X-Sleep-Seconds` | Do not touch panel. Deep-sleep for firmware fallback (300 s) |
 | **No response at all** (Wi-Fi fail, DNS fail, TCP timeout, TLS fail, HTTP timeout) | Do not touch panel. Deep-sleep for firmware fallback (300 s) |
 
-The radiator MUST NOT log to flash, ~~MUST NOT alter the panel on any non-2xx,~~ and MUST NOT escalate retry frequency between wake cycles. The wake cadence is the retry cadence. (Per [ADR-0011](0011-error-contract-problem-details.md) the radiator now *does* alter the panel on a non-2xx — it renders the generic error screen; the no-flash-logging and no-retry-escalation rules still hold.)
+The radiator MUST NOT log to flash, ~~MUST NOT alter the panel on any non-2xx,~~ and MUST NOT escalate retry frequency between wake cycles. The wake cycle is the retry. (Per [ADR-0011](0011-error-contract-problem-details.md) the radiator now *does* alter the panel on a non-2xx — it renders the generic error screen; the no-flash-logging and no-retry-escalation rules still hold.)
 
 ---
 
@@ -138,7 +138,7 @@ The following terms must be added or updated in [`../glossary.md`](../glossary.m
 
 ### Positive
 
-- **Single source of truth for sleep cadence.** The Worker can adjust radiator wake frequency during incidents (slow them down on 5xx, speed them up after a deploy) without firmware changes.
+- **Single source of truth for sleep duration.** The Worker can adjust radiator wake frequency during incidents (slow them down on 5xx, speed them up after a deploy) without firmware changes.
 - **Header-only telemetry is extensible without a contract bump.** Adding `X-Radiator-Battery-Pct` later is a unilateral firmware change; no Worker change, no ADR.
 - **No oracle on auth failures.** Missing-vs-invalid token cannot be distinguished from the outside.
 - **Overnight battery savings via the idle profile.** A 06:30 phase start at 22:00 means one wake until morning instead of 144 minute-clock ticks.
@@ -165,7 +165,7 @@ When the Worker PoC implements this contract, the following must hold. Treat the
 3. Same request with a wrong `X-Radiator-Token` → identical 401 response (no oracle).
 4. Same request with `X-Radiator-Slug: not-a-real-slug` → `404 Not Found`, body `unknown radiator`, `X-Sleep-Seconds: 3600`.
 5. Worker forced into the no-active-phase code path → `200 OK` with the idle-profile frame, `X-Sleep-Seconds` reflects seconds-until-next-phase-start (capped at 14400), `X-Profile-Phase: idle_profile`.
-6. Worker forced to fail Metlink → `502 Bad Gateway` with an `application/problem+json` body (`metlink-unavailable` or `metlink-rate-limited`) and a phase-cadence `X-Sleep-Seconds`, per [ADR-0011](0011-error-contract-problem-details.md). (Superseded the old plain-text `upstream unavailable` + the past-TTL `stale-served` cache case, which no longer exists — [ADR-0010](0010-no-metlink-cache-layer.md).)
+6. Worker forced to fail Metlink → `502 Bad Gateway` with an `application/problem+json` body (`metlink-unavailable` or `metlink-rate-limited`) and an `X-Sleep-Seconds` at the active phase's sleep duration, per [ADR-0011](0011-error-contract-problem-details.md). (Superseded the old plain-text `upstream unavailable` + the past-TTL `stale-served` cache case, which no longer exists — [ADR-0010](0010-no-metlink-cache-layer.md).)
 8. Firmware integration test (issue #4): pull the network cable mid-request → radiator deep-sleeps for exactly 300 s, panel retains the last frame.
 9. The OpenAPI spec at `../api/openapi.yaml` lints clean under `redocly lint` (or equivalent OpenAPI 3.1 validator).
 

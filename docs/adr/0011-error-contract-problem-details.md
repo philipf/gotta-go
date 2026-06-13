@@ -57,7 +57,7 @@ Every problem type is positioned on two independent axes:
   - (`401` / `404` are the standard auth/identity/path cases and predate this axis.)
 - **`class` — will it self-heal?**
   - **Fatal** → a human must act. Back off hard: **`X-Sleep-Seconds: 3600`** (1 h) + an **`error`**-level log. A tight retry loop against a misconfiguration is pure noise.
-  - **Retryable** → transient; the next wake may well succeed. Sleep at the **normal phase cadence** (the same `X-Sleep-Seconds` a `200` for the active profile phase would have used) + a **`warn`**-level log.
+  - **Retryable** → transient; the next wake may well succeed. Sleep at the **active phase's sleep duration** (the same `X-Sleep-Seconds` a `200` for the active profile phase would have used) + a **`warn`**-level log.
 
 The split matters because *whose fault* and *will it self-heal* are genuinely independent: a Metlink `429` is upstream's fault (`502`) but self-heals (Retryable), while a bad API key is also rejected by Metlink but is **ours** (`500`) and Fatal.
 
@@ -67,16 +67,16 @@ The split matters because *whose fault* and *will it self-heal* are genuinely in
 |---|---|---|---|---|---|
 | `metlink-auth` | 500 | Fatal | 3600 | error | Metlink `401`/`403` — bad/expired `METLINK_API_KEY` |
 | `metlink-bad-request` | 500 | Fatal | 3600 | error | Metlink `4xx` (except `429`) — bad stop/service id in config |
-| `metlink-unavailable` | 502 | Retryable | phase cadence | warn | Metlink `5xx` / network failure / timeout |
-| `metlink-rate-limited` | 502 | Retryable | phase cadence | warn | Metlink `429` |
-| `internal` | 500 | Retryable | phase cadence (`300` if thrown before phase resolution) | error | any unknown thrown error |
+| `metlink-unavailable` | 502 | Retryable | phase sleep duration | warn | Metlink `5xx` / network failure / timeout |
+| `metlink-rate-limited` | 502 | Retryable | phase sleep duration | warn | Metlink `429` |
+| `internal` | 500 | Retryable | phase sleep duration (`300` if thrown before phase resolution) | error | any unknown thrown error |
 | `unauthorized` | 401 | Fatal | 3600 | warn | bad/missing **shared token** |
 | `unknown-radiator` | 404 | Fatal | 3600 | warn | **radiator slug** not in `config.yaml` |
 | `not-found` | 404 | — | *none* (firmware `300` fallback) | — | unknown path (dev/curl only) |
 
 Notes:
 
-- **`internal` is Retryable, not Fatal.** Most unhandled throws are transient (a deploy mid-flight, a hiccup), so the default is a normal-cadence retry — but it logs at `error` because an unknown throw always warrants a human's eyes. If it is thrown *before* a profile phase has been resolved (so there is no cadence to inherit), the firmware's `300 s` fallback applies and no `X-Sleep-Seconds` is sent.
+- **`internal` is Retryable, not Fatal.** Most unhandled throws are transient (a deploy mid-flight, a hiccup), so the default is a normal retry — but it logs at `error` because an unknown throw always warrants a human's eyes. If it is thrown *before* a profile phase has been resolved (so there is no sleep duration to inherit), the firmware's `300 s` fallback applies and no `X-Sleep-Seconds` is sent.
 - **`not-found` carries no `X-Sleep-Seconds`.** It is reachable only by a human hitting an unknown path; a radiator never does. The firmware's `300 s` fallback covers the theoretical case.
 - **`unauthorized` and `unknown-radiator` log at `warn`, not `error`.** They are routine on a misconfigured re-flash and are not actionable server-side; they are Fatal only in the self-heal sense (an hour of back-off until a human fixes the token or slug).
 - **`503` maintenance** (the operator-triggered mode already in the contract) is brought into the same `problem+json` envelope for consistency, with an operator-chosen `X-Sleep-Seconds` in the standard `[30, 14400]` range. It is *not* part of the #56 failure-policy catalog — it is an operator action, not a failure — and so sits outside the status×class taxonomy above.
@@ -126,7 +126,7 @@ The following terms are added to [`../glossary.md`](../glossary.md) §8 (Radiato
 |---|---|
 | **Problem document** | **Add.** The RFC 9457 `application/problem+json` body returned on every error: `type`, `title`, `status`, `detail`, `instance`, plus the `upstream_detail` extension. |
 | **Problem type** | **Add.** A named, catalogued failure (`metlink-auth`, `unauthorized`, …) identified by a stable `type` URL into `errors.md`. |
-| **Fatal / Retryable** | **Add.** The self-heal axis: Fatal → `3600 s` + `error` log (a human must act); Retryable → phase-cadence sleep + `warn` log (the next wake may succeed). |
+| **Fatal / Retryable** | **Add.** The self-heal axis: Fatal → `3600 s` + `error` log (a human must act); Retryable → sleep at the active phase's sleep duration + `warn` log (the next wake may succeed). |
 | **`upstream_detail`** | **Add as a sub-note** of the problem-document entry: the verbose-gated, 2 KB-capped raw upstream snippet. |
 
 ## Verification
@@ -136,8 +136,8 @@ When the Worker implements this contract, the following must hold (acceptance te
 1. Request with no `X-Radiator-Token` → `401`, `Content-Type: application/problem+json`, body `type` ending `#unauthorized`, `status: 401`, `X-Sleep-Seconds: 3600`.
 2. Request with `X-Radiator-Slug: not-a-real-slug` → `404`, `type` ending `#unknown-radiator`, `X-Sleep-Seconds: 3600`.
 3. Worker forced to see a Metlink `401`/`403` → `500`, `type` ending `#metlink-auth`, `X-Sleep-Seconds: 3600`, an `error` log, and an `upstream_detail` ≤ 2 KB.
-4. Worker forced to see a Metlink `429` → `502`, `type` ending `#metlink-rate-limited`, `X-Sleep-Seconds` equal to the active phase cadence, a `warn` log.
-5. Worker forced to see a Metlink `5xx`/timeout → `502`, `type` ending `#metlink-unavailable`, phase-cadence sleep, `warn` log.
+4. Worker forced to see a Metlink `429` → `502`, `type` ending `#metlink-rate-limited`, `X-Sleep-Seconds` equal to the active phase sleep duration, a `warn` log.
+5. Worker forced to see a Metlink `5xx`/timeout → `502`, `type` ending `#metlink-unavailable`, sleep at the active phase's sleep duration, `warn` log.
 6. Any of the above sent with `Accept: image/bmp` still returns `application/problem+json` (errors ignore the negotiated success format).
 7. A request carrying `X-Request-Id: abc` produces `instance: urn:gotta-go:request:abc`; the same request without the header omits `instance` entirely.
 8. Every `type` URL resolves to a live anchor in [`errors.md`](../api/errors.md).
