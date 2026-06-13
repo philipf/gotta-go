@@ -7,12 +7,12 @@
 // Not Modified without ever rendering. Auth, slug resolution, sleep duration,
 // and the observability headers are identical across every format.
 
-import { validate } from '../auth/validate';
+import { auth } from './auth';
 import { GLOBAL, lookupRadiator } from '../config/lookup';
 import type { Radiator } from '../config/lookup';
 import { framePreparers } from '../features/registry';
 import type { FrameDeps, FramePreparer } from '../features/registry';
-import { resolveProfilePhase } from '../schedule/resolve';
+import { resolveProfilePhase } from '../config/resolve';
 import { log } from '../shared/log';
 import {
 	AppError,
@@ -77,8 +77,8 @@ export async function renderFrame(
 
 	try {
 		// 1. Request — authenticate & resolve the radiator
-		const auth = validate(request.headers, env.RADIATOR_SHARED_TOKEN);
-		if (!auth.ok) {
+		const authResult = auth(request.headers, env.RADIATOR_SHARED_TOKEN);
+		if (!authResult.ok) {
 			log.warn('frame.unauthorized', obs);
 			return problemResponse(unauthorizedError(), { requestId: req.requestId });
 		}
