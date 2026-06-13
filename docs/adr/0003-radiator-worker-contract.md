@@ -21,10 +21,10 @@ PRD v0.4 §8 and glossary §8 sketch the wire surface between the **radiator** a
 - What the Worker returns when server time falls outside every configured **profile phase**.
 - Future extensibility for radiator-side telemetry (battery level, hardware identifier, signal strength, firmware version).
 
-Two earlier ADRs already constrain pieces of the contract:
+Two existing constraints already pin pieces of the contract:
 
 - **ADR-0001** locks `Content-Encoding: gzip` on the BMP body, with `Accept-Encoding: gzip` on the request. It is silent on `Content-Type` and on the URL.
-- **ADR-0002** fixes the Metlink upstream behaviour but does not touch the Worker's outward-facing HTTP surface.
+- The **Metlink upstream behaviour** ([reference](../reference/metlink-stop-predictions.md)) is fixed but does not touch the Worker's outward-facing HTTP surface.
 
 This ADR closes the remaining contract gaps before firmware (issue #4) or Worker request-handling code is written, so both sides implement against a single source of truth — captured machine-readably in the OpenAPI spec, and rationalised here.
 
@@ -119,21 +119,6 @@ Per PRD §8 the radiator performs zero data processing. This contract keeps that
 
 ---
 
-## Glossary impact
-
-The following terms must be added or updated in [`../glossary.md`](../glossary.md):
-
-| Term | Section | Action |
-|---|---|---|
-| **Hardware id** | §8 (Radiator ↔ Worker contract) | **Add.** "Stable per-board identifier (typically the ESP32-S3 MAC address). Distinct from the **radiator slug** — survives slug reassignment. Sent via `X-Radiator-Hardware-Id` when present." |
-| **Idle profile** | §7 (Profiles & modes) | **Add.** "A system-wide default profile that takes over when server time falls outside every configured **profile phase** of the slug's profile. Renders a low-frequency ambient layout with a long **sleep duration** (capped at 4 h)." |
-| `X-Radiator-Hardware-Id` | §8 | **Add as 'Appears as'** of the hardware id entry. |
-| `RADIATOR_SHARED_TOKEN` | §8 | Already present under **shared token**; no change. |
-| Reserved namespace `X-Radiator-*` | §8 | **Add** a note: future radiator-side telemetry headers use this prefix; the Worker ignores unknown `X-Radiator-*` headers. |
-| Worker informational response headers | §8 | **Add** a note that the Worker sets `X-Server-Time`, `X-Profile-Phase` on responses for diagnostics. Radiator ignores them. New ones can be added freely. |
-
----
-
 ## Consequences
 
 ### Positive
@@ -147,27 +132,11 @@ The following terms must be added or updated in [`../glossary.md`](../glossary.m
 
 ### Negative / follow-ups
 
-- **Glossary changes required.** Three new entries (`hardware id`, `idle profile`, reserved namespace note). Update in the same commit as the ADR to keep the language single-context.
 - **Idle profile content design deferred.** Tracked as issue #17. Until shipped, the idle profile may render `minimal_clock` as a placeholder — the wire contract is unaffected.
 - **URL versioning means a `/v2/` migration is a real cutover.** Bumping the path version requires re-flashing every radiator in the field. Acceptable at 5 units; the cost is intentional — it forces serious consideration before bumping. Side-by-side `/v1/` + `/v2/` operation during migration is easy.
 - ~~**Metlink staleness behaviour surfaced via `X-Cache-Status: stale-served`.**~~ **Superseded** — no caching layer ([ADR-0010](0010-no-metlink-cache-layer.md)); a Metlink failure now surfaces as a `502` problem document and the firmware error screen ([ADR-0011](0011-error-contract-problem-details.md)).
 - **`X-Sleep-Seconds: 14400` upper bound.** Idle overnight gaps longer than 4 h will produce intermediate wakes. Battery-suboptimal at the margin but worth it as a safety net for config bugs. Revisit if empirical battery telemetry shows the cap is the limiting factor.
 - **OpenAPI must stay in lock-step with this ADR.** When a decision here changes, the OpenAPI changes in the same PR. The CI lint (Redocly) is the immediate guard against drift; the long-term guard is treating the OpenAPI as the wire spec and this ADR as the rationale — never duplicating field-level detail across them.
-
----
-
-## Verification
-
-When the Worker PoC implements this contract, the following must hold. Treat these as acceptance tests for the ADR — the OpenAPI examples show the expected wire format; this list shows the behavioural commitments that fall out of the decisions above.
-
-1. `curl -H "X-Radiator-Slug: bedroom-philip-tania" -H "X-Radiator-Token: <secret>" -H "Accept-Encoding: gzip" --compressed -o frame.bmp https://<worker>/v1/frame` → `200 OK`, valid 64,862-byte BMP after gunzip, `X-Sleep-Seconds` in `[30, 14400]`, `Content-Type: image/bmp`, `Content-Encoding: gzip`, `X-Server-Time` and `X-Profile-Phase` present.
-2. Same request with no `X-Radiator-Token` → `401 Unauthorized`, body `unauthorized`, `X-Sleep-Seconds: 3600`.
-3. Same request with a wrong `X-Radiator-Token` → identical 401 response (no oracle).
-4. Same request with `X-Radiator-Slug: not-a-real-slug` → `404 Not Found`, body `unknown radiator`, `X-Sleep-Seconds: 3600`.
-5. Worker forced into the no-active-phase code path → `200 OK` with the idle-profile frame, `X-Sleep-Seconds` reflects seconds-until-next-phase-start (capped at 14400), `X-Profile-Phase: idle_profile`.
-6. Worker forced to fail Metlink → `502 Bad Gateway` with an `application/problem+json` body (`metlink-unavailable` or `metlink-rate-limited`) and an `X-Sleep-Seconds` at the active phase's sleep duration, per [ADR-0011](0011-error-contract-problem-details.md). (Superseded the old plain-text `upstream unavailable` + the past-TTL `stale-served` cache case, which no longer exists — [ADR-0010](0010-no-metlink-cache-layer.md).)
-8. Firmware integration test (issue #4): pull the network cable mid-request → radiator deep-sleeps for exactly 300 s, panel retains the last frame.
-9. The OpenAPI spec at `../api/openapi.yaml` lints clean under `redocly lint` (or equivalent OpenAPI 3.1 validator).
 
 ---
 
@@ -177,5 +146,5 @@ When the Worker PoC implements this contract, the following must hold. Treat the
 - [PRD v0.4](../PRD/GottaGo%20PRD%20v0.4.md) §6 (functional requirements), §7 (error handling, power management), §8 (architecture, request/response contract)
 - [Glossary](../glossary.md) §7 (profiles & modes), §8 (radiator ↔ worker contract)
 - [ADR-0001](0001-frame-transport-compression.md) — `Content-Encoding: gzip` on the frame body
-- [ADR-0002](0002-metlink-stop-predictions-field-mapping.md) — Metlink upstream contract; cancellation behaviour open question
+- [Metlink reference](../reference/metlink-stop-predictions.md) — Metlink upstream contract; cancellation behaviour open question
 - Related issues: #3 (this ADR), #4 (firmware tracer), #5 (`priority_split` slice), #17 (idle-profile layout & content design)

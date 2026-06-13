@@ -59,18 +59,6 @@ ADR-0001 already argued that decompressing a known-format byte stream is a mecha
 - The ESP32 Arduino core gains transparent gzip in `HTTPClient`. Drop `uzlib`.
 - A second firmware-side use of decompression appears (e.g. an OTA bundle). Re-evaluate against `miniz`'s broader feature set.
 
-## Verification
-
-When implemented in `src/radiator/`:
-
-1. `arduino-cli lib list` shows `uzlib` at the version pinned in `sketch.yaml`.
-2. `arduino-cli compile .` succeeds against the canonical FQBN from ADR-0006.
-3. Serial log on a successful wake shows: `HTTPS: status 200, content-length ~525 (Nms)` → `inflate: ok 64862 bytes in Nms` → `BMP: 960x540 1bpp comp=0 offset=62 top-down`.
-4. Inflated bytes pass the BMP header parse in `decodeBmpToFramebuffer()` (the same parser show-bmp-31 proved against `time.bmp`).
-5. End-to-end: the panel renders the wall-clock frame within 1 minute of wake (closes AC-F3 alongside slice #6).
-
-A wake cycle where the Worker returns a malformed (non-gzip) body MUST log an inflate failure and leave the panel untouched, per ADR-0003 row 2.
-
 ## References
 
 - [ADR-0001](0001-frame-transport-compression.md) — Worker-side decision this completes

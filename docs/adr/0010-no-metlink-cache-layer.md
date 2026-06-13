@@ -4,13 +4,13 @@
 - **Date:** 2026-05-31
 - **Deciders:** Philip Fourie
 - **Language reference:** [`../glossary.md`](../glossary.md)
-- **Related:** [ADR-0002](0002-metlink-stop-predictions-field-mapping.md) (rate limits + the original "KV cache interaction" framing), [ADR-0003](0003-radiator-worker-contract.md) (stale-served error model), [ADR-0005](0005-worker-source-architecture.md) (gateway `cache.ts` slot, "Caching: None" default), [#24](https://github.com/philipf/gotta-go/issues/24) (closed by this ADR), [#51](https://github.com/philipf/gotta-go/issues/51), [#56](https://github.com/philipf/gotta-go/issues/56). Evidence: the throwaway spike in `poc/kv-cache/`.
+- **Related:** [Metlink reference](../reference/metlink-stop-predictions.md) (rate limits + call volume), [ADR-0003](0003-radiator-worker-contract.md) (stale-served error model), [ADR-0005](0005-worker-source-architecture.md) (gateway `cache.ts` slot, "Caching: None" default), [#24](https://github.com/philipf/gotta-go/issues/24) (closed by this ADR), [#51](https://github.com/philipf/gotta-go/issues/51), [#56](https://github.com/philipf/gotta-go/issues/56). Evidence: the throwaway spike in `poc/kv-cache/`.
 
 ## Context
 
-[#24](https://github.com/philipf/gotta-go/issues/24) proposed a read-through **KV cache** between the Worker orchestrator and the Metlink client — 30 s TTL plus in-flight coalescing — wrapped as `gateways/metlink/cache.ts` per [ADR-0005](0005-worker-source-architecture.md). Before building it, we ran a throwaway spike (`poc/kv-cache/`) to kick the tires on Cloudflare KV against the real Metlink API, locally and at the edge. The spike's findings, combined with re-reading the actual justification in [ADR-0002](0002-metlink-stop-predictions-field-mapping.md) and #24, changed the decision.
+[#24](https://github.com/philipf/gotta-go/issues/24) proposed a read-through **KV cache** between the Worker orchestrator and the Metlink client — 30 s TTL plus in-flight coalescing — wrapped as `gateways/metlink/cache.ts` per [ADR-0005](0005-worker-source-architecture.md). Before building it, we ran a throwaway spike (`poc/kv-cache/`) to kick the tires on Cloudflare KV against the real Metlink API, locally and at the edge. The spike's findings, combined with re-reading the actual justification in the [Metlink reference](../reference/metlink-stop-predictions.md) and #24, changed the decision.
 
-**The cache was never load-bearing.** Per #24 and ADR-0002:
+**The cache was never load-bearing.** Per #24 and the Metlink reference:
 
 - **Rate limits are a non-issue.** Metlink allows 10 req/s sustained, 20 burst. The stated household worst case is "5 radiators × 2 transit targets = **10 calls** per pathological simultaneous wake" — ~50× headroom. #24 says outright the TTL was "**not chosen for rate-limit reasons**."
 - **The only stated benefit was latency amortisation** — sharing one ~500 ms Metlink call across radiators watching the same stop within the TTL window.
@@ -58,5 +58,5 @@ This decision is scoped to **single-household, self-hosted GottaGo on one PoP**.
 ## References
 
 - `poc/kv-cache/` — the spike: `hand-off-next-steps.md` (findings, 60 s-floor proof, options), `plan.md` (experiment matrix).
-- [ADR-0002](0002-metlink-stop-predictions-field-mapping.md) §"Rate limits", [ADR-0003](0003-radiator-worker-contract.md) §stale-served error model, [ADR-0005](0005-worker-source-architecture.md) §Gateways / "Caching: None" default.
+- [Metlink reference](../reference/metlink-stop-predictions.md) §"Rate limits and call volume", [ADR-0003](0003-radiator-worker-contract.md) §stale-served error model, [ADR-0005](0005-worker-source-architecture.md) §Gateways / "Caching: None" default.
 - [#24](https://github.com/philipf/gotta-go/issues/24) (closed by this ADR), [#51](https://github.com/philipf/gotta-go/issues/51) (second-deploy scope), [#56](https://github.com/philipf/gotta-go/issues/56) (failure policy — inherits the stale-served gap).

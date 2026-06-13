@@ -39,5 +39,5 @@ docs: |
 
   X-Debug-Now pins server time into the 07:15–08:30 phase window so the phase
   resolves to priority_split; it requires DEV_TIME_OVERRIDE=true (Local env /
-  wrangler dev). Note: Metlink has no historic data (ADR-0002), so a pinned past
+  wrangler dev). Note: Metlink has no historic data (see the Metlink reference), so a pinned past
   time yields catchable services only if buses are actually predicted now.

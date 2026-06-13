@@ -52,7 +52,7 @@ Rejected alternatives:
 
 ### Why no deterministic `?at=<iso8601>` clock
 
-Tempting, because it would make tests fully hermetic — a snapshot at 06:48 in CI would mean exactly the same thing every time. We are rejecting it for one concrete reason: the Metlink `/stop-predictions` endpoint per ADR-0002 does not provide historic data. We cannot replay yesterday's 06:48 prediction set today. A deterministic `?at` without deterministic Metlink data buys us only half-hermetic tests, which would mislead — a green test in CI would not guarantee anything about the same `?at` value tomorrow.
+Tempting, because it would make tests fully hermetic — a snapshot at 06:48 in CI would mean exactly the same thing every time. We are rejecting it for one concrete reason: the Metlink `/stop-predictions` endpoint ([reference](../reference/metlink-stop-predictions.md)) does not provide historic data. We cannot replay yesterday's 06:48 prediction set today. A deterministic `?at` without deterministic Metlink data buys us only half-hermetic tests, which would mislead — a green test in CI would not guarantee anything about the same `?at` value tomorrow.
 
 Revisit if we add a recorded-fixture playback mode for Metlink. Until then, tests remain time-of-day-dependent, which is acceptable for the kind of assertions this surface enables ("the active phase is `morning_commute` and the leave_in_mins is non-negative") vs. exact-value assertions.
 
@@ -66,20 +66,7 @@ Revisit if we add a recorded-fixture playback mode for Metlink. Until then, test
 
 The diagnostic surface is gated by the same `X-Radiator-Token` already required for the BMP. Anyone with the token already receives the rendered BMP; the JSON view is a strict subset of what they could derive by parsing the BMP themselves (with more effort). No new attack surface, no new secret to rotate.
 
-## Why this preserves "Dumb Radiator, Smart Edge"
-
-- The radiator never sends `Accept: application/json` or `Accept: image/svg+xml`. Its firmware code path is untouched.
-- The diagnostic surface is server-side serialisation only — no new firmware code, no new state machine on the radiator.
-- The view-model JSON shape is a serialiser of the type already passed to Satori in the existing render pipeline, not a parallel definition. The Worker has one source of truth; the JSON variant exposes it, the BMP variant rasterises it.
-
-## Glossary impact
-
-| Term            | Section                              | Action                                                                                                                                                                                                                            |
-|-----------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **View model**  | §9 (Rendering pipeline) — to be added | Defer to issue #19 — the exact field shape settles during implementation. Once shipped, add a §9 entry: "The structured input Satori receives for a given render — active profile phase, layout, per-column transit target data." |
-| `?include_bmp`  | §8 (Radiator ↔ Worker contract) — to be added | Defer to issue #19 — add a short note alongside the OpenAPI extension.                                                                                                                                                            |
-
-No deprecations introduced.
+**This preserves "Dumb Radiator, Smart Edge."** The radiator never sends `Accept: application/json` or `image/svg+xml` — its firmware path is untouched. The diagnostic surface is server-side serialisation of the same view-model type already fed to Satori; no new firmware code, no parallel source of truth.
 
 ## Consequences
 
@@ -98,20 +85,10 @@ No deprecations introduced.
 - **JSON envelope schema needs maintenance** as the view model evolves. Mitigated by sharing the type definition with the renderer rather than maintaining a parallel one.
 - **Implementation deferred.** Tracked separately as issues #19 (JSON) and #20 (SVG). This ADR fixes the mechanism so we can refer to it in design discussions before the code lands.
 
-## Verification
-
-When the implementation issues land, the following must hold (each is also acceptance criteria on the implementation issue):
-
-1. `curl -H "Accept: application/json" …` returns a JSON envelope conforming to the schema in `docs/api/openapi.yaml`.
-2. `curl -H "Accept: application/json" …?include_bmp=1` returns the same envelope with an additional `frame_bmp_base64` field whose decoded value is byte-identical to the BMP a sibling `Accept: image/bmp` call would have returned.
-3. `curl -H "Accept: image/svg+xml" --compressed …` returns a well-formed SVG document.
-4. `curl …` with no `Accept` header returns a response byte-identical to today's BMP path — regression check on the radiator path.
-5. Observability response headers carry identical values across all three Accept variants for the same request.
-
 ## References
 
 - [ADR-0001](0001-frame-transport-compression.md) — `Content-Encoding: gzip` on the frame body (applies to the SVG variant too)
-- [ADR-0002](0002-metlink-stop-predictions-field-mapping.md) — explains why historic Metlink data is not cheaply available (cited in the rejection of `?at=`)
+- [Metlink reference](../reference/metlink-stop-predictions.md) — explains why historic Metlink data is not cheaply available (cited in the rejection of `?at=`)
 - [ADR-0003](0003-radiator-worker-contract.md) — the base contract this extends
 - [`../api/openapi.yaml`](../api/openapi.yaml) — current wire spec; will be extended on implementation
 - Issue [#19](https://github.com/philipf/gotta-go/issues/19) — implementation: JSON view-model variant

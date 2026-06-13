@@ -9,7 +9,7 @@ export type { LayoutKey };
 
 // One configured stop/station a radiator watches inside a profile phase
 // (glossary §7 "transit target"). `serviceId` accepts a single route or an
-// any-of array per ADR-0002; `time_to_stop_mins` and `comfort_buffer` size
+// any-of array (Metlink reference); `time_to_stop_mins` and `comfort_buffer` size
 // the marker window (glossary §5/§6). `destinationStopId` narrows a route that
 // branches to several termini at a shared stop down to the wanted terminus —
 // when set, only departures bound for a matching `destination.stop_id` survive

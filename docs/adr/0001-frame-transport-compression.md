@@ -32,25 +32,15 @@ Gzip default compression level (6) is used; level 9 buys < 5% extra at noticeabl
 
 ## Options considered
 
-| Option | Wire size (est.) | Radiator firmware cost | Verdict |
-|---|---|---|---|
-| **Uncompressed BMP** (status quo) | 64,862 B | Trivial — flush bytes | **Rejected** — wastes battery; ~10× more radio-on time than necessary |
-| **HTTP gzip** | ~5–13 KB | Small — link zlib (already in ESP-IDF) or miniz (~10 KB); most HTTP libs handle `Content-Encoding: gzip` transparently | **Chosen** |
-| **PNG (1-bit indexed)** | ~5–13 KB | Moderate — PNG decoder library (e.g. PNGdec), filter/chunk parsing, palette handling — ~10–15 KB more firmware than gzip for the same wire savings | Rejected — same payoff as gzip for more firmware code |
-| **Custom RLE** | ~3–8 KB | Trivial decode | Rejected — tight Worker↔firmware coupling, custom debugging burden, no off-the-shelf tooling |
-| **Brotli** | ~4–10 KB | Heavy — Brotli decoder is large (~50 KB+ code) and RAM-hungry on ESP32 | Rejected — marginal gains over gzip don't justify the firmware cost |
+| Option                            | Wire size (est.) | Radiator firmware cost                                                                                                                             | Verdict                                                                                      |
+| --------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Uncompressed BMP** (status quo) | 64,862 B         | Trivial — flush bytes                                                                                                                              | **Rejected** — wastes battery; ~10× more radio-on time than necessary                        |
+| **HTTP gzip**                     | ~5–13 KB         | Small — link zlib (already in ESP-IDF) or miniz (~10 KB); most HTTP libs handle `Content-Encoding: gzip` transparently                             | **Chosen**                                                                                   |
+| **PNG (1-bit indexed)**           | ~5–13 KB         | Moderate — PNG decoder library (e.g. PNGdec), filter/chunk parsing, palette handling — ~10–15 KB more firmware than gzip for the same wire savings | Rejected — same payoff as gzip for more firmware code                                        |
+| **Custom RLE**                    | ~3–8 KB          | Trivial decode                                                                                                                                     | Rejected — tight Worker↔firmware coupling, custom debugging burden, no off-the-shelf tooling |
+| **Brotli**                        | ~4–10 KB         | Heavy — Brotli decoder is large (~50 KB+ code) and RAM-hungry on ESP32                                                                             | Rejected — marginal gains over gzip don't justify the firmware cost                          |
 
-## Why this preserves "Dumb Radiator, Smart Edge"
-
-The dumb-radiator principle is about **semantic** simplicity — no layout, no schedule, no timeline maths, no JSON, no interpretation of transit data. Decompressing a known-format byte stream is a **mechanical** operation, not a semantic one.
-
-The radiator firmware already handles much heavier mechanical operations:
-
-- **Wi-Fi**: a multi-layered protocol stack with retransmission, association, DHCP.
-- **HTTPS**: TLS 1.2/1.3 handshake, certificate validation, AES decryption of every byte received.
-- **EPD framebuffer flushing**: custom bit-banging of a proprietary panel controller.
-
-Adding gzip decompression to that list is a smaller delta than any of those existing capabilities. The radiator still never *interprets* what's in the frame, never *decides* what to draw, never *thinks* about transit times or profile phases. The Smart Edge / Dumb Radiator split is fully intact: the Worker still owns 100% of the semantic work.
+**This preserves "Dumb Radiator, Smart Edge."** That principle is about *semantic* simplicity — no layout, schedule, or transit-data interpretation. Decompressing a known-format byte stream is a *mechanical* operation, a smaller delta than the Wi-Fi, HTTPS, and EPD-flush stacks the firmware already runs. The Worker still owns 100% of the semantic work.
 
 ## Consequences
 
@@ -68,17 +58,6 @@ Adding gzip decompression to that list is a smaller delta than any of those exis
 - **PRD wording needs updating.** §7 and §8 should be revised to mention `Content-Encoding: gzip` and the radiator's `Accept-Encoding` requirement. Defer to a v0.5 PRD bump after the Worker PoC empirically confirms the compression ratio.
 - **Empirical measurement still required.** Estimated 5–13 KB compressed is based on the typical mostly-white EPD-style content. A 3-line gzip experiment in `poc/to-bmp/index.ts` will confirm the real numbers on both the production-like `input.svg` and the adversarial `pattern.bmp` checkerboard. Flagged in [`../../poc/to-bmp/hand-off-next-steps.md`](../../poc/to-bmp/hand-off-next-steps.md) as recommended pre-Worker measurement.
 - **Brotli option not foreclosed forever.** If a future ESP32 platform ships a hardware Brotli decoder, revisit. Until then, gzip wins on firmware footprint.
-
-## Verification
-
-When implemented in the Worker PoC:
-
-1. `curl -H "Accept-Encoding: gzip" -o frame.gz <worker-url>` produces a file ≪ 64 KB (target 5–13 KB).
-2. `curl -H "Accept-Encoding: gzip" --compressed -o frame.bmp <worker-url>` produces a valid 64,862-byte BMP.
-3. `curl -I -H "Accept-Encoding: gzip" <worker-url>` shows `Content-Encoding: gzip` in the response headers.
-4. The decompressed body is byte-identical to the uncompressed pipeline output (`magick frame.bmp frame.png` succeeds without warnings).
-5. Worker total CPU time (resvg + threshold + gzip) stays well under the 1-second target. Gzip adds ~1–5 ms.
-6. On-device decode succeeds: the radiator's HTTP client receives, decompresses, and flushes the frame with the result visually identical to the uncompressed path. Only the firmware PoC can verify this end-to-end.
 
 ## References
 

@@ -45,7 +45,7 @@ export function toStopState(
 
 function toArrival(d: WireDeparture): Arrival {
   // At origin stops arrival.aimed is absent — fall back to departure.aimed
-  // (ADR-0002). The non-null assertion holds because the upstream always
+  // (Metlink reference). The non-null assertion holds because the upstream always
   // populates one of the two for a real departure entry.
   const scheduledIso = (d.arrival.aimed ?? d.departure.aimed)!;
   const predictedIso = d.arrival.expected ?? d.departure.expected ?? scheduledIso;

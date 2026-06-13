@@ -91,7 +91,7 @@ is evidence + options only.
   in metadata (already done). On read, if `Date.now() - storedAt > 30_000`, treat the entry
   as **stale → refetch + re-put**, even though the KV key still exists. TTL=60 stays purely
   as garbage-collection. This gives a *true* 30 s window on top of the 60 s floor.
-- **Option B: accept 60 s freshness.** Use TTL=60 and revisit ADR-0002's 30 s target.
+- **Option B: accept 60 s freshness.** Use TTL=60 and revisit the original 30 s cache target. *(Resolved: no cache at all — [ADR-0010](../../docs/adr/0010-no-metlink-cache-layer.md).)*
   Simplest, but does not meet 30 s.
 - **Option C: stale-while-revalidate.** Serve the stale-but-present value immediately and
   kick a background refresh via `ctx.waitUntil`. Best latency; most moving parts.
@@ -118,5 +118,5 @@ design against that limit in #24.
       (currently holds a few short-TTL `pred:*` keys that self-expire within 60 s anyway).
 - [x] `.dev.vars` is git-ignored (`.dev.vars*` in `.gitignore`) and was never committed.
 - [x] Nothing in `src/worker/` was touched — everything lives in `poc/kv-cache/`.
-- [ ] ADR follow-up (revisit ADR-0002's 30 s target, or a new KV-cache ADR) is decided
+- [x] ADR follow-up (revisit the 30 s cache target, or a new KV-cache ADR) is decided — [ADR-0010](../../docs/adr/0010-no-metlink-cache-layer.md): no cache
       **after** reviewing these findings — not by the spike.

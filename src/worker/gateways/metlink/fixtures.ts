@@ -1,4 +1,5 @@
-// Typed WireResponse fixtures recorded from the ADR-0002 spike. Used by
+// Typed WireResponse fixtures recorded from the 2026-05-23 Metlink spike
+// (docs/reference/metlink-stop-predictions.md). Used by
 // metlink.test.ts to drive fetchArrivals through a stub fetch without any
 // live HTTP. Each fixture covers one of the documented payload shapes.
 
@@ -12,7 +13,7 @@ export const closedStop: WireResponse = {
 };
 
 // Delayed train departure: status 'delayed', monitored true, live data
-// present (arrival.expected populated). Source: ADR-0002 sample payload.
+// present (arrival.expected populated). Source: Metlink reference sample payload.
 export const delayedTrain: WireResponse = {
   closed: false,
   departures: [
@@ -37,10 +38,10 @@ export const delayedTrain: WireResponse = {
   ],
 };
 
-// Origin-stop departure: arrival.aimed is absent entirely (ADR-0002),
+// Origin-stop departure: arrival.aimed is absent entirely (Metlink reference),
 // so the mapper must null-coalesce scheduled from departure.aimed.
 // Verified live against stop 6001 (Wellington Station Stop C, route 17
-// origin) in the ADR-0002 spike.
+// origin) in the Metlink spike.
 export const originStop: WireResponse = {
   closed: false,
   departures: [
@@ -60,8 +61,8 @@ export const originStop: WireResponse = {
 };
 
 // Bus stop 3234 returning three concurrent routes (1, 19, N5) in one
-// response. Exercises the client-side service_id filter (ADR-0002).
-// Route 1 from ADR-0002 sample; routes 19 and N5 synthesised with
+// response. Exercises the client-side service_id filter (Metlink reference).
+// Route 1 from the Metlink reference sample; routes 19 and N5 synthesised with
 // plausible neighbourhood values.
 export const multiRouteBus: WireResponse = {
   closed: false,
@@ -254,9 +255,9 @@ export const kapitiExpressMix: WireResponse = {
 };
 
 // Scheduled-only train departure: status null, monitored false, no live
-// data yet (arrival.expected null). Source is ADR-0002's sample payload,
-// augmented with trip_id/trip_headsign/name/departure fields that real
-// wire payloads always carry but the ADR abridged.
+// data yet (arrival.expected null). Source is the Metlink reference's sample
+// payload, augmented with trip_id/trip_headsign/name/departure fields that
+// real wire payloads always carry but the reference abridged.
 export const scheduledTrain: WireResponse = {
   closed: false,
   departures: [

@@ -144,7 +144,7 @@ The **idle profile**'s ambient content, shown overnight when no **profile phase*
 ## 7. Non-functional requirements (EARS format)
 
 ### Performance & data fetching
-* **When** a radiator requests a frame for a `priority_split` layout, the Worker **shall** issue a request to the Metlink GTFS-Realtime API and render the returned predictions into the frame. There is **no caching layer** — see [ADR-0010](../adr/0010-no-metlink-cache-layer.md); Metlink runs uncached, which is well within its rate-limit headroom at household scale (ADR-0002).
+* **When** a radiator requests a frame for a `priority_split` layout, the Worker **shall** issue a request to the Metlink GTFS-Realtime API and render the returned predictions into the frame. There is **no caching layer** — see [ADR-0010](../adr/0010-no-metlink-cache-layer.md); Metlink runs uncached, which is well within its rate-limit headroom at household scale (see the [Metlink reference](../reference/metlink-stop-predictions.md)).
 * **When** the active layout is `minimal_clock`, the Worker **shall** bypass the Metlink API entirely and return a clock frame immediately.
 * **When** the rendering pipeline executes, the Worker **shall** render layout elements using **Satori** (for DejaVu Sans Bold font rendering and CSS-based layout) and encode the final output as a flattened 1-bit monochrome BMP byte array at 960×540 via manual BMP byte construction, optimised for direct native flushing by the LilyGO T5 panel.
 
@@ -156,7 +156,7 @@ The **idle profile**'s ambient content, shown overnight when no **profile phase*
 * **When** a radiator cannot reach the Worker (Wi-Fi failure, network error, or unexpected response), the radiator **shall** take no action — the panel retains its last valid frame indefinitely without power. The radiator **shall** silently retry on the next scheduled wake cycle.
 
 ### Pre-implementation spikes required
-* ~~The specific Metlink GTFS-Realtime API endpoints, response shapes, and field mappings for bus stop predictions (`stop_id`) and train station departures (`station_id`) must be validated against the live API before Worker implementation begins.~~ **Complete** — see [`docs/adr/0002-metlink-stop-predictions-field-mapping.md`](../adr/0002-metlink-stop-predictions-field-mapping.md). Key finding: the API uses `stop_id` for both bus and train; a `service_id` filter must be applied client-side in the Worker.
+* ~~The specific Metlink GTFS-Realtime API endpoints, response shapes, and field mappings for bus stop predictions (`stop_id`) and train station departures (`station_id`) must be validated against the live API before Worker implementation begins.~~ **Complete** — see [`docs/reference/metlink-stop-predictions.md`](../reference/metlink-stop-predictions.md). Key finding: the API uses `stop_id` for both bus and train; a `service_id` filter must be applied client-side in the Worker.
 * The TypeScript BMP rendering pipeline must be validated end-to-end in a Cloudflare Workers environment before full Worker implementation begins. The spike must confirm: Satori rendering with the Press Start 2P TTF asset produces pixel-accurate output at the required sizes; the manual 1-bit BMP encoder correctly encodes the rasterised pixel data; and the resulting BMP byte stream is faithfully flushed by the LilyGO T5 EPD panel without artefacts.
 
 ## 8. High-level architecture & solution design
@@ -168,7 +168,7 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 * **Caching layer:** None — the Metlink API is called uncached per frame (see [ADR-0010](../adr/0010-no-metlink-cache-layer.md)).
 * **Graphics engine:** **Satori** for CSS-driven layout and DejaVu Sans Bold font rendering (TTF bundled as a static Worker asset; see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)), producing an intermediate SVG. The SVG pixel data is encoded into a 1-bit monochrome BMP byte array via manual BMP byte construction — zero native dependencies, sub-millisecond encode time.
 * **Firmware:** C++/Arduino ESP-IDF framework running on the LilyGO T5 (handles Wi-Fi connection, HTTP fetching, deep sleep management, and raw E-paper EPD buffer flushing).
-* **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions). API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/adr/0002-metlink-stop-predictions-field-mapping.md`](../adr/0002-metlink-stop-predictions-field-mapping.md).
+* **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions). API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/reference/metlink-stop-predictions.md`](../reference/metlink-stop-predictions.md).
 
 ### Request / response contract
 
@@ -218,12 +218,12 @@ profiles:
       layout: "priority_split"
       transit_targets:
         bus:
-          stop_id: "3234"         # Westchester Dr at Waitohi Rd — validated ADR-0002
+          stop_id: "3234"         # Westchester Dr at Waitohi Rd — validated, Metlink reference
           service_id: "1"         # Route 1 to Island Bay
           time_to_stop_mins: 7   # Walking — predictable, low variance
           comfort_buffer: 3
         train:
-          stop_id: "TAKA1"        # Takapu Rd Station (KPL line) — validated ADR-0002
+          stop_id: "TAKA1"        # Takapu Rd Station (KPL line) — validated, Metlink reference
           service_id: "KPL"       # Kāpiti Line
           time_to_stop_mins: 15  # Driving — subject to traffic variance
           comfort_buffer: 4
@@ -293,12 +293,12 @@ remaining service-state layouts once they land.
 
 ### First deploy — minimal viable production
 
-- [x] Validate Metlink API endpoints for `stop_id` (bus and train) — confirmed field names, response shapes, and rate-limit behaviour. See ADR-0002.
+- [x] Validate Metlink API endpoints for `stop_id` (bus and train) — confirmed field names, response shapes, and rate-limit behaviour. See the [Metlink reference](../reference/metlink-stop-predictions.md).
 - [x] BMP rendering validated: Satori + bundled TTF + manual 1-bit BMP encoder confirmed against the LilyGO T5 EPD panel. Typeface is **DejaVu Sans Bold** per [ADR-0009](adr/0009-display-typeface-dejavu-sans-bold.md) (replaces the earlier Press Start 2P pixel font); already bundled as a static Worker asset (`src/worker/assets/`) and wired via the `.ttf` data rule in `wrangler.jsonc`.
 - [x] Populate the `radiators:` registry and `profiles:` in `src/worker/config/data.ts` (config is TypeScript, not `config.yaml`) for the slug(s) being deployed. `bedroom-philip-tania` → `philip_and_tania` (priority_split morning + minimal_clock fallback) is in place.
 - [x] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
 - [x] Flash the radiator's firmware (`src/radiator/secrets.h`, gitignored) with its **radiator slug**, the `RADIATOR_SHARED_TOKEN` value, the production `FRAME_URL`, and Wi-Fi creds as compile-time constants.
-- [x] Deploy Worker: `wrangler deploy`. (Metlink runs uncached — the permanent design; no caching layer per [ADR-0010](adr/0010-no-metlink-cache-layer.md), well within ADR-0002 rate-limit headroom at household scale.)
+- [x] Deploy Worker: `wrangler deploy`. (Metlink runs uncached — the permanent design; no caching layer per [ADR-0010](adr/0010-no-metlink-cache-layer.md), well within Metlink's rate-limit headroom at household scale.)
 - [x] One **wake cycle** from the deployed radiator returns the expected **layout** and a valid `X-Sleep-Seconds`.
 
 ### Second deploy — remaining service states

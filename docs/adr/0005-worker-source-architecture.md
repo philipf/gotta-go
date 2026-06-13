@@ -105,7 +105,7 @@ The split between `auth/`/`config/`/`schedule/` and `shared/` is deliberate: the
 
 ### Gateways — one folder per external system
 
-Every external dependency lives in its own gateway folder, presenting a domain-shaped public contract; callers never see the wire format. This keeps wire-format quirks (Metlink field ordering, timestamp formats, partial response shapes per ADR-0002) quarantined: the rest of the Worker depends on the contract, and the gateway is the bulkhead.
+Every external dependency lives in its own gateway folder, presenting a domain-shaped public contract; callers never see the wire format. This keeps wire-format quirks (Metlink field ordering, timestamp formats, partial response shapes — see the [Metlink reference](../reference/metlink-stop-predictions.md)) quarantined: the rest of the Worker depends on the contract, and the gateway is the bulkhead.
 
 The internal structure of a gateway — contract/implementation split, file roles, naming — is defined in the [Worker Architecture guide](../worker-architecture.md).
 
@@ -146,21 +146,10 @@ tests live next to the code they exercise, in the same folder.
 - **Each `src/<project>/` owns its own toolchain.** When `src/radiator/` arrives it will have its own `package.json` / build config alongside the Worker's — symmetric siblings under `src/`, no shared root-level toolchain to negotiate.
 - **Migration from TypeScript config to YAML/KV is a future cost.** Acceptable while the schema is still moving.
 
-## Verification
-
-When an implementation issue lands a new piece of Worker code, the following should hold:
-
-1. Each layout occupies exactly one folder under `features/`, named with its glossary canonical term, and is registered in `features/frame-registry.ts`. `LayoutKey` is derived from the registry and is the only `LayoutKey` in the codebase.
-2. No file outside `gateways/<system>/` references that upstream's wire-format field names. Inside the gateway folder, only `mapper.ts` performs the wire→domain transformation; file roles and naming per the [Worker Architecture guide](../worker-architecture.md).
-3. No file outside the top-level `index.ts` constructs `new Date()` or reads from Cloudflare bindings directly; downstream code receives everything as arguments.
-4. Tests live next to the code they exercise; the only directories matching `**/test/**` are inside gateway `fixtures.ts` neighbourhoods.
-5. `pnpm test` (run from `src/worker/`) runs vitest against the workers-pool sandbox and exits 0.
-6. The HTTP pipeline (Satori + resvg + gzip) is verified at least once via `wrangler dev` (run from `src/worker/`) + curl per implementation issue.
-
 ## References
 
 - [ADR-0001](0001-frame-transport-compression.md) — `Content-Encoding: gzip` on the frame body
-- [ADR-0002](0002-metlink-stop-predictions-field-mapping.md) — why upstream mappers carry the wire-format knowledge
+- [Metlink reference](../reference/metlink-stop-predictions.md) — the upstream wire-format knowledge mappers quarantine
 - [ADR-0003](0003-radiator-worker-contract.md) — endpoint shape and response headers that `api/` implements
 - [ADR-0004](0004-diagnostics-view-content-negotiation.md) — how `Accept` selects which renderer in `features/<layout>/` runs
 - [Worker Architecture guide](../worker-architecture.md) — *how to build* within this structure: the pillars, the gateway/feature/endpoint patterns, dependency injection, the wire quarantine, and the testing posture

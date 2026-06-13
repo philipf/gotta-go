@@ -71,7 +71,7 @@ export const PROFILES: Record<string, Profile> = {
     phases: [
       // Morning commute (PRD §9): a two-target priority_split phase rendering
       // the bus stop and train station side by side. Stop 3234 + route 1 and
-      // station TAKA1 + line KPL are the live-validated IDs from ADR-0002 (the
+      // station TAKA1 + line KPL are the live-validated IDs from the Metlink spike (the
       // PRD's 7104/WELL/5112 are placeholders the spike replaced). Listed first
       // so its window wins over the all-day fallback during 06:30–09:00.
       {
@@ -174,7 +174,7 @@ export const PROFILES: Record<string, Profile> = {
   },
   // Daughter's school-run profile (PRD §9): a priority_split morning phase
   // over one bus transit target, then a minimal_clock idle phase. Stop 3234
-  // + routes 634/635 validated in GH #16 / ADR-0002.
+  // + routes 634/635 validated in GH #16 / the Metlink spike.
   daughter_school: {
     name: 'daughter_school',
     phases: [

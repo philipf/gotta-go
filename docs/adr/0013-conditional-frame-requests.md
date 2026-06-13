@@ -130,31 +130,6 @@ Everything else in ADR-0003 — endpoint shape, auth/identity, sleep authority a
 - **The view-model serialisation becomes ETag-significant.** Reordering `toJsonView` fields or changing a format string changes the hash and forces a one-time fleet redraw. Harmless (one extra flash), but worth knowing when refactoring.
 - **No conditional support on diagnostics variants.** Deliberate (see above), but it means the BMP path's `304` behaviour cannot be fully exercised through the JSON view — Worker tests must hit the `image/bmp` path.
 
-## Glossary impact
-
-The following terms are added to [`../glossary.md`](../glossary.md):
-
-| Term | Section | Action |
-|---|---|---|
-| **Conditional frame request** | §8 (Radiator ↔ Worker contract) | **Add.** A frame request carrying `If-None-Match` with the radiator's stored **ETag**; answered `304` when the content inputs are unchanged. `image/bmp` path only. |
-| **ETag** | §8 | **Add.** The weak validator (`W/"…"`) derived from the layout's serialised view model + `LAYOUT_VERSION` — content inputs, not rendered bytes. |
-| **Unchanged-frame skip** | §8 | **Add.** The firmware behaviour on `304`: parse `X-Sleep-Seconds`, do not touch the panel, keep the stored ETag, deep-sleep. |
-| **`dual_month_calendar`** | §2 (Layout) | **Add** to the layout list: current-date header + this-month and next-month grids, Monday-start, today inverted ([#75](https://github.com/philipf/gotta-go/issues/75)). |
-| **`daytime_calendar`** | §7 (Profiles & modes) | **Add.** The office radiator's full-day phase running `dual_month_calendar` at the 4 h sleep-duration cap; replaces the all-day clock ([#76](https://github.com/philipf/gotta-go/issues/76)). |
-
-## Verification
-
-When #73 (Worker) and #74 (firmware) implement this contract, the following must hold:
-
-1. `GET /v1/frame` (BMP path, no `If-None-Match`) → `200` with a weak `ETag` header (`W/"…"`).
-2. Repeat with `If-None-Match: <that ETag>` and unchanged content → `304`, empty body, no `Content-Type`, `X-Sleep-Seconds` and `ETag` present (an incidental runtime-appended `Content-Encoding` is tolerated — see §What a `304` carries).
-3. Same conditional request with `Accept: application/json` or `Accept: image/svg+xml` → `200` with the full diagnostics body (diagnostics never `304`).
-4. Change the view model (cross midnight for the calendar) → the same `If-None-Match` now returns `200` with a *new* `ETag`.
-5. Bump the layout's `LAYOUT_VERSION` only → the same `If-None-Match` returns `200` (code changes bust the validator).
-6. Any error path (bad token, unknown slug, forced Metlink failure) with a matching `If-None-Match` → the normal `problem+json` response, never a `304`.
-7. Firmware: on `304`, the panel is not touched and the radiator deep-sleeps for `X-Sleep-Seconds`; after rendering an error screen, the next request carries no `If-None-Match`.
-8. The OpenAPI spec lints clean under `redocly lint` (or an equivalent OpenAPI 3.1 validator).
-
 ## References
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110) §8.8.3 (`ETag`, weak validators), §13.1.2 (`If-None-Match`), §15.4.5 (`304 Not Modified`).

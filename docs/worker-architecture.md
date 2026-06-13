@@ -399,9 +399,21 @@ the rule.
   intends. The type makes the missing-vs-invalid distinction structurally
   impossible to leak.
 
-- **File headers are one or two lines: role + one non-obvious why.** Anything
-  longer belongs in the architecture guide or an ADR. See
-  [ADR-0016](adr/0016-file-header-comments.md) for the rule and anti-patterns.
+- **File headers are one or two lines: role + one non-obvious why.** Cover
+  exactly _what_ the file is (its role, in plain terms) and _why_ the design is
+  this way (only when non-obvious from the code). If there is no non-obvious why,
+  write one line and stop. _Why:_ the rationale lives in this guide and the ADRs
+  where it is maintained; duplicating it in a header just rots. A header must
+  **not** carry design rationale, cross-file path citations (renames silently
+  invalidate them), mid-sentence ADR/section references (`(ADR-0005 §DI)` style),
+  editorial flourish, or restatements of what the code's own identifiers already
+  say.
+
+  ```typescript
+  // Good — one line, states the role, stops.
+  // Composition root: wires each LayoutKey to its FramePreparer binder and owns
+  // FrameDeps, the one place that legitimately sees every feature's dependencies.
+  ```
 
 ---
 

@@ -118,31 +118,6 @@ ADR-0003's other decisions — `GET /v1/frame`, header-based auth/identity, the 
 - **Loss of the `stale-served` resilience fallback.** With the cache gone ([ADR-0010](0010-no-metlink-cache-layer.md)) a Metlink outage can no longer be papered over with a slightly-old frame; the panel shows the error screen instead. Acceptable — the outage is now *visible*, which is the whole point — and Metlink outages are typically brief, so the next wake recovers.
 - **Per-error-type firmware screens deferred.** The contract carries per-type `title`/`detail` so the firmware *can* differentiate later; today it renders one generic screen.
 
-## Glossary impact
-
-The following terms are added to [`../glossary.md`](../glossary.md) §8 (Radiator ↔ Worker contract):
-
-| Term | Action |
-|---|---|
-| **Problem document** | **Add.** The RFC 9457 `application/problem+json` body returned on every error: `type`, `title`, `status`, `detail`, `instance`, plus the `upstream_detail` extension. |
-| **Problem type** | **Add.** A named, catalogued failure (`metlink-auth`, `unauthorized`, …) identified by a stable `type` URL into `errors.md`. |
-| **Fatal / Retryable** | **Add.** The self-heal axis: Fatal → `3600 s` + `error` log (a human must act); Retryable → sleep at the active phase's sleep duration + `warn` log (the next wake may succeed). |
-| **`upstream_detail`** | **Add as a sub-note** of the problem-document entry: the verbose-gated, 2 KB-capped raw upstream snippet. |
-
-## Verification
-
-When the Worker implements this contract, the following must hold (acceptance tests for the ADR; the OpenAPI examples show the exact wire format):
-
-1. Request with no `X-Radiator-Token` → `401`, `Content-Type: application/problem+json`, body `type` ending `#unauthorized`, `status: 401`, `X-Sleep-Seconds: 3600`.
-2. Request with `X-Radiator-Slug: not-a-real-slug` → `404`, `type` ending `#unknown-radiator`, `X-Sleep-Seconds: 3600`.
-3. Worker forced to see a Metlink `401`/`403` → `500`, `type` ending `#metlink-auth`, `X-Sleep-Seconds: 3600`, an `error` log, and an `upstream_detail` ≤ 2 KB.
-4. Worker forced to see a Metlink `429` → `502`, `type` ending `#metlink-rate-limited`, `X-Sleep-Seconds` equal to the active phase sleep duration, a `warn` log.
-5. Worker forced to see a Metlink `5xx`/timeout → `502`, `type` ending `#metlink-unavailable`, sleep at the active phase's sleep duration, `warn` log.
-6. Any of the above sent with `Accept: image/bmp` still returns `application/problem+json` (errors ignore the negotiated success format).
-7. A request carrying `X-Request-Id: abc` produces `instance: urn:gotta-go:request:abc`; the same request without the header omits `instance` entirely.
-8. Every `type` URL resolves to a live anchor in [`errors.md`](../api/errors.md).
-9. The OpenAPI spec lints clean under `redocly lint` (or an equivalent OpenAPI 3.1 validator).
-
 ## References
 
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457) (obsoletes RFC 7807).

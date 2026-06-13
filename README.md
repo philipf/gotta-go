@@ -69,7 +69,6 @@ The panel renders at native **960×540, 1-bit monochrome**, landscape. No backli
 | ADR | Decision |
 | --- | --- |
 | [ADR-0001](docs/adr/0001-frame-transport-compression.md) | Gzip frame transport — 5–12× battery-life improvement per wake cycle |
-| [ADR-0002](docs/adr/0002-metlink-stop-predictions-field-mapping.md) | Metlink stop-predictions API field mapping validation |
 | [ADR-0003](docs/adr/0003-radiator-worker-contract.md) | Radiator ↔ Worker HTTP contract |
 | [ADR-0004](docs/adr/0004-diagnostics-view-content-negotiation.md) | Diagnostics view via `Accept`-based content negotiation |
 

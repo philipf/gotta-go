@@ -63,7 +63,7 @@ info:
     - **Conditional frame requests (`ETag`/`304`):** [ADR-0013](../adr/0013-conditional-frame-requests.md).
     - **Terminology:** [glossary](../glossary.md).
     - **Frame compression:** [ADR-0001](../adr/0001-frame-transport-compression.md).
-    - **Metlink upstream contract:** [ADR-0002](../adr/0002-metlink-stop-predictions-field-mapping.md).
+    - **Metlink upstream contract:** [Metlink reference](../reference/metlink-stop-predictions.md).
   contact:
     name: GottaGo project
     url: https://github.com/philipf/gotta-go

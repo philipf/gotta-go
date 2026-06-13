@@ -54,11 +54,6 @@ PlatformIO's `native` env + `pio test` is the heavier answer to ADR-0006's trigg
 - **Not yet wired into CI.** The harness runs locally; standing up CI (and deciding host-test vs device-compile gating) is deferred — same posture ADR-0006 took.
 - **doctest is vendored**, so its version is pinned until manually bumped. Fine for a single-header dep.
 
-## Verification
-
-- `cmake -S test -B test/build && cmake --build test/build && ctest --test-dir test/build` is green on a fresh checkout (10 cases / 26 assertions for the `problem` module as of this ADR).
-- The device build (`arduino-cli compile .`) is unaffected.
-
 ## References
 
 - GH #63 — *Refactor `radiator.ino` into modules* (produced the first testable module)
