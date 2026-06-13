@@ -17,7 +17,7 @@ import { preparePrioritySplitFrame } from './priority_split/prepare-priority-spl
 import { fetchArrivals } from '../gateways/metlink/fetch-arrivals';
 import { prepareDualMonthCalendarFrame } from './dual_month_calendar/prepare-dual-month-calendar-frame';
 import { fetchHolidays } from '../gateways/public_holidays/fetch-holidays';
-import { layout as minimalClockLayout } from './minimal_clock/service';
+import { prepareMinimalClockFrame } from './minimal_clock/prepare-minimal-clock-frame';
 
 // The per-request dependency bundle every binder receives. It is the union of
 // every feature's needs — acceptable here and only here (ADR-0017 §6): the
@@ -64,35 +64,15 @@ export type PreparedFrame = {
 
 export type FramePreparer = (deps: FrameDeps) => Promise<PreparedFrame>;
 
-// TRANSITIONAL: adapts a legacy two-phase Layout to the FramePreparer surface.
-// Deleted when the last feature migrates to its own prepare capability (the
-// rollout after the idle_jokes pilot). Method-syntax bivariance lets a layout
-// whose Ctx is a Pick of FrameDeps bind here without a cast.
-function fromLayout<VM>(layout: Layout<VM, FrameDeps>): FramePreparer {
-	return async (deps) => {
-		const vm = await layout.buildViewModel(deps);
-		return {
-			view: layout.toJsonView(vm),
-			version: layout.version,
-			render: () => layout.render(vm, deps),
-		};
-	};
-}
-
-// TRANSITIONAL: the legacy two-phase contract the three unmigrated features
-// still implement. buildViewModel owns any external fetch + error mapping and
-// returns the format-agnostic view model; render is the pure view model →
-// artefacts pipeline; toJsonView projects for the JSON envelope (ADR-0004);
-// version is the layout's LAYOUT_VERSION folded into the weak ETag (ADR-0013).
-export type Layout<VM = unknown, Ctx = FrameDeps> = {
-	buildViewModel(ctx: Ctx): Promise<VM>;
-	render(vm: VM, ctx: Ctx): Promise<RenderResult>;
-	toJsonView(vm: VM): Record<string, unknown>;
-	version: number;
-};
-
 export const layouts = {
-	minimal_clock: fromLayout(minimalClockLayout),
+	minimal_clock: (deps) =>
+		prepareMinimalClockFrame({
+			slug: deps.radiator.slug,
+			timezone: deps.timezone,
+			now: deps.now,
+			includeBmp: deps.format === 'bmp' || deps.includeBmp,
+			includeSvg: deps.format === 'svg',
+		}),
 	priority_split: (deps) =>
 		preparePrioritySplitFrame({
 			targets: deps.phase.transitTargets ?? [],
