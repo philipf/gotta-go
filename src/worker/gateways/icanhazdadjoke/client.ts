@@ -8,14 +8,14 @@ const BASE_URL = 'https://icanhazdadjoke.com/';
 const USER_AGENT = 'GottaGo radiator (https://github.com/philipf/gotta-go)';
 
 export type ClientRequest = {
-	fetch: typeof fetch;
+  fetch: typeof fetch;
 };
 
 export function fetchRandomJoke(req: ClientRequest): Promise<Response> {
-	return req.fetch(BASE_URL, {
-		headers: {
-			Accept: 'application/json',
-			'User-Agent': USER_AGENT,
-		},
-	});
+  return req.fetch(BASE_URL, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': USER_AGENT,
+    },
+  });
 }

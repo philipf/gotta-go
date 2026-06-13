@@ -3,7 +3,7 @@
 // validation and wire→domain mapping live in the impl and mapper.
 
 export type ClientRequest = {
-	kv: KVNamespace;
+  kv: KVNamespace;
 };
 
 // Mirrors KV_KEY in src/tools/fetch-nz-holidays.ts — that tool is a standalone
@@ -12,5 +12,5 @@ export type ClientRequest = {
 const KV_KEY = 'public-holidays:NZ:current';
 
 export function readHolidaysPayload(req: ClientRequest): Promise<unknown> {
-	return req.kv.get(KV_KEY, 'json');
+  return req.kv.get(KV_KEY, 'json');
 }

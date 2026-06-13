@@ -11,9 +11,9 @@ export { GLOBAL } from './data';
 // Returns undefined when the slug is unknown, or when its profile-name
 // reference points at a missing profile (config error — fail closed).
 export function lookupRadiator(slug: string): Radiator | undefined {
-	const ref = RADIATOR_REFS[slug];
-	if (!ref) return undefined;
-	const profile = PROFILES[ref.profileName];
-	if (!profile) return undefined;
-	return { slug: ref.slug, profile };
+  const ref = RADIATOR_REFS[slug];
+  if (!ref) return undefined;
+  const profile = PROFILES[ref.profileName];
+  if (!profile) return undefined;
+  return { slug: ref.slug, profile };
 }

@@ -8,7 +8,7 @@
 // Serialisation order is ETag-significant (ADR-0013 §Consequences): reordering
 // toJsonView fields forces a one-time fleet redraw — harmless, but known.
 export function weakEtag(view: Record<string, unknown>, layoutVersion: number): string {
-	return `W/"${fnv1a64(`${layoutVersion}:${JSON.stringify(view)}`)}"`;
+  return `W/"${fnv1a64(`${layoutVersion}:${JSON.stringify(view)}`)}"`;
 }
 
 // RFC 9110 §8.8.3.2 weak comparison: two entity tags match if their opaque
@@ -19,9 +19,9 @@ export function weakEtag(view: Record<string, unknown>, layoutVersion: number): 
 // cased (the radiator never sends it, and treating it as a literal non-match
 // fails safe: a 200 redraw).
 export function ifNoneMatchSatisfied(ifNoneMatch: string | null, etag: string): boolean {
-	if (ifNoneMatch === null) return false;
-	const opaque = stripWeak(etag);
-	return ifNoneMatch.split(',').some((candidate) => stripWeak(candidate.trim()) === opaque);
+  if (ifNoneMatch === null) return false;
+  const opaque = stripWeak(etag);
+  return ifNoneMatch.split(',').some((candidate) => stripWeak(candidate.trim()) === opaque);
 }
 
 // FNV-1a 64-bit over the UTF-16 code units of the input. BigInt keeps the
@@ -31,14 +31,14 @@ const FNV_PRIME = 0x100000001b3n;
 const MASK_64 = 0xffffffffffffffffn;
 
 function fnv1a64(input: string): string {
-	let hash = FNV_OFFSET;
-	for (let i = 0; i < input.length; i++) {
-		hash ^= BigInt(input.charCodeAt(i));
-		hash = (hash * FNV_PRIME) & MASK_64;
-	}
-	return hash.toString(16).padStart(16, '0');
+  let hash = FNV_OFFSET;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= BigInt(input.charCodeAt(i));
+    hash = (hash * FNV_PRIME) & MASK_64;
+  }
+  return hash.toString(16).padStart(16, '0');
 }
 
 function stripWeak(tag: string): string {
-	return tag.startsWith('W/') ? tag.slice(2) : tag;
+  return tag.startsWith('W/') ? tag.slice(2) : tag;
 }

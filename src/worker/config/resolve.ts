@@ -17,10 +17,10 @@ const MINUTES_PER_DAY = 1440;
 const IDLE_PROFILE_PHASE = 'idle_profile';
 
 export type ProfilePhaseResolution = {
-	profilePhase: string;
-	phase: ProfilePhase;
-	layout: LayoutKey;
-	sleepSeconds: number;
+  profilePhase: string;
+  phase: ProfilePhase;
+  layout: LayoutKey;
+  sleepSeconds: number;
 };
 
 // Local wall-clock minutes-since-midnight for `now` in the given timezone.
@@ -28,18 +28,18 @@ export type ProfilePhaseResolution = {
 // library and stay DST-correct for ordinary days (the once-a-year ambiguous
 // hour is out of scope per the plan).
 function nowMinutes(now: Date, tz: string): number {
-	const [h, m] = hhmm(now, tz).split(':');
-	return Number(h) * 60 + Number(m);
+  const [h, m] = hhmm(now, tz).split(':');
+  return Number(h) * 60 + Number(m);
 }
 
 // "HH:MM" → minutes since midnight.
 function toMinutes(hhmm: string): number {
-	const [h, m] = hhmm.split(':');
-	return Number(h) * 60 + Number(m);
+  const [h, m] = hhmm.split(':');
+  return Number(h) * 60 + Number(m);
 }
 
 function clampSleep(seconds: number): number {
-	return Math.min(SLEEP_CEILING, Math.max(SLEEP_FLOOR, seconds));
+  return Math.min(SLEEP_CEILING, Math.max(SLEEP_FLOOR, seconds));
 }
 
 // Minutes from `mins` until the next phase start, wrapping past midnight. A
@@ -47,11 +47,11 @@ function clampSleep(seconds: number): number {
 // a 0 delta means the *next* occurrence — a full day away. With no phases at
 // all the reduce yields Infinity, which the caller clamps to the 4h ceiling.
 function minutesUntilNextPhaseStart(phases: ProfilePhase[], mins: number): number {
-	return phases.reduce((best, p) => {
-		const raw = (toMinutes(p.startTime) - mins + MINUTES_PER_DAY) % MINUTES_PER_DAY;
-		const delta = raw === 0 ? MINUTES_PER_DAY : raw;
-		return Math.min(best, delta);
-	}, Infinity);
+  return phases.reduce((best, p) => {
+    const raw = (toMinutes(p.startTime) - mins + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+    const delta = raw === 0 ? MINUTES_PER_DAY : raw;
+    return Math.min(best, delta);
+  }, Infinity);
 }
 
 // Selects the phase whose half-open [startTime, endTime) window contains the
@@ -59,53 +59,47 @@ function minutesUntilNextPhaseStart(phases: ProfilePhase[], mins: number): numbe
 // profile: the slug's `idle` override or the system default, sleeping until the
 // next phase opens (ADR-0003).
 export function resolveProfilePhase(radiator: Radiator, now: Date): ProfilePhaseResolution {
-	const phases = radiator.profile.phases;
-	const mins = nowMinutes(now, GLOBAL.timezone);
-	// A phase is active when its half-open window contains now AND its active
-	// days include today's local weekday (glossary "Active days" / #92). Absent
-	// `days` means every day. The day filter applies to the active match only —
-	// minutesUntilNextPhaseStart stays day-agnostic, leaning on the 4h sleep cap
-	// rather than scanning across day boundaries (ADR-0015).
-	const today = weekday(now, GLOBAL.timezone);
-	const active = phases.find(
-		(p) =>
-			mins >= toMinutes(p.startTime) &&
-			mins < toMinutes(p.endTime) &&
-			(p.days === undefined || p.days.includes(today)),
-	);
+  const phases = radiator.profile.phases;
+  const mins = nowMinutes(now, GLOBAL.timezone);
+  // A phase is active when its half-open window contains now AND its active
+  // days include today's local weekday (glossary "Active days" / #92). Absent
+  // `days` means every day. The day filter applies to the active match only —
+  // minutesUntilNextPhaseStart stays day-agnostic, leaning on the 4h sleep cap
+  // rather than scanning across day boundaries (ADR-0015).
+  const today = weekday(now, GLOBAL.timezone);
+  const active = phases.find(
+    (p) => mins >= toMinutes(p.startTime) && mins < toMinutes(p.endTime) && (p.days === undefined || p.days.includes(today)),
+  );
 
-	if (active) {
-		// Truncate the refresh interval at the next boundary: the earliest other
-		// phase start, or the active phase's own end (where the idle profile takes
-		// over if no phase starts there). mins < endTime per the half-open window,
-		// so the end delta is always ≥ 1 minute.
-		const untilBoundary = Math.min(
-			minutesUntilNextPhaseStart(phases, mins),
-			toMinutes(active.endTime) - mins,
-		);
-		return {
-			profilePhase: active.key,
-			phase: active,
-			layout: active.layout,
-			sleepSeconds: clampSleep(Math.min(active.refreshIntervalMinutes, untilBoundary) * 60),
-		};
-	}
+  if (active) {
+    // Truncate the refresh interval at the next boundary: the earliest other
+    // phase start, or the active phase's own end (where the idle profile takes
+    // over if no phase starts there). mins < endTime per the half-open window,
+    // so the end delta is always ≥ 1 minute.
+    const untilBoundary = Math.min(minutesUntilNextPhaseStart(phases, mins), toMinutes(active.endTime) - mins);
+    return {
+      profilePhase: active.key,
+      phase: active,
+      layout: active.layout,
+      sleepSeconds: clampSleep(Math.min(active.refreshIntervalMinutes, untilBoundary) * 60),
+    };
+  }
 
-	// Idle fall-through (ADR-0003). Wake exactly when the next configured phase
-	// opens, capped at 4h. The synthesised phase exists only to satisfy the
-	// FrameDeps shape — idle_jokes ignores its fields (no transit targets).
-	const idle = radiator.profile.idle ?? SYSTEM_IDLE_DEFAULT;
-	const idlePhase: ProfilePhase = {
-		key: IDLE_PROFILE_PHASE,
-		startTime: '00:00',
-		endTime: '00:00',
-		layout: idle.layout,
-		refreshIntervalMinutes: 0,
-	};
-	return {
-		profilePhase: IDLE_PROFILE_PHASE,
-		phase: idlePhase,
-		layout: idle.layout,
-		sleepSeconds: clampSleep(minutesUntilNextPhaseStart(phases, mins) * 60),
-	};
+  // Idle fall-through (ADR-0003). Wake exactly when the next configured phase
+  // opens, capped at 4h. The synthesised phase exists only to satisfy the
+  // FrameDeps shape — idle_jokes ignores its fields (no transit targets).
+  const idle = radiator.profile.idle ?? SYSTEM_IDLE_DEFAULT;
+  const idlePhase: ProfilePhase = {
+    key: IDLE_PROFILE_PHASE,
+    startTime: '00:00',
+    endTime: '00:00',
+    layout: idle.layout,
+    refreshIntervalMinutes: 0,
+  };
+  return {
+    profilePhase: IDLE_PROFILE_PHASE,
+    phase: idlePhase,
+    layout: idle.layout,
+    sleepSeconds: clampSleep(minutesUntilNextPhaseStart(phases, mins) * 60),
+  };
 }

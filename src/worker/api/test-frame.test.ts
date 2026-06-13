@@ -12,100 +12,100 @@ import { closedStop } from '../gateways/metlink/fixtures';
 
 const TOKEN = 'test-token-123';
 const env = {
-	RADIATOR_SHARED_TOKEN: TOKEN,
-	METLINK_API_KEY: 'test-key',
-	// Empty holiday payload so dual_month_calendar frames don't trip the
-	// gateway's soft-miss warning on every run.
-	PUBLIC_HOLIDAYS: { get: async () => [] } as unknown as KVNamespace,
+  RADIATOR_SHARED_TOKEN: TOKEN,
+  METLINK_API_KEY: 'test-key',
+  // Empty holiday payload so dual_month_calendar frames don't trip the
+  // gateway's soft-miss warning on every run.
+  PUBLIC_HOLIDAYS: { get: async () => [] } as unknown as KVNamespace,
 } as Env;
 
 function frameReq(slug: string): Request {
-	return new Request('http://localhost/v1/frame', {
-		headers: {
-			'X-Radiator-Slug': slug,
-			'X-Radiator-Token': TOKEN,
-			Accept: 'application/json',
-		},
-	});
+  return new Request('http://localhost/v1/frame', {
+    headers: {
+      'X-Radiator-Slug': slug,
+      'X-Radiator-Token': TOKEN,
+      Accept: 'application/json',
+    },
+  });
 }
 
 describe('resolveTestRadiator', () => {
-	it('resolves test-<phaseKey> to a synthetic all-day radiator', () => {
-		const r = resolveTestRadiator('test-daytime_calendar');
-		expect(r?.slug).toBe('test-daytime_calendar');
-		// profile.name carries the originating profile's name.
-		expect(r?.profile.name).toBe('philip_and_tania');
-		expect(r?.profile.phases).toHaveLength(1);
-		const phase = r!.profile.phases[0];
-		expect(phase.key).toBe('daytime_calendar');
-		expect(phase.layout).toBe('dual_month_calendar');
-		// Widened to the half-open full day so resolveProfilePhase always matches.
-		expect(phase.startTime).toBe('00:00');
-		expect(phase.endTime).toBe('24:00');
-	});
+  it('resolves test-<phaseKey> to a synthetic all-day radiator', () => {
+    const r = resolveTestRadiator('test-daytime_calendar');
+    expect(r?.slug).toBe('test-daytime_calendar');
+    // profile.name carries the originating profile's name.
+    expect(r?.profile.name).toBe('philip_and_tania');
+    expect(r?.profile.phases).toHaveLength(1);
+    const phase = r!.profile.phases[0];
+    expect(phase.key).toBe('daytime_calendar');
+    expect(phase.layout).toBe('dual_month_calendar');
+    // Widened to the half-open full day so resolveProfilePhase always matches.
+    expect(phase.startTime).toBe('00:00');
+    expect(phase.endTime).toBe('24:00');
+  });
 
-	it('finds a phase in any profile, reusing its transit targets', () => {
-		const r = resolveTestRadiator('test-morning_school_run');
-		expect(r?.profile.name).toBe('daughter_school');
-		expect(r?.profile.phases[0].layout).toBe('priority_split');
-		expect(r?.profile.phases[0].transitTargets).toBeDefined();
-	});
+  it('finds a phase in any profile, reusing its transit targets', () => {
+    const r = resolveTestRadiator('test-morning_school_run');
+    expect(r?.profile.name).toBe('daughter_school');
+    expect(r?.profile.phases[0].layout).toBe('priority_split');
+    expect(r?.profile.phases[0].transitTargets).toBeDefined();
+  });
 
-	it('strips active days so a weekday-only phase renders on any day (#92)', () => {
-		// office_afternoon_commute is mon–fri in production; a test- slug must
-		// render its intent regardless of wall-clock OR weekday, so the synthetic
-		// phase drops `days` just as it overrides start/end times.
-		const r = resolveTestRadiator('test-office_afternoon_commute');
-		expect(r?.profile.phases[0].days).toBeUndefined();
-	});
+  it('strips active days so a weekday-only phase renders on any day (#92)', () => {
+    // office_afternoon_commute is mon–fri in production; a test- slug must
+    // render its intent regardless of wall-clock OR weekday, so the synthetic
+    // phase drops `days` just as it overrides start/end times.
+    const r = resolveTestRadiator('test-office_afternoon_commute');
+    expect(r?.profile.phases[0].days).toBeUndefined();
+  });
 
-	it('returns undefined for an unknown phase key', () => {
-		expect(resolveTestRadiator('test-nope')).toBeUndefined();
-	});
+  it('returns undefined for an unknown phase key', () => {
+    expect(resolveTestRadiator('test-nope')).toBeUndefined();
+  });
 
-	it('returns undefined when the test- prefix is absent', () => {
-		expect(resolveTestRadiator('daytime_calendar')).toBeUndefined();
-	});
+  it('returns undefined when the test- prefix is absent', () => {
+    expect(resolveTestRadiator('daytime_calendar')).toBeUndefined();
+  });
 });
 
 describe('GET /v1/frame with a test- slug', () => {
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-	it('renders the named offline phase regardless of wall-clock time', async () => {
-		// Noon and midnight both render dual_month_calendar — the phase is
-		// all-day, so it never falls back to a different phase the way a real
-		// slug would.
-		for (const iso of ['2026-05-30T12:00:00Z', '2026-05-30T00:00:00Z']) {
-			const res = await route(frameReq('test-daytime_calendar'), env, new Date(iso));
-			expect(res.status).toBe(200);
-			expect(res.headers.get('X-Profile-Phase')).toBe('daytime_calendar');
-			const body = (await res.json()) as Record<string, unknown>;
-			expect(body.layout).toBe('dual_month_calendar');
-		}
-	});
+  it('renders the named offline phase regardless of wall-clock time', async () => {
+    // Noon and midnight both render dual_month_calendar — the phase is
+    // all-day, so it never falls back to a different phase the way a real
+    // slug would.
+    for (const iso of ['2026-05-30T12:00:00Z', '2026-05-30T00:00:00Z']) {
+      const res = await route(frameReq('test-daytime_calendar'), env, new Date(iso));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('X-Profile-Phase')).toBe('daytime_calendar');
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.layout).toBe('dual_month_calendar');
+    }
+  });
 
-	it('routes a priority_split scenario through the same core', async () => {
-		vi.stubGlobal(
-			'fetch',
-			vi.fn(async () => new Response(JSON.stringify(closedStop), { status: 200 })),
-		);
-		const res = await route(
-			frameReq('test-morning_commute'),
-			env,
-			// Mid-afternoon — outside the real 06:30–09:00 window, proving the
-			// scenario slug is decoupled from wall-clock phase selection.
-			new Date('2026-05-30T03:00:00Z'),
-		);
-		expect(res.status).toBe(200);
-		expect(res.headers.get('X-Profile-Phase')).toBe('morning_commute');
-		const body = (await res.json()) as Record<string, unknown>;
-		expect(body.layout).toBe('priority_split');
-	});
+  it('routes a priority_split scenario through the same core', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(closedStop), { status: 200 })),
+    );
+    const res = await route(
+      frameReq('test-morning_commute'),
+      env,
+      // Mid-afternoon — outside the real 06:30–09:00 window, proving the
+      // scenario slug is decoupled from wall-clock phase selection.
+      new Date('2026-05-30T03:00:00Z'),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('X-Profile-Phase')).toBe('morning_commute');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.layout).toBe('priority_split');
+  });
 
-	it('404s an unknown test- phase key', async () => {
-		const res = await route(frameReq('test-nope'), env, new Date());
-		expect(res.status).toBe(404);
-	});
+  it('404s an unknown test- phase key', async () => {
+    const res = await route(frameReq('test-nope'), env, new Date());
+    expect(res.status).toBe(404);
+  });
 });

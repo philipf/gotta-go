@@ -19,32 +19,32 @@ export type Mode = 'bus' | 'train';
 // Source pixel grids. '#' = a black (on) cell; '.' = transparent — the layout
 // supplies the white field. BUS is 14×10, TRAIN is 14×12 (symmetry-corrected).
 export const MODE_GRIDS: Record<Mode, readonly string[]> = {
-	bus: [
-		'.############.',
-		'.############.',
-		'.#...#..#...#.',
-		'.#...#..#...#.',
-		'.#...#..#...#.',
-		'.############.',
-		'.############.',
-		'##############',
-		'..##......##..',
-		'..##......##..',
-	],
-	train: [
-		'.############.',
-		'.############.',
-		'.##...##...##.',
-		'.##...##...##.',
-		'.##...##...##.',
-		'.############.',
-		'.#####..#####.',
-		'.#####..#####.',
-		'.############.',
-		'##############',
-		'..###....###..',
-		'.....####.....',
-	],
+  bus: [
+    '.############.',
+    '.############.',
+    '.#...#..#...#.',
+    '.#...#..#...#.',
+    '.#...#..#...#.',
+    '.############.',
+    '.############.',
+    '##############',
+    '..##......##..',
+    '..##......##..',
+  ],
+  train: [
+    '.############.',
+    '.############.',
+    '.##...##...##.',
+    '.##...##...##.',
+    '.##...##...##.',
+    '.############.',
+    '.#####..#####.',
+    '.#####..#####.',
+    '.############.',
+    '##############',
+    '..###....###..',
+    '.....####.....',
+  ],
 };
 
 // Cell aspect (width : height). Narrows the silhouette; see header comment.
@@ -54,14 +54,14 @@ const CELL_H = 8;
 // Cell width for a given cell height, at the 5:8 ratio, snapped to a whole
 // device pixel. The integer snap is what keeps the icon crisp on a 1-bit panel.
 function cellWidth(height: number): number {
-	return Math.round((height * CELL_W) / CELL_H);
+  return Math.round((height * CELL_W) / CELL_H);
 }
 
 /** Count of "on" (black) cells in a grid. */
 export function onCells(grid: readonly string[]): number {
-	let n = 0;
-	for (const row of grid) for (const cell of row) if (cell === '#') n++;
-	return n;
+  let n = 0;
+  for (const row of grid) for (const cell of row) if (cell === '#') n++;
+  return n;
 }
 
 /**
@@ -71,26 +71,26 @@ export function onCells(grid: readonly string[]): number {
  * rect edge lands on an integer boundary (crisp on a 1-bit panel).
  */
 export function modeIconSvg(mode: Mode, height: number): string {
-	const grid = MODE_GRIDS[mode];
-	const Ph = height;
-	const Pw = cellWidth(Ph);
-	const cols = grid[0].length;
-	const rows = grid.length;
+  const grid = MODE_GRIDS[mode];
+  const Ph = height;
+  const Pw = cellWidth(Ph);
+  const cols = grid[0].length;
+  const rows = grid.length;
 
-	let rects = '';
-	for (let y = 0; y < rows; y++) {
-		for (let x = 0; x < cols; x++) {
-			if (grid[y][x] === '#') {
-				rects += `<rect x="${x}" y="${y}" width="1" height="1" fill="#000"/>`;
-			}
-		}
-	}
+  let rects = '';
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (grid[y][x] === '#') {
+        rects += `<rect x="${x}" y="${y}" width="1" height="1" fill="#000"/>`;
+      }
+    }
+  }
 
-	return (
-		`<svg xmlns="http://www.w3.org/2000/svg" width="${cols * Pw}" height="${rows * Ph}" ` +
-		`viewBox="0 0 ${cols} ${rows}" preserveAspectRatio="none" shape-rendering="crispEdges">` +
-		`${rects}</svg>`
-	);
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${cols * Pw}" height="${rows * Ph}" ` +
+    `viewBox="0 0 ${cols} ${rows}" preserveAspectRatio="none" shape-rendering="crispEdges">` +
+    `${rects}</svg>`
+  );
 }
 
 /**
@@ -99,10 +99,10 @@ export function modeIconSvg(mode: Mode, height: number): string {
  * `height` is the per-source-pixel vertical size (see {@link modeIconSvg}).
  */
 export function modeIcon({ mode, height }: { mode: Mode; height: number }): ReactElement {
-	const grid = MODE_GRIDS[mode];
-	const Pw = cellWidth(height);
-	const w = grid[0].length * Pw;
-	const h = grid.length * height;
-	const src = `data:image/svg+xml;base64,${btoa(modeIconSvg(mode, height))}`;
-	return <img src={src} width={w} height={h} style={{ width: w, height: h }} />;
+  const grid = MODE_GRIDS[mode];
+  const Pw = cellWidth(height);
+  const w = grid[0].length * Pw;
+  const h = grid.length * height;
+  const src = `data:image/svg+xml;base64,${btoa(modeIconSvg(mode, height))}`;
+  return <img src={src} width={w} height={h} style={{ width: w, height: h }} />;
 }

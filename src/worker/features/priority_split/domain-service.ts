@@ -5,12 +5,7 @@ import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/config-types';
 import { hhmm } from '../../shared/hhmm';
 import { shortDate } from '../../shared/shortDate';
-import type {
-	ColumnViewModel,
-	NoServiceColumn,
-	PrioritySplitViewModel,
-	ServiceColumn,
-} from './viewmodel';
+import type { ColumnViewModel, NoServiceColumn, PrioritySplitViewModel, ServiceColumn } from './viewmodel';
 
 const MS_PER_MIN = 60_000;
 const DASH = '—';
@@ -28,45 +23,45 @@ const NEXT_COUNT = 3;
 const SEP = ' → ';
 
 function minutesUntil(target: Date, now: Date): number {
-	return (target.getTime() - now.getTime()) / MS_PER_MIN;
+  return (target.getTime() - now.getTime()) / MS_PER_MIN;
 }
 
 function clamp(n: number, lo: number, hi: number): number {
-	return Math.min(hi, Math.max(lo, n));
+  return Math.min(hi, Math.max(lo, n));
 }
 
 // leave_by_time = arrival_time − time_to_stop_mins (glossary §3).
 function leaveByTime(a: Arrival, target: TransitTarget): Date {
-	return new Date(a.predicted.getTime() - target.timeToStopMins * MS_PER_MIN);
+  return new Date(a.predicted.getTime() - target.timeToStopMins * MS_PER_MIN);
 }
 
 // The catchable service is the earliest arrival you can still make — its
 // leave_by_time has not yet passed (glossary §4). Past ones are missed.
 function selectCatchable(arrivals: Arrival[], target: TransitTarget, now: Date): Arrival[] {
-	return [...arrivals]
-		.sort((a, b) => a.predicted.getTime() - b.predicted.getTime())
-		.filter((a) => leaveByTime(a, target).getTime() >= now.getTime());
+  return [...arrivals]
+    .sort((a, b) => a.predicted.getTime() - b.predicted.getTime())
+    .filter((a) => leaveByTime(a, target).getTime() >= now.getTime());
 }
 
 function fallbackRouteId(target: TransitTarget): string {
-	return Array.isArray(target.serviceId) ? target.serviceId[0] : target.serviceId;
+  return Array.isArray(target.serviceId) ? target.serviceId[0] : target.serviceId;
 }
 
 // Gateway error / closed stop: degrade to dashes rather than throw. Distinct
 // from the no-service state — a failed fetch must not masquerade as a confident
 // "NO SERVICE" when the truth is "we couldn't ask".
 function degraded(target: TransitTarget): ServiceColumn {
-	return {
-		kind: 'service',
-		mode: target.mode,
-		serviceId: fallbackRouteId(target),
-		tripHeadsign: '', // no catchable service — destination unknown
-		leaveIn: DASH,
-		leaveBy: DASH,
-		arrives: DASH,
-		next: DASH,
-		markerRatio: 1,
-	};
+  return {
+    kind: 'service',
+    mode: target.mode,
+    serviceId: fallbackRouteId(target),
+    tripHeadsign: '', // no catchable service — destination unknown
+    leaveIn: DASH,
+    leaveBy: DASH,
+    arrives: DASH,
+    next: DASH,
+    markerRatio: 1,
+  };
 }
 
 // The no-service column (glossary §4 / #10). `nextDeparture` is the earliest
@@ -74,70 +69,55 @@ function degraded(target: TransitTarget): ServiceColumn {
 // catchable (or it would have been selected), but it tells the rider when the
 // next bus physically departs. Empty when the live feed carries none, so the
 // renderer shows NO SERVICE alone rather than a meaningless dash beneath it.
-function noService(
-	target: TransitTarget,
-	arrivals: Arrival[],
-	tz: string,
-	now: Date,
-): NoServiceColumn {
-	const upcoming = [...arrivals]
-		.filter((a) => a.predicted.getTime() >= now.getTime())
-		.sort((a, b) => a.predicted.getTime() - b.predicted.getTime());
-	return {
-		kind: 'no_service',
-		mode: target.mode,
-		serviceId: fallbackRouteId(target),
-		tripHeadsign: '',
-		nextDeparture: upcoming[0] ? hhmm(upcoming[0].predicted, tz) : '',
-	};
+function noService(target: TransitTarget, arrivals: Arrival[], tz: string, now: Date): NoServiceColumn {
+  const upcoming = [...arrivals]
+    .filter((a) => a.predicted.getTime() >= now.getTime())
+    .sort((a, b) => a.predicted.getTime() - b.predicted.getTime());
+  return {
+    kind: 'no_service',
+    mode: target.mode,
+    serviceId: fallbackRouteId(target),
+    tripHeadsign: '',
+    nextDeparture: upcoming[0] ? hhmm(upcoming[0].predicted, tz) : '',
+  };
 }
 
-function buildColumn(
-	target: TransitTarget,
-	state: StopState,
-	tz: string,
-	now: Date,
-): ColumnViewModel {
-	// Closed stop / gateway error: dashes, kept distinct from no-service (above).
-	if (state.kind === 'closed') return degraded(target);
+function buildColumn(target: TransitTarget, state: StopState, tz: string, now: Date): ColumnViewModel {
+  // Closed stop / gateway error: dashes, kept distinct from no-service (above).
+  if (state.kind === 'closed') return degraded(target);
 
-	const catchable = selectCatchable(state.arrivals, target, now);
-	const service = catchable[0];
+  const catchable = selectCatchable(state.arrivals, target, now);
+  const service = catchable[0];
 
-	// Open stop, but nothing catchable: the deliberate NO SERVICE state (#10),
-	// not the confusing all-dashes column it used to render (#36).
-	if (!service) return noService(target, state.arrivals, tz, now);
+  // Open stop, but nothing catchable: the deliberate NO SERVICE state (#10),
+  // not the confusing all-dashes column it used to render (#36).
+  if (!service) return noService(target, state.arrivals, tz, now);
 
-	const leaveBy = leaveByTime(service, target);
-	const leaveInMins = Math.max(
-		0,
-		Math.round(minutesUntil(service.predicted, now) - target.timeToStopMins),
-	);
-	const arrivesInMins = Math.max(0, Math.round(minutesUntil(service.predicted, now)));
+  const leaveBy = leaveByTime(service, target);
+  const leaveInMins = Math.max(0, Math.round(minutesUntil(service.predicted, now) - target.timeToStopMins));
+  const arrivesInMins = Math.max(0, Math.round(minutesUntil(service.predicted, now)));
 
-	// Marker: position_ratio = 1 − clamp(leave_margin / window, 0, 1) (PRD §5.3).
-	const leaveMargin = Math.max(0, minutesUntil(leaveBy, now));
-	const window = target.timeToStopMins * target.comfortBuffer;
-	const markerRatio = 1 - clamp(leaveMargin / window, 0, 1);
+  // Marker: position_ratio = 1 − clamp(leave_margin / window, 0, 1) (PRD §5.3).
+  const leaveMargin = Math.max(0, minutesUntil(leaveBy, now));
+  const window = target.timeToStopMins * target.comfortBuffer;
+  const markerRatio = 1 - clamp(leaveMargin / window, 0, 1);
 
-	// The next NEXT_COUNT services after the hero — all catchable by definition
-	// (later than the selected one). Renders only those that exist, no dash
-	// padding: a trailing "→ —" would read as missing data, not "no more buses".
-	const upcoming = catchable.slice(1, 1 + NEXT_COUNT);
+  // The next NEXT_COUNT services after the hero — all catchable by definition
+  // (later than the selected one). Renders only those that exist, no dash
+  // padding: a trailing "→ —" would read as missing data, not "no more buses".
+  const upcoming = catchable.slice(1, 1 + NEXT_COUNT);
 
-	return {
-		kind: 'service',
-		mode: target.mode,
-		serviceId: service.serviceId,
-		tripHeadsign: service.tripHeadsign,
-		leaveIn: leaveInMins === 0 ? 'NOW' : `${leaveInMins} MIN`,
-		leaveBy: `BY ${hhmm(leaveBy, tz)}`,
-		arrives: `ARRIVES IN ${arrivesInMins} MIN · ${hhmm(service.predicted, tz)}`,
-		next: upcoming.length
-			? `NEXT ${upcoming.map((a) => hhmm(a.predicted, tz)).join(SEP)}`
-			: DASH,
-		markerRatio,
-	};
+  return {
+    kind: 'service',
+    mode: target.mode,
+    serviceId: service.serviceId,
+    tripHeadsign: service.tripHeadsign,
+    leaveIn: leaveInMins === 0 ? 'NOW' : `${leaveInMins} MIN`,
+    leaveBy: `BY ${hhmm(leaveBy, tz)}`,
+    arrives: `ARRIVES IN ${arrivesInMins} MIN · ${hhmm(service.predicted, tz)}`,
+    next: upcoming.length ? `NEXT ${upcoming.map((a) => hhmm(a.predicted, tz)).join(SEP)}` : DASH,
+    markerRatio,
+  };
 }
 
 // Assembles the full layout view model from already-fetched gateway states:
@@ -146,15 +126,10 @@ function buildColumn(
 // renderer auto-scales to full frame width. Exported as the domain-granularity
 // test seam (see the header comment); production code reaches it only through
 // the prepare capability.
-export function viewModelFromStopStates(
-	targets: TransitTarget[],
-	states: StopState[],
-	tz: string,
-	now: Date,
-): PrioritySplitViewModel {
-	return {
-		wallClock: hhmm(now, tz),
-		date: shortDate(now, tz),
-		columns: targets.map((target, i) => buildColumn(target, states[i], tz, now)),
-	};
+export function viewModelFromStopStates(targets: TransitTarget[], states: StopState[], tz: string, now: Date): PrioritySplitViewModel {
+  return {
+    wallClock: hhmm(now, tz),
+    date: shortDate(now, tz),
+    columns: targets.map((target, i) => buildColumn(target, states[i], tz, now)),
+  };
 }

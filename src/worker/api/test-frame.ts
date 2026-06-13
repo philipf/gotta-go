@@ -8,12 +8,8 @@ import { renderFrame } from './frame';
 // Frame handler for test- scenario slugs: renderFrame with the synthetic
 // resolver injected. Auth and response shaping are single-sourced in
 // renderFrame, identical to the production path.
-export function handleTestFrame(
-	request: Request,
-	env: Env,
-	now: Date,
-): Promise<Response> {
-	return renderFrame(request, env, now, resolveTestRadiator);
+export function handleTestFrame(request: Request, env: Env, now: Date): Promise<Response> {
+  return renderFrame(request, env, now, resolveTestRadiator);
 }
 
 const TEST_PREFIX = 'test-';
@@ -29,19 +25,19 @@ const TEST_PREFIX = 'test-';
 // wins; a config.test.ts assertion keeps phase keys globally unique so there is
 // nothing to disambiguate.
 export function resolveTestRadiator(slug: string): Radiator | undefined {
-	if (!slug.startsWith(TEST_PREFIX)) return undefined;
-	const key = slug.slice(TEST_PREFIX.length);
-	for (const profile of Object.values(PROFILES)) {
-		const phase = profile.phases.find((p) => p.key === key);
-		if (phase) {
-			return {
-				slug,
-				profile: {
-					name: profile.name,
-					phases: [{ ...phase, startTime: '00:00', endTime: '24:00', days: undefined }],
-				},
-			};
-		}
-	}
-	return undefined;
+  if (!slug.startsWith(TEST_PREFIX)) return undefined;
+  const key = slug.slice(TEST_PREFIX.length);
+  for (const profile of Object.values(PROFILES)) {
+    const phase = profile.phases.find((p) => p.key === key);
+    if (phase) {
+      return {
+        slug,
+        profile: {
+          name: profile.name,
+          phases: [{ ...phase, startTime: '00:00', endTime: '24:00', days: undefined }],
+        },
+      };
+    }
+  }
+  return undefined;
 }

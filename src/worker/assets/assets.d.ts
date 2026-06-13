@@ -3,16 +3,16 @@
 // (the idle_jokes meme — embedded as a base64 data URI, see #17).
 
 declare module '*.wasm' {
-	const wasm: WebAssembly.Module;
-	export default wasm;
+  const wasm: WebAssembly.Module;
+  export default wasm;
 }
 
 declare module '*.ttf' {
-	const bytes: ArrayBuffer;
-	export default bytes;
+  const bytes: ArrayBuffer;
+  export default bytes;
 }
 
 declare module '*.png' {
-	const bytes: ArrayBuffer;
-	export default bytes;
+  const bytes: ArrayBuffer;
+  export default bytes;
 }

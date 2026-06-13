@@ -21,45 +21,45 @@ export type { LayoutKey };
 // upstream rewording drops the suffix: no trains shown beats suggesting one
 // that sails past the stop. Same single-or-any-of shape; absent → no filter.
 export type TransitTarget = {
-	mode: Mode;
-	stopId: string;
-	serviceId: string | string[];
-	destinationStopId?: string | string[];
-	destinationNameIncludes?: string | string[];
-	timeToStopMins: number;
-	comfortBuffer: number;
+  mode: Mode;
+  stopId: string;
+  serviceId: string | string[];
+  destinationStopId?: string | string[];
+  destinationNameIncludes?: string | string[];
+  timeToStopMins: number;
+  comfortBuffer: number;
 };
 
 // Mirrors PRD §9 `global:` — household-level settings shared by every
 // radiator. The PoC seeds one record; future config gains more keys.
 export type Global = {
-	timezone: string;
-	defaultRefreshIntervalMinutes: number;
-	// Upper bound for the Metlink /stop-predictions `limit`. The limit is applied
-	// upstream across *all* services at a stop before the gateway filters to a
-	// watched service, so at a shared stop a low limit can push a watched service
-	// out of the window entirely — the empty result then renders no-service even
-	// when buses are due (#36/#10). Set high so Metlink itself decides the
-	// truncation point; it caps the value server-side.
-	stopPredictionLimit: number;
+  timezone: string;
+  defaultRefreshIntervalMinutes: number;
+  // Upper bound for the Metlink /stop-predictions `limit`. The limit is applied
+  // upstream across *all* services at a stop before the gateway filters to a
+  // watched service, so at a shared stop a low limit can push a watched service
+  // out of the window entirely — the empty result then renders no-service even
+  // when buses are due (#36/#10). Set high so Metlink itself decides the
+  // truncation point; it caps the value server-side.
+  stopPredictionLimit: number;
 };
 
 // Mirrors PRD §9 profile phase — a time-of-day phase inside a profile.
 // `key` is the phase identifier (e.g. `morning_commute`, `daytime_calendar`).
 export type ProfilePhase = {
-	key: string;
-	startTime: string;
-	endTime: string;
-	layout: LayoutKey;
-	refreshIntervalMinutes: number;
-	// The weekdays this phase is eligible to run (glossary "Active days").
-	// Absent = every day (the common case). A phase whose active days exclude
-	// the local (Pacific/Auckland) weekday is skipped by the resolver — used to
-	// keep weekday commute phases from firing on weekends (#92 / ADR-0015). A
-	// config.test.ts invariant forbids an empty array (a silent dead phase).
-	days?: Weekday[];
-	// Present for priority_split phases; absent for minimal_clock.
-	transitTargets?: TransitTarget[];
+  key: string;
+  startTime: string;
+  endTime: string;
+  layout: LayoutKey;
+  refreshIntervalMinutes: number;
+  // The weekdays this phase is eligible to run (glossary "Active days").
+  // Absent = every day (the common case). A phase whose active days exclude
+  // the local (Pacific/Auckland) weekday is skipped by the resolver — used to
+  // keep weekday commute phases from firing on weekends (#92 / ADR-0015). A
+  // config.test.ts invariant forbids an empty array (a silent dead phase).
+  days?: Weekday[];
+  // Present for priority_split phases; absent for minimal_clock.
+  transitTargets?: TransitTarget[];
 };
 
 // Lowercase three-letter weekday tokens — the vocabulary of a phase's active
@@ -73,7 +73,7 @@ export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 // is configurable today — both the default and any override resolve to
 // `idle_jokes`, rendered under the literal `idle_profile` phase key.
 export type IdleProfile = {
-	layout: LayoutKey;
+  layout: LayoutKey;
 };
 
 // Mirrors PRD §9 `profiles:` entry — a named user/household configuration.
@@ -81,9 +81,9 @@ export type IdleProfile = {
 // the system-wide idle profile for this profile's overnight gaps; absent → the
 // system default.
 export type Profile = {
-	name: string;
-	phases: ProfilePhase[];
-	idle?: IdleProfile;
+  name: string;
+  phases: ProfilePhase[];
+  idle?: IdleProfile;
 };
 
 // Mirrors PRD §9 `radiators:` entry — one physical radiator. The slug
@@ -91,6 +91,6 @@ export type Profile = {
 // firmware); the profile is resolved at lookup time. Future per-radiator
 // fields (display capabilities, etc.) attach here.
 export type Radiator = {
-	slug: string;
-	profile: Profile;
+  slug: string;
+  profile: Profile;
 };

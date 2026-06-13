@@ -1,15 +1,15 @@
 // Seed data for global, profiles, and radiators config used in local development.
 
-import type { Global, IdleProfile, Profile, TransitTarget, Weekday } from "./config-types";
+import type { Global, IdleProfile, Profile, TransitTarget, Weekday } from './config-types';
 
 // Active days for the commute/school rituals (glossary "Active days", #92 /
 // ADR-0015): Monday–Friday. Shared so the four weekday-only phases can't drift
 // apart. Calendar and idle-clock phases omit `days` entirely (every day).
-const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
+const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
 
 // PRD §9 `global:` block.
 export const GLOBAL: Global = {
-  timezone: "Pacific/Auckland",
+  timezone: 'Pacific/Auckland',
   defaultRefreshIntervalMinutes: 3,
   // High by design: Metlink truncates server-side, and a generous window keeps
   // a watched service visible at busy shared stops (see Global.stopPredictionLimit).
@@ -21,7 +21,7 @@ export const GLOBAL: Global = {
 // the slug's profile carries its own `idle` override. Renders ambient content
 // (a dad joke + meme) on the long overnight sleep — see features/idle_jokes.
 export const SYSTEM_IDLE_DEFAULT: IdleProfile = {
-  layout: "idle_jokes",
+  layout: 'idle_jokes',
 };
 
 // The city→home afternoon targets, shared by every profile that watches the
@@ -43,18 +43,18 @@ export const SYSTEM_IDLE_DEFAULT: IdleProfile = {
 // expresses drop out (#77). Live-validated 2026-06-04.
 const CITY_TO_HOME_TARGETS: TransitTarget[] = [
   {
-    mode: "bus",
-    stopId: "5012",
-    serviceId: "1",
-    destinationStopId: "3281",
+    mode: 'bus',
+    stopId: '5012',
+    serviceId: '1',
+    destinationStopId: '3281',
     timeToStopMins: 10,
     comfortBuffer: 1.5,
   },
   {
-    mode: "train",
-    stopId: "WELL",
-    serviceId: "KPL",
-    destinationNameIncludes: "All stops",
+    mode: 'train',
+    stopId: 'WELL',
+    serviceId: 'KPL',
+    destinationNameIncludes: 'All stops',
     timeToStopMins: 10,
     comfortBuffer: 1.5,
   },
@@ -67,7 +67,7 @@ const CITY_TO_HOME_TARGETS: TransitTarget[] = [
 // profile (#17).
 export const PROFILES: Record<string, Profile> = {
   philip_and_tania: {
-    name: "philip_and_tania",
+    name: 'philip_and_tania',
     phases: [
       // Morning commute (PRD §9): a two-target priority_split phase rendering
       // the bus stop and train station side by side. Stop 3234 + route 1 and
@@ -75,24 +75,24 @@ export const PROFILES: Record<string, Profile> = {
       // PRD's 7104/WELL/5112 are placeholders the spike replaced). Listed first
       // so its window wins over the all-day fallback during 06:30–09:00.
       {
-        key: "morning_commute",
-        startTime: "05:45",
-        endTime: "09:00",
-        layout: "priority_split",
+        key: 'morning_commute',
+        startTime: '05:45',
+        endTime: '09:00',
+        layout: 'priority_split',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: [
           {
-            mode: "bus",
-            stopId: "3234",
-            serviceId: "1",
+            mode: 'bus',
+            stopId: '3234',
+            serviceId: '1',
             timeToStopMins: 4,
             comfortBuffer: 1.5,
           },
           {
-            mode: "train",
-            stopId: "TAKA1",
-            serviceId: "KPL",
+            mode: 'train',
+            stopId: 'TAKA1',
+            serviceId: 'KPL',
             timeToStopMins: 8,
             comfortBuffer: 1.5,
           },
@@ -105,10 +105,10 @@ export const PROFILES: Record<string, Profile> = {
       // during the evening commute (resolver picks the first matching phase —
       // see resolve.ts).
       {
-        key: "afternoon_commute",
-        startTime: "15:15",
-        endTime: "21:00",
-        layout: "priority_split",
+        key: 'afternoon_commute',
+        startTime: '15:15',
+        endTime: '21:00',
+        layout: 'priority_split',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
@@ -126,10 +126,10 @@ export const PROFILES: Record<string, Profile> = {
       // so the 15:15 afternoon_commute pickup is never delayed, and the
       // unchanged-frame skip (#73/#74) keeps each wake flash-free.
       {
-        key: "daytime_calendar",
-        startTime: "09:00",
-        endTime: "21:00",
-        layout: "dual_month_calendar",
+        key: 'daytime_calendar',
+        startTime: '09:00',
+        endTime: '21:00',
+        layout: 'dual_month_calendar',
         refreshIntervalMinutes: 180,
       },
     ],
@@ -145,29 +145,29 @@ export const PROFILES: Record<string, Profile> = {
   // phase keys are globally unique across profiles — the test-<phaseKey>
   // scenario slugs (#21) resolve a phase by bare key.
   philip_office: {
-    name: "philip_office",
+    name: 'philip_office',
     phases: [
       {
-        key: "morning_calendar",
-        startTime: "00:00",
-        endTime: "15:00",
-        layout: "dual_month_calendar",
+        key: 'morning_calendar',
+        startTime: '00:00',
+        endTime: '15:00',
+        layout: 'dual_month_calendar',
         refreshIntervalMinutes: 240,
       },
       {
-        key: "office_afternoon_commute",
-        startTime: "15:00",
-        endTime: "19:30",
-        layout: "priority_split",
+        key: 'office_afternoon_commute',
+        startTime: '15:00',
+        endTime: '19:30',
+        layout: 'priority_split',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
       },
       {
-        key: "evening_calendar",
-        startTime: "19:30",
-        endTime: "24:00",
-        layout: "dual_month_calendar",
+        key: 'evening_calendar',
+        startTime: '19:30',
+        endTime: '24:00',
+        layout: 'dual_month_calendar',
         refreshIntervalMinutes: 240,
       },
     ],
@@ -176,30 +176,30 @@ export const PROFILES: Record<string, Profile> = {
   // over one bus transit target, then a minimal_clock idle phase. Stop 3234
   // + routes 634/635 validated in GH #16 / ADR-0002.
   daughter_school: {
-    name: "daughter_school",
+    name: 'daughter_school',
     phases: [
       {
-        key: "morning_school_run",
-        startTime: "07:15",
-        endTime: "08:30",
-        layout: "priority_split",
+        key: 'morning_school_run',
+        startTime: '07:15',
+        endTime: '08:30',
+        layout: 'priority_split',
         refreshIntervalMinutes: 2,
         days: WEEKDAYS,
         transitTargets: [
           {
-            mode: "bus",
-            stopId: "3234",
-            serviceId: ["634", "635"],
+            mode: 'bus',
+            stopId: '3234',
+            serviceId: ['634', '635'],
             timeToStopMins: 5,
             comfortBuffer: 3,
           },
         ],
       },
       {
-        key: "afternoon_idle",
-        startTime: "08:30",
-        endTime: "21:00",
-        layout: "minimal_clock",
+        key: 'afternoon_idle',
+        startTime: '08:30',
+        endTime: '21:00',
+        layout: 'minimal_clock',
         refreshIntervalMinutes: 30,
       },
     ],
@@ -210,20 +210,17 @@ export const PROFILES: Record<string, Profile> = {
 // The slug is the X-Radiator-Slug header value, hardcoded in firmware.
 // The reference is resolved at lookup time so callers see a fully
 // populated `Radiator` with its `profile` inlined.
-export const RADIATOR_REFS: Record<
-  string,
-  { slug: string; profileName: string }
-> = {
-  "bedroom-philip-tania": {
-    slug: "bedroom-philip-tania",
-    profileName: "philip_and_tania",
+export const RADIATOR_REFS: Record<string, { slug: string; profileName: string }> = {
+  'bedroom-philip-tania': {
+    slug: 'bedroom-philip-tania',
+    profileName: 'philip_and_tania',
   },
-  "bedroom-daughter": {
-    slug: "bedroom-daughter",
-    profileName: "daughter_school",
+  'bedroom-daughter': {
+    slug: 'bedroom-daughter',
+    profileName: 'daughter_school',
   },
-  "office-f5": {
-    slug: "office-f5",
-    profileName: "philip_office",
+  'office-f5': {
+    slug: 'office-f5',
+    profileName: 'philip_office',
   },
 };

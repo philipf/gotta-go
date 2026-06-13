@@ -7,65 +7,65 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseDelaySeconds, normalizeStatus } from './mapper';
 
 afterEach(() => {
-	vi.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('parseDelaySeconds', () => {
-	it.each([
-		['PT0S', 0],
-		['PT6M12S', 372],
-		['PT1H30M', 5400],
-		['-PT5M', -300],
-	])('parses %s as %d seconds', (input, expected) => {
-		expect(parseDelaySeconds(input)).toBe(expected);
-	});
+  it.each([
+    ['PT0S', 0],
+    ['PT6M12S', 372],
+    ['PT1H30M', 5400],
+    ['-PT5M', -300],
+  ])('parses %s as %d seconds', (input, expected) => {
+    expect(parseDelaySeconds(input)).toBe(expected);
+  });
 
-	it('returns 0 and warns on a malformed duration', () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('returns 0 and warns on a malformed duration', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-		expect(parseDelaySeconds('garbage')).toBe(0);
-		expect(warn).toHaveBeenCalledOnce();
-	});
+    expect(parseDelaySeconds('garbage')).toBe(0);
+    expect(warn).toHaveBeenCalledOnce();
+  });
 });
 
 describe('normalizeStatus', () => {
-	it.each([
-		[null, 'scheduled'],
-		['delayed', 'delayed'],
-		['DELAYED', 'delayed'],
-		['cancelled', 'cancelled'],
-		['canceled', 'cancelled'],
-		['CANCELED', 'cancelled'],
-		['early', 'early'],
-		['EARLY', 'early'],
-		// "ontime" is a legitimate monitored-and-on-schedule status (#41), not an
-		// unknown one — it folds into 'scheduled' and must not warn.
-		['ontime', 'scheduled'],
-		['ONTIME', 'scheduled'],
-		['on-time', 'scheduled'],
-		['on time', 'scheduled'],
-	] as const)('normalises %s to %s', (input, expected) => {
-		expect(normalizeStatus(input)).toBe(expected);
-	});
+  it.each([
+    [null, 'scheduled'],
+    ['delayed', 'delayed'],
+    ['DELAYED', 'delayed'],
+    ['cancelled', 'cancelled'],
+    ['canceled', 'cancelled'],
+    ['CANCELED', 'cancelled'],
+    ['early', 'early'],
+    ['EARLY', 'early'],
+    // "ontime" is a legitimate monitored-and-on-schedule status (#41), not an
+    // unknown one — it folds into 'scheduled' and must not warn.
+    ['ontime', 'scheduled'],
+    ['ONTIME', 'scheduled'],
+    ['on-time', 'scheduled'],
+    ['on time', 'scheduled'],
+  ] as const)('normalises %s to %s', (input, expected) => {
+    expect(normalizeStatus(input)).toBe(expected);
+  });
 
-	it('does not warn on the known "ontime" status', () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('does not warn on the known "ontime" status', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-		expect(normalizeStatus('ontime')).toBe('scheduled');
-		expect(warn).not.toHaveBeenCalled();
-	});
+    expect(normalizeStatus('ontime')).toBe('scheduled');
+    expect(warn).not.toHaveBeenCalled();
+  });
 
-	it('does not warn on the known "early" status (#81)', () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('does not warn on the known "early" status (#81)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-		expect(normalizeStatus('early')).toBe('early');
-		expect(warn).not.toHaveBeenCalled();
-	});
+    expect(normalizeStatus('early')).toBe('early');
+    expect(warn).not.toHaveBeenCalled();
+  });
 
-	it("returns 'scheduled' and warns on an unknown status", () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it("returns 'scheduled' and warns on an unknown status", () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-		expect(normalizeStatus('unknown')).toBe('scheduled');
-		expect(warn).toHaveBeenCalledOnce();
-	});
+    expect(normalizeStatus('unknown')).toBe('scheduled');
+    expect(warn).toHaveBeenCalledOnce();
+  });
 });

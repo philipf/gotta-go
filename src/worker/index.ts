@@ -5,8 +5,8 @@ import { route } from './api/router';
 import { resolveDevNow } from './debug/dev-time';
 
 export default {
-	async fetch(request, env): Promise<Response> {
-		const now = resolveDevNow(request, env) ?? new Date();
-		return route(request, env, now);
-	},
+  async fetch(request, env): Promise<Response> {
+    const now = resolveDevNow(request, env) ?? new Date();
+    return route(request, env, now);
+  },
 } satisfies ExportedHandler<Env>;

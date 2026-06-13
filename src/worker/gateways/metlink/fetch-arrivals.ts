@@ -5,32 +5,28 @@
 export type FetchArrivals = (req: FetchArrivalsRequest) => Promise<FetchArrivalsResponse>;
 
 export type FetchArrivalsRequest = {
-	fetch: typeof fetch;
-	apiKey: string;
-	stopId: string;
-	serviceId: string | string[];
-	destinationStopId?: string | string[];
-	destinationNameIncludes?: string | string[];
-	limit?: number;
+  fetch: typeof fetch;
+  apiKey: string;
+  stopId: string;
+  serviceId: string | string[];
+  destinationStopId?: string | string[];
+  destinationNameIncludes?: string | string[];
+  limit?: number;
 };
 
-export type FetchArrivalsResponse =
-	| { ok: true; data: StopState }
-	| { ok: false; error: MetlinkGatewayError };
+export type FetchArrivalsResponse = { ok: true; data: StopState } | { ok: false; error: MetlinkGatewayError };
 
-export type StopState =
-	| { kind: 'open'; arrivals: Arrival[] }
-	| { kind: 'closed' };
+export type StopState = { kind: 'open'; arrivals: Arrival[] } | { kind: 'closed' };
 
 export type Arrival = {
-	serviceId: string;
-	tripHeadsign: string;
-	name: string;
-	scheduled: Date;
-	predicted: Date;
-	delaySeconds: number;
-	status: 'scheduled' | 'early' | 'delayed' | 'cancelled';
-	tripId: string;
+  serviceId: string;
+  tripHeadsign: string;
+  name: string;
+  scheduled: Date;
+  predicted: Date;
+  delaySeconds: number;
+  status: 'scheduled' | 'early' | 'delayed' | 'cancelled';
+  tripId: string;
 };
 
 // Each kind exists so the caller can map it to a distinct policy (#59):
@@ -41,10 +37,10 @@ export type Arrival = {
 // side-effect-free (ADR-0005); it is absent when the body was empty or already
 // consumed (malformed-JSON-on-2xx).
 export type MetlinkGatewayError =
-	| { kind: 'auth'; status: number; detail?: string }
-	| { kind: 'rate_limited'; status: number; detail?: string }
-	| { kind: 'client_error'; status: number; detail?: string }
-	| { kind: 'upstream'; status: number; detail?: string }
-	| { kind: 'network'; detail?: string };
+  | { kind: 'auth'; status: number; detail?: string }
+  | { kind: 'rate_limited'; status: number; detail?: string }
+  | { kind: 'client_error'; status: number; detail?: string }
+  | { kind: 'upstream'; status: number; detail?: string }
+  | { kind: 'network'; detail?: string };
 
 export { fetchArrivalsImplementation as fetchArrivals } from './fetch-arrivals-impl';

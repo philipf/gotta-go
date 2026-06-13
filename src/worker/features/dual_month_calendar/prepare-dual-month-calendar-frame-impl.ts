@@ -11,27 +11,27 @@ import { log } from '../../shared/log';
 // unshaded calendar, never an error frame. The gateway is a pure bulkhead, so
 // the soft-miss and its diagnostic log live here, at the one caller that wants it.
 async function loadHolidays(source: HolidaySource): Promise<Set<string>> {
-	const res = await source();
-	if (res.ok) return res.data;
-	log.warn(`public_holidays.${res.error.kind}`, { detail: res.error.detail });
-	return new Set();
+  const res = await source();
+  if (res.ok) return res.data;
+  log.warn(`public_holidays.${res.error.kind}`, { detail: res.error.detail });
+  return new Set();
 }
 
 const prepareDualMonthCalendarFrameImplementation: PrepareDualMonthCalendarFrame = async (req) => {
-	const holidays = await loadHolidays(req.fetchHolidays);
-	const vm = buildCalendarViewModel(req.now, req.timezone, req.slug, holidays);
+  const holidays = await loadHolidays(req.fetchHolidays);
+  const vm = buildCalendarViewModel(req.now, req.timezone, req.slug, holidays);
 
-	return {
-		view: toJsonView(vm),
-		version: LAYOUT_VERSION,
-		// Lazy render closure: closes over the private view model and the requested
-		// flags, so a 304 returns without entering Satori. Safe to call with both
-		// flags false — it never rasterises (resolves { frame: null, svg: null }).
-		render: async () => ({
-			frame: req.includeBmp ? await renderBmp(vm) : null,
-			svg: req.includeSvg ? await renderSvg(vm) : null,
-		}),
-	};
+  return {
+    view: toJsonView(vm),
+    version: LAYOUT_VERSION,
+    // Lazy render closure: closes over the private view model and the requested
+    // flags, so a 304 returns without entering Satori. Safe to call with both
+    // flags false — it never rasterises (resolves { frame: null, svg: null }).
+    render: async () => ({
+      frame: req.includeBmp ? await renderBmp(vm) : null,
+      svg: req.includeSvg ? await renderSvg(vm) : null,
+    }),
+  };
 };
 
 export { prepareDualMonthCalendarFrameImplementation };

@@ -22,27 +22,26 @@ const fontBuffer = new Uint8Array(dejaVuTtf);
 // budget. The previous `import satori from 'satori'` auto-fired yoga's wasm
 // init at module evaluation, which hung first cold requests.
 let wasmReady: Promise<void> | null = null;
-const ensureWasm = () =>
-	(wasmReady ??= Promise.all([initSatori(yogaWasm), initResvg(resvgWasm)]).then(() => undefined));
+const ensureWasm = () => (wasmReady ??= Promise.all([initSatori(yogaWasm), initResvg(resvgWasm)]).then(() => undefined));
 
 export async function jsxToSvg(tree: ReactNode): Promise<string> {
-	await ensureWasm();
-	return satori(tree, {
-		width: WIDTH,
-		height: HEIGHT,
-		fonts: [{ name: FAMILY, data: fontBuffer, weight: 700, style: 'normal' }],
-	});
+  await ensureWasm();
+  return satori(tree, {
+    width: WIDTH,
+    height: HEIGHT,
+    fonts: [{ name: FAMILY, data: fontBuffer, weight: 700, style: 'normal' }],
+  });
 }
 
 export async function svgToRgba(svg: string): Promise<Uint8Array> {
-	await ensureWasm();
-	const r = new Resvg(svg, {
-		fitTo: { mode: 'width', value: WIDTH },
-		font: {
-			fontBuffers: [fontBuffer],
-			defaultFontFamily: FAMILY,
-			loadSystemFonts: false,
-		},
-	});
-	return r.render().pixels;
+  await ensureWasm();
+  const r = new Resvg(svg, {
+    fitTo: { mode: 'width', value: WIDTH },
+    font: {
+      fontBuffers: [fontBuffer],
+      defaultFontFamily: FAMILY,
+      loadSystemFonts: false,
+    },
+  });
+  return r.render().pixels;
 }

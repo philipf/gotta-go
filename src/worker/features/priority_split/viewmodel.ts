@@ -8,15 +8,15 @@ import type { Mode } from './mode-icon';
 // a transient fetch failure must read as "no data" blanks, not the deliberate
 // NO SERVICE state, which only a genuinely empty live feed earns.)
 export type ServiceColumn = {
-	kind: 'service';
-	mode: Mode;
-	serviceId: string; // selected service's id, e.g. "634"
-	tripHeadsign: string; // destination headsign, e.g. "Island Bay"; '' when unknown
-	leaveIn: string; // "7 MIN" | "NOW"
-	leaveBy: string; // "BY 07:08"
-	arrives: string; // "ARRIVES IN 4 MIN · 07:14"
-	next: string; // up to three services after the hero: "NEXT 14:48 → 14:58 → 15:40" | "NEXT 14:48" | "—"
-	markerRatio: number; // 0 = hard-left, 1 = Now
+  kind: 'service';
+  mode: Mode;
+  serviceId: string; // selected service's id, e.g. "634"
+  tripHeadsign: string; // destination headsign, e.g. "Island Bay"; '' when unknown
+  leaveIn: string; // "7 MIN" | "NOW"
+  leaveBy: string; // "BY 07:08"
+  arrives: string; // "ARRIVES IN 4 MIN · 07:14"
+  next: string; // up to three services after the hero: "NEXT 14:48 → 14:58 → 15:40" | "NEXT 14:48" | "—"
+  markerRatio: number; // 0 = hard-left, 1 = Now
 };
 
 // The no-service state (glossary §4): zero catchable services. The Tier 1 hero
@@ -24,19 +24,19 @@ export type ServiceColumn = {
 // clock when the live feed still carries an upcoming (if uncatchable) bus, else a
 // dash. Track, marker, and Tiers 2/3 are suppressed — there is nothing to leave for.
 export type NoServiceColumn = {
-	kind: 'no_service';
-	mode: Mode;
-	serviceId: string; // target's first service id — the header still names the route
-	tripHeadsign: ''; // unknown without a selected service
-	nextDeparture: string; // "08:42" when one is known; '' when none — the renderer omits the line (a lone dash reads as a stray artifact)
+  kind: 'no_service';
+  mode: Mode;
+  serviceId: string; // target's first service id — the header still names the route
+  tripHeadsign: ''; // unknown without a selected service
+  nextDeparture: string; // "08:42" when one is known; '' when none — the renderer omits the line (a lone dash reads as a stray artifact)
 };
 
 export type ColumnViewModel = ServiceColumn | NoServiceColumn;
 
 export type PrioritySplitViewModel = {
-	wallClock: string; // global header — "07:30"
-	date: string; // global header — "Sat 31 May" (confirms the frame is fresh, #46)
-	columns: ColumnViewModel[]; // one per transit target; single → full width
+  wallClock: string; // global header — "07:30"
+  date: string; // global header — "Sat 31 May" (confirms the frame is fresh, #46)
+  columns: ColumnViewModel[]; // one per transit target; single → full width
 };
 
 // Serialises the view model verbatim for the JSON diagnostics envelope
@@ -45,31 +45,31 @@ export type PrioritySplitViewModel = {
 // strings/ratio Satori is fed, so the JSON view is a serialiser of the
 // rendered type, never a parallel definition.
 export function toJsonView(vm: PrioritySplitViewModel): Record<string, unknown> {
-	return {
-		wall_clock: vm.wallClock,
-		date: vm.date,
-		columns: vm.columns.map((c) =>
-			c.kind === 'no_service'
-				? {
-						kind: c.kind,
-						mode: c.mode,
-						service_id: c.serviceId,
-						trip_headsign: c.tripHeadsign,
-						next_departure: c.nextDeparture,
-					}
-				: {
-						kind: c.kind,
-						mode: c.mode,
-						service_id: c.serviceId,
-						trip_headsign: c.tripHeadsign,
-						leave_in: c.leaveIn,
-						leave_by: c.leaveBy,
-						arrives: c.arrives,
-						next: c.next,
-						marker_ratio: c.markerRatio,
-					},
-		),
-	};
+  return {
+    wall_clock: vm.wallClock,
+    date: vm.date,
+    columns: vm.columns.map((c) =>
+      c.kind === 'no_service'
+        ? {
+            kind: c.kind,
+            mode: c.mode,
+            service_id: c.serviceId,
+            trip_headsign: c.tripHeadsign,
+            next_departure: c.nextDeparture,
+          }
+        : {
+            kind: c.kind,
+            mode: c.mode,
+            service_id: c.serviceId,
+            trip_headsign: c.tripHeadsign,
+            leave_in: c.leaveIn,
+            leave_by: c.leaveBy,
+            arrives: c.arrives,
+            next: c.next,
+            marker_ratio: c.markerRatio,
+          },
+    ),
+  };
 }
 
 // Composes the **service name** — the column-header label that answers "which
@@ -89,5 +89,5 @@ const SERVICE_NAME_SEP = ' · ';
 // at all. In either case drop the separator and show the id alone, rather than
 // rendering a dangling "1 · ".
 export function serviceName(serviceId: string, tripHeadsign: string): string {
-	return tripHeadsign ? `${serviceId}${SERVICE_NAME_SEP}${tripHeadsign}` : serviceId;
+  return tripHeadsign ? `${serviceId}${SERVICE_NAME_SEP}${tripHeadsign}` : serviceId;
 }

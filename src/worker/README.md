@@ -31,10 +31,10 @@ Test discovery is scoped to `**/*.test.ts` and `**/*.test.tsx` colocated with th
 
 ### What runs where
 
-| Layer | Runner | Covers |
-|---|---|---|
-| Unit / behaviour | `pnpm test` (vitest workers-pool) | Pure-JS logic: domain helpers, view-models, BMP encoder, response shapers, gateway mappers. |
-| Integration | `pnpm dev` (wrangler) + curl | Full HTTP pipeline including Satori → resvg → BMP → gzip. The workers-pool sandbox blocks `WebAssembly.instantiate` for yoga-wasm, so rendering is exercised only against a live Worker. |
+| Layer            | Runner                            | Covers                                                                                                                                                                                   |
+| ---------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit / behaviour | `pnpm test` (vitest workers-pool) | Pure-JS logic: domain helpers, view-models, BMP encoder, response shapers, gateway mappers.                                                                                              |
+| Integration      | `pnpm dev` (wrangler) + curl      | Full HTTP pipeline including Satori → resvg → BMP → gzip. The workers-pool sandbox blocks `WebAssembly.instantiate` for yoga-wasm, so rendering is exercised only against a live Worker. |
 
 ## Run locally
 
@@ -57,17 +57,17 @@ decoupled from the clock and never breaks when schedule windows are re-tuned.
 auto-extends: every phase anyone adds is instantly testable as `test-<itsKey>`,
 nothing to register. With today's seed data:
 
-| Slug | Renders | Network |
-|---|---|---|
-| `test-morning_commute` | philip's two-target (bus + train) `priority_split` | live Metlink |
-| `test-morning_school_run` | daughter's one-target `priority_split` | live Metlink |
-| `test-daytime_calendar` | `dual_month_calendar` | offline |
-| `test-afternoon_idle` | the idle `minimal_clock` phase | offline |
+| Slug                      | Renders                                            | Network      |
+| ------------------------- | -------------------------------------------------- | ------------ |
+| `test-morning_commute`    | philip's two-target (bus + train) `priority_split` | live Metlink |
+| `test-morning_school_run` | daughter's one-target `priority_split`             | live Metlink |
+| `test-daytime_calendar`   | `dual_month_calendar`                              | offline      |
+| `test-afternoon_idle`     | the idle `minimal_clock` phase                     | offline      |
 
 These resolve in **every environment** by design — there is no env gate, and no
 security concern in serving them. An unknown phase key 404s, fail-closed like an
 unknown radiator. The complementary [`X-Debug-Now`](#dev-time-override) header
-takes the other half: it drives *real* phase selection at a chosen time.
+takes the other half: it drives _real_ phase selection at a chosen time.
 
 ```bash
 curl -H "X-Radiator-Token: test-token-123" -H "X-Radiator-Slug: test-daytime_calendar" \
@@ -76,7 +76,7 @@ curl -H "X-Radiator-Token: test-token-123" -H "X-Radiator-Slug: test-daytime_cal
 
 ### Dev time override
 
-`X-Debug-Now: <ISO timestamp>` pins server time so phase selection for a *real*
+`X-Debug-Now: <ISO timestamp>` pins server time so phase selection for a _real_
 slug is deterministic. It only takes effect when `DEV_TIME_OVERRIDE=true` (set in
 `.dev.vars` for `wrangler dev`) and is ignored in production. See
 [`dev-time.ts`](./dev-time.ts).

@@ -16,32 +16,32 @@ import { prepareMinimalClockFrame } from './minimal_clock/prepare-minimal-clock-
 // every feature's needs — acceptable here and only here (architecture guide): the
 // composition root is the one place that legitimately sees everything.
 export type FrameDeps = {
-	radiator: Radiator;
-	phase: ProfilePhase;
-	timezone: string;
-	// Upper bound for the Metlink /stop-predictions `limit` (GLOBAL.stopPredictionLimit).
-	// Threaded through the bundle rather than read from a global so features stay
-	// binding-driven per ADR-0005 §DI. Transit-only: priority_split is the sole
-	// consumer.
-	stopPredictionLimit: number;
-	now: Date;
-	format: ResponseFormat;
-	// Whether the rasterised BMP is needed: always for `format: 'bmp'`, and for
-	// `format: 'json'` only when `?include_bmp=1` was requested. Lets the JSON
-	// path skip the Satori/resvg pipeline entirely for the common case.
-	includeBmp: boolean;
-	// The full Env is ambient authority — every binding reachable by every
-	// feature. Features narrow it where they bind (Pick<Env, …>).
-	env: Env;
-	fetchFn: typeof fetch;
+  radiator: Radiator;
+  phase: ProfilePhase;
+  timezone: string;
+  // Upper bound for the Metlink /stop-predictions `limit` (GLOBAL.stopPredictionLimit).
+  // Threaded through the bundle rather than read from a global so features stay
+  // binding-driven per ADR-0005 §DI. Transit-only: priority_split is the sole
+  // consumer.
+  stopPredictionLimit: number;
+  now: Date;
+  format: ResponseFormat;
+  // Whether the rasterised BMP is needed: always for `format: 'bmp'`, and for
+  // `format: 'json'` only when `?include_bmp=1` was requested. Lets the JSON
+  // path skip the Satori/resvg pipeline entirely for the common case.
+  includeBmp: boolean;
+  // The full Env is ambient authority — every binding reachable by every
+  // feature. Features narrow it where they bind (Pick<Env, …>).
+  env: Env;
+  fetchFn: typeof fetch;
 };
 
 // The optional rendered artefacts a prepared frame's render() produces: the
 // rasterised BMP and the intermediate Satori SVG, each non-null only when the
 // negotiated format needs it.
 export type RenderResult = {
-	frame: Uint8Array | null;
-	svg: string | null;
+  frame: Uint8Array | null;
+  svg: string | null;
 };
 
 // What the orchestrator needs from every feature (architecture guide): the cheap JSON
@@ -50,63 +50,63 @@ export type RenderResult = {
 // rasterising (ADR-0013). Features declare structurally-compatible response
 // types of their own and import nothing from here.
 export type PreparedFrame = {
-	view: Record<string, unknown>;
-	version: number;
-	render: () => Promise<RenderResult>;
+  view: Record<string, unknown>;
+  version: number;
+  render: () => Promise<RenderResult>;
 };
 
 export type FramePreparer = (deps: FrameDeps) => Promise<PreparedFrame>;
 
 function renderFlagsFrom(deps: Pick<FrameDeps, 'format' | 'includeBmp'>) {
-	return {
-		includeBmp: deps.format === 'bmp' || deps.includeBmp,
-		includeSvg: deps.format === 'svg',
-	};
+  return {
+    includeBmp: deps.format === 'bmp' || deps.includeBmp,
+    includeSvg: deps.format === 'svg',
+  };
 }
 
 function bindMinimalClock(deps: FrameDeps) {
-	return prepareMinimalClockFrame({
-		slug: deps.radiator.slug,
-		timezone: deps.timezone,
-		now: deps.now,
-		...renderFlagsFrom(deps),
-	});
+  return prepareMinimalClockFrame({
+    slug: deps.radiator.slug,
+    timezone: deps.timezone,
+    now: deps.now,
+    ...renderFlagsFrom(deps),
+  });
 }
 
 function bindPrioritySplit(deps: FrameDeps) {
-	return preparePrioritySplitFrame({
-		targets: deps.phase.transitTargets ?? [],
-		fetchArrivals: (target) =>
-			fetchArrivals({
-				fetch: deps.fetchFn,
-				apiKey: deps.env.METLINK_API_KEY,
-				stopId: target.stopId,
-				serviceId: target.serviceId,
-				destinationStopId: target.destinationStopId,
-				destinationNameIncludes: target.destinationNameIncludes,
-				limit: deps.stopPredictionLimit,
-			}),
-		timezone: deps.timezone,
-		now: deps.now,
-		...renderFlagsFrom(deps),
-	});
+  return preparePrioritySplitFrame({
+    targets: deps.phase.transitTargets ?? [],
+    fetchArrivals: (target) =>
+      fetchArrivals({
+        fetch: deps.fetchFn,
+        apiKey: deps.env.METLINK_API_KEY,
+        stopId: target.stopId,
+        serviceId: target.serviceId,
+        destinationStopId: target.destinationStopId,
+        destinationNameIncludes: target.destinationNameIncludes,
+        limit: deps.stopPredictionLimit,
+      }),
+    timezone: deps.timezone,
+    now: deps.now,
+    ...renderFlagsFrom(deps),
+  });
 }
 
 function bindIdleJokes(deps: FrameDeps) {
-	return prepareJokeFrame({
-		fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
-		...renderFlagsFrom(deps),
-	});
+  return prepareJokeFrame({
+    fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
+    ...renderFlagsFrom(deps),
+  });
 }
 
 function bindDualMonthCalendar(deps: FrameDeps) {
-	return prepareDualMonthCalendarFrame({
-		fetchHolidays: () => fetchHolidays({ kv: deps.env.PUBLIC_HOLIDAYS }),
-		slug: deps.radiator.slug,
-		timezone: deps.timezone,
-		now: deps.now,
-		...renderFlagsFrom(deps),
-	});
+  return prepareDualMonthCalendarFrame({
+    fetchHolidays: () => fetchHolidays({ kv: deps.env.PUBLIC_HOLIDAYS }),
+    slug: deps.radiator.slug,
+    timezone: deps.timezone,
+    now: deps.now,
+    ...renderFlagsFrom(deps),
+  });
 }
 
 // The implemented layouts, and the source of truth for LayoutKey (consumed by
@@ -116,8 +116,8 @@ function bindDualMonthCalendar(deps: FrameDeps) {
 export type LayoutKey = 'minimal_clock' | 'priority_split' | 'idle_jokes' | 'dual_month_calendar';
 
 export const framePreparers = {
-	minimal_clock: bindMinimalClock,
-	priority_split: bindPrioritySplit,
-	idle_jokes: bindIdleJokes,
-	dual_month_calendar: bindDualMonthCalendar,
+  minimal_clock: bindMinimalClock,
+  priority_split: bindPrioritySplit,
+  idle_jokes: bindIdleJokes,
+  dual_month_calendar: bindDualMonthCalendar,
 } satisfies Record<LayoutKey, FramePreparer>;

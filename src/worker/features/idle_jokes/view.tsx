@@ -23,10 +23,10 @@ const WHITE = '#fff';
 // The meme is a 1-bit asset; embed it once per isolate as a base64 data URI so
 // Satori inlines it as an <image> and resvg rasterises it with everything else.
 function toDataUri(buf: ArrayBuffer): string {
-	const bytes = new Uint8Array(buf);
-	let binary = '';
-	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-	return `data:image/png;base64,${btoa(binary)}`;
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return `data:image/png;base64,${btoa(binary)}`;
 }
 
 const MEME_SRC = toDataUri(memePng);
@@ -49,57 +49,57 @@ const FONT_MEDIUM = 38;
 const FONT_SMALL = 29;
 
 function fontSizeFor(text: string): number {
-	if (text.length <= SHORT) return FONT_LARGE;
-	if (text.length <= MEDIUM) return FONT_MEDIUM;
-	return FONT_SMALL;
+  if (text.length <= SHORT) return FONT_LARGE;
+  if (text.length <= MEDIUM) return FONT_MEDIUM;
+  return FONT_SMALL;
 }
 
 function layout(vm: ViewModel): ReactNode {
-	return (
-		<div
-			style={{
-				width: WIDTH,
-				height: HEIGHT,
-				backgroundColor: WHITE,
-				color: BLACK,
-				display: 'flex',
-				flexDirection: 'row',
-				alignItems: 'center',
-				fontFamily: FAMILY,
-				fontWeight: 700,
-			}}
-		>
-			{/* Joke column (left) — fixed width so the text wraps within its
+  return (
+    <div
+      style={{
+        width: WIDTH,
+        height: HEIGHT,
+        backgroundColor: WHITE,
+        color: BLACK,
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        fontFamily: FAMILY,
+        fontWeight: 700,
+      }}
+    >
+      {/* Joke column (left) — fixed width so the text wraps within its
 			    padding; a left margin off the frame edge and a gap before the face. */}
-			<div
-				style={{
-					width: WIDTH - MEME_COLUMN_WIDTH,
-					height: '100%',
-					display: 'flex',
-					flexDirection: 'column',
-					justifyContent: 'center',
-					paddingLeft: 28,
-					paddingRight: 24,
-				}}
-			>
-				<div style={{ fontSize: fontSizeFor(vm.text), lineHeight: 1.25 }}>{vm.text}</div>
-			</div>
+      <div
+        style={{
+          width: WIDTH - MEME_COLUMN_WIDTH,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          paddingLeft: 28,
+          paddingRight: 24,
+        }}
+      >
+        <div style={{ fontSize: fontSizeFor(vm.text), lineHeight: 1.25 }}>{vm.text}</div>
+      </div>
 
-			{/* Meme column (right) — right-aligned with a small right margin */}
-			<div
-				style={{
-					width: MEME_COLUMN_WIDTH,
-					height: '100%',
-					display: 'flex',
-					justifyContent: 'flex-end',
-					alignItems: 'center',
-					paddingRight: MEME_RIGHT_MARGIN,
-				}}
-			>
-				<img src={MEME_SRC} width={MEME_WIDTH} height={MEME_HEIGHT} />
-			</div>
-		</div>
-	);
+      {/* Meme column (right) — right-aligned with a small right margin */}
+      <div
+        style={{
+          width: MEME_COLUMN_WIDTH,
+          height: '100%',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          paddingRight: MEME_RIGHT_MARGIN,
+        }}
+      >
+        <img src={MEME_SRC} width={MEME_WIDTH} height={MEME_HEIGHT} />
+      </div>
+    </div>
+  );
 }
 
 // The intermediate Satori SVG for this view model. The diagnostics SVG variant
@@ -107,11 +107,11 @@ function layout(vm: ViewModel): ReactNode {
 // one render path, so the SVG a human inspects is byte-for-byte the input the
 // BMP encoder saw.
 export function renderSvg(vm: ViewModel): Promise<string> {
-	return jsxToSvg(layout(vm));
+  return jsxToSvg(layout(vm));
 }
 
 export async function renderBmp(vm: ViewModel): Promise<Uint8Array> {
-	const svg = await renderSvg(vm);
-	const rgba = await svgToRgba(svg);
-	return rgbaTo1BitBmp(rgba);
+  const svg = await renderSvg(vm);
+  const rgba = await svgToRgba(svg);
+  return rgbaTo1BitBmp(rgba);
 }

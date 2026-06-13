@@ -2,9 +2,9 @@
 // Secrets do not show up in wrangler-generated types — we declare them here.
 
 interface __BaseEnv_Env {
-	RADIATOR_SHARED_TOKEN: string;
-	METLINK_API_KEY: string;
-	// Dev-only: when "true", an X-Debug-Now request header overrides server time
-	// (see debug/dev-time.ts). Set in .dev.vars; never configured in production.
-	DEV_TIME_OVERRIDE?: string;
+  RADIATOR_SHARED_TOKEN: string;
+  METLINK_API_KEY: string;
+  // Dev-only: when "true", an X-Debug-Now request header overrides server time
+  // (see debug/dev-time.ts). Set in .dev.vars; never configured in production.
+  DEV_TIME_OVERRIDE?: string;
 }

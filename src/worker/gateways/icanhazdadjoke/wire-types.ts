@@ -3,7 +3,7 @@
 // mapper.ts reads these field names.
 
 export type WireJoke = {
-	id: string;
-	joke: string;
-	status: number;
+  id: string;
+  joke: string;
+  status: number;
 };

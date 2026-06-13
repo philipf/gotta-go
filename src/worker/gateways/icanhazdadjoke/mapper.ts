@@ -6,7 +6,7 @@ import type { WireJoke } from './wire-types';
 import type { Joke } from './fetch-joke';
 
 export function toJoke(raw: WireJoke): Joke {
-	// Trim incidental surrounding whitespace from the wire `joke` so the renderer
-	// wraps clean text.
-	return { id: raw.id, text: raw.joke.trim() };
+  // Trim incidental surrounding whitespace from the wire `joke` so the renderer
+  // wraps clean text.
+  return { id: raw.id, text: raw.joke.trim() };
 }

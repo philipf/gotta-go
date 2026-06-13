@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-	prepareJokeFrame,
-	type JokeSource,
-	type PrepareJokeFrameRequest,
-} from './prepare-joke-frame';
+import { prepareJokeFrame, type JokeSource, type PrepareJokeFrameRequest } from './prepare-joke-frame';
 import type { JokeGatewayError } from '../../gateways/icanhazdadjoke/fetch-joke';
 import { type AppError, RetryableError } from '../../shared/errors';
 import { LAYOUT_VERSION } from './view';
@@ -14,70 +10,68 @@ import { LAYOUT_VERSION } from './view';
 // Satori/resvg pipeline (ADR-0005) and proves the deferred closure is safe to
 // call on the 304 path.
 const jokeSource =
-	(id: string, text: string): JokeSource =>
-	async () => ({ ok: true, data: { id, text } });
+  (id: string, text: string): JokeSource =>
+  async () => ({ ok: true, data: { id, text } });
 
 const failingSource =
-	(error: JokeGatewayError): JokeSource =>
-	async () => ({ ok: false, error });
+  (error: JokeGatewayError): JokeSource =>
+  async () => ({ ok: false, error });
 
 const requestWith = (fetchJoke: JokeSource): PrepareJokeFrameRequest => ({
-	fetchJoke,
-	includeBmp: false,
-	includeSvg: false,
+  fetchJoke,
+  includeBmp: false,
+  includeSvg: false,
 });
 
 async function prepareError(fetchJoke: JokeSource): Promise<AppError> {
-	try {
-		await prepareJokeFrame(requestWith(fetchJoke));
-	} catch (e) {
-		return e as AppError;
-	}
-	throw new Error('expected prepareJokeFrame() to throw');
+  try {
+    await prepareJokeFrame(requestWith(fetchJoke));
+  } catch (e) {
+    return e as AppError;
+  }
+  throw new Error('expected prepareJokeFrame() to throw');
 }
 
 describe('idle_jokes.prepareJokeFrame', () => {
-	it('carries the joke text + id into the view as { joke, jokeId } only', async () => {
-		const prepared = await prepareJokeFrame(
-			requestWith(jokeSource('abc123', 'Why did the scarecrow win an award?')),
-		);
+  it('carries the joke text + id into the view as { joke, jokeId } only', async () => {
+    const prepared = await prepareJokeFrame(requestWith(jokeSource('abc123', 'Why did the scarecrow win an award?')));
 
-		expect(prepared.view).toEqual({
-			joke: 'Why did the scarecrow win an award?',
-			jokeId: 'abc123',
-		});
-	});
+    expect(prepared.view).toEqual({
+      joke: 'Why did the scarecrow win an award?',
+      jokeId: 'abc123',
+    });
+  });
 
-	it('reports the view LAYOUT_VERSION as the appearance version', async () => {
-		const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.')));
+  it('reports the view LAYOUT_VERSION as the appearance version', async () => {
+    const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.')));
 
-		expect(prepared.version).toBe(LAYOUT_VERSION);
-	});
+    expect(prepared.version).toBe(LAYOUT_VERSION);
+  });
 
-	it('defers rendering; with both artefact flags off it resolves to neither', async () => {
-		const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.')));
+  it('defers rendering; with both artefact flags off it resolves to neither', async () => {
+    const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.')));
 
-		const rendered = await prepared.render();
+    const rendered = await prepared.render();
 
-		expect(rendered.frame).toBeNull();
-		expect(rendered.svg).toBeNull();
-	});
+    expect(rendered.frame).toBeNull();
+    expect(rendered.svg).toBeNull();
+  });
 
-	it('throws a Retryable joke-source-unavailable 502 on an upstream failure, carrying the snippet', async () => {
-		const err = await prepareError(failingSource({ kind: 'upstream', status: 503, detail: 'boom' }));
+  it('throws a Retryable joke-source-unavailable 502 on an upstream failure, carrying the snippet', async () => {
+    const err = await prepareError(failingSource({ kind: 'upstream', status: 503, detail: 'boom' }));
 
-		expect(err).toBeInstanceOf(RetryableError);
-		expect(err.slug).toBe('joke-source-unavailable');
-		expect(err.status).toBe(502);
-		expect(err.logLevel).toBe('warn');
-		expect(err.upstreamDetail).toBe('boom');
-	});
+    expect(err).toBeInstanceOf(RetryableError);
+    expect(err.slug).toBe('joke-source-unavailable');
+    expect(err.status).toBe(502);
+    expect(err.logLevel).toBe('warn');
+    expect(err.upstreamDetail).toBe('boom');
+  });
 
-	it('throws a Retryable joke-source-unavailable on a network failure (no snippet)', async () => {
-		const err = await prepareError(failingSource({ kind: 'network' }));
+  it('throws a Retryable joke-source-unavailable on a network failure (no snippet)', async () => {
+    const err = await prepareError(failingSource({ kind: 'network' }));
 
-		expect(err).toBeInstanceOf(RetryableError);
-		expect(err.slug).toBe('joke-source-unavailable');
-		expect(err.upstreamDetail).toBeUndefined();
-	});
+    expect(err).toBeInstanceOf(RetryableError);
+    expect(err.slug).toBe('joke-source-unavailable');
+    expect(err.upstreamDetail).toBeUndefined();
+  });
 });

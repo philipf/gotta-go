@@ -10,30 +10,28 @@ import type { ResponseFormat } from './format';
 // common JSON case skip the Satori/resvg pipeline entirely); ifNoneMatch is
 // the conditional-request validator (ADR-0013).
 export type FrameRequest = {
-	slug: string;
-	hardwareId: string | undefined;
-	requestId: string | undefined;
-	batteryMv: number | undefined;
-	format: ResponseFormat;
-	includeBmp: boolean;
-	acceptsGzip: boolean;
-	ifNoneMatch: string | null;
+  slug: string;
+  hardwareId: string | undefined;
+  requestId: string | undefined;
+  batteryMv: number | undefined;
+  format: ResponseFormat;
+  includeBmp: boolean;
+  acceptsGzip: boolean;
+  ifNoneMatch: string | null;
 };
 
 export function parseFrameRequest(request: Request): FrameRequest {
-	const format = resolveResponseFormat(request.headers.get('Accept'));
-	return {
-		slug: request.headers.get('X-Radiator-Slug') ?? '',
-		hardwareId: request.headers.get('X-Radiator-Hardware-Id') ?? undefined,
-		requestId: request.headers.get('X-Request-Id') ?? undefined,
-		batteryMv: parseBatteryMv(request.headers.get('X-Radiator-Battery-Mv')),
-		format,
-		includeBmp:
-			format === 'json' &&
-			new URL(request.url).searchParams.get('include_bmp') === '1',
-		acceptsGzip: (request.headers.get('Accept-Encoding') ?? '').includes('gzip'),
-		ifNoneMatch: request.headers.get('If-None-Match'),
-	};
+  const format = resolveResponseFormat(request.headers.get('Accept'));
+  return {
+    slug: request.headers.get('X-Radiator-Slug') ?? '',
+    hardwareId: request.headers.get('X-Radiator-Hardware-Id') ?? undefined,
+    requestId: request.headers.get('X-Request-Id') ?? undefined,
+    batteryMv: parseBatteryMv(request.headers.get('X-Radiator-Battery-Mv')),
+    format,
+    includeBmp: format === 'json' && new URL(request.url).searchParams.get('include_bmp') === '1',
+    acceptsGzip: (request.headers.get('Accept-Encoding') ?? '').includes('gzip'),
+    ifNoneMatch: request.headers.get('If-None-Match'),
+  };
 }
 
 // Observability context (GH #25), spread into every log event: hardwareId (the
@@ -44,12 +42,12 @@ export function parseFrameRequest(request: Request): FrameRequest {
 // not logged here — workerd freezes Date.now() between I/O so an in-script delta
 // misleads (#54).
 export function extractObservabilityInfo(req: FrameRequest) {
-	return {
-		batteryMv: req.batteryMv,
-		hardwareId: req.hardwareId,
-		requestId: req.requestId,
-		slug: req.slug,
-	};
+  return {
+    batteryMv: req.batteryMv,
+    hardwareId: req.hardwareId,
+    requestId: req.requestId,
+    slug: req.slug,
+  };
 }
 
 // Battery telemetry (GH #78): X-Radiator-Battery-Mv carries the radiator's raw
@@ -58,7 +56,7 @@ export function extractObservabilityInfo(req: FrameRequest) {
 // negative becomes undefined — the field is silently dropped from the log line,
 // never a request rejection, per the X-Radiator-* reserved-namespace rule.
 function parseBatteryMv(raw: string | null): number | undefined {
-	if (raw === null || raw.trim() === '') return undefined;
-	const n = Number(raw);
-	return Number.isInteger(n) && n >= 0 ? n : undefined;
+  if (raw === null || raw.trim() === '') return undefined;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : undefined;
 }
