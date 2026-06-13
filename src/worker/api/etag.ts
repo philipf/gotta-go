@@ -13,21 +13,6 @@
 // (no crypto.subtle await on the hot path), tiny, and collision-resistant
 // enough for a validator whose worst failure is one extra panel flash.
 
-// FNV-1a 64-bit over the UTF-16 code units of the input. BigInt keeps the
-// multiply exact; the mask folds back to 64 bits each round.
-const FNV_OFFSET = 0xcbf29ce484222325n;
-const FNV_PRIME = 0x100000001b3n;
-const MASK_64 = 0xffffffffffffffffn;
-
-function fnv1a64(input: string): string {
-	let hash = FNV_OFFSET;
-	for (let i = 0; i < input.length; i++) {
-		hash ^= BigInt(input.charCodeAt(i));
-		hash = (hash * FNV_PRIME) & MASK_64;
-	}
-	return hash.toString(16).padStart(16, '0');
-}
-
 // Derives the weak ETag for a frame from its content inputs: the serialised
 // JSON view (observability fields like server_time are already excluded —
 // the envelope adds those, the layout's toJsonView does not) plus the layout
@@ -49,6 +34,21 @@ export function ifNoneMatchSatisfied(ifNoneMatch: string | null, etag: string): 
 	if (ifNoneMatch === null) return false;
 	const opaque = stripWeak(etag);
 	return ifNoneMatch.split(',').some((candidate) => stripWeak(candidate.trim()) === opaque);
+}
+
+// FNV-1a 64-bit over the UTF-16 code units of the input. BigInt keeps the
+// multiply exact; the mask folds back to 64 bits each round.
+const FNV_OFFSET = 0xcbf29ce484222325n;
+const FNV_PRIME = 0x100000001b3n;
+const MASK_64 = 0xffffffffffffffffn;
+
+function fnv1a64(input: string): string {
+	let hash = FNV_OFFSET;
+	for (let i = 0; i < input.length; i++) {
+		hash ^= BigInt(input.charCodeAt(i));
+		hash = (hash * FNV_PRIME) & MASK_64;
+	}
+	return hash.toString(16).padStart(16, '0');
 }
 
 function stripWeak(tag: string): string {

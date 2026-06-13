@@ -14,6 +14,17 @@ import { PROFILES } from '../config/data';
 import type { Radiator } from '../config/lookup';
 import { renderFrame } from './frame';
 
+// Frame handler for test- scenario slugs: renderFrame with the synthetic
+// resolver injected. Auth and response shaping are single-sourced in
+// renderFrame, identical to the production path.
+export function handleTestFrame(
+	request: Request,
+	env: Env,
+	now: Date,
+): Promise<Response> {
+	return renderFrame(request, env, now, resolveTestRadiator);
+}
+
 const TEST_PREFIX = 'test-';
 
 // Resolves a `test-<phaseKey>` slug to a synthetic radiator carrying just that
@@ -42,15 +53,4 @@ export function resolveTestRadiator(slug: string): Radiator | undefined {
 		}
 	}
 	return undefined;
-}
-
-// Frame handler for test- scenario slugs: renderFrame with the synthetic
-// resolver injected. Auth and response shaping are single-sourced in
-// renderFrame, identical to the production path.
-export function handleTestFrame(
-	request: Request,
-	env: Env,
-	now: Date,
-): Promise<Response> {
-	return renderFrame(request, env, now, resolveTestRadiator);
 }
