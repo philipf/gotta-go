@@ -107,7 +107,7 @@ midnight wrap, the empty-array degenerate). Not worth it; revisit only if the
 ## References
 
 - [ADR-0003](0003-radiator-worker-contract.md) — idle profile fall-through and the 4 h sleep cap this leans on
-- `schedule/resolve.ts` — the active-match filter; `minutesUntilNextPhaseStart` deliberately day-agnostic
+- `config/resolve.ts` — the active-match filter; `minutesUntilNextPhaseStart` deliberately day-agnostic
 - `shared/weekday.ts` — tz-correct weekday token, sibling of `shared/hhmm.ts`
 - `api/test-frame.ts` — the `days`-strip for scenario slugs
 - #92 (implementation), #87 (parent)

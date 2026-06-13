@@ -21,7 +21,7 @@ The existing aesthetic was deliberate and documented (the UI/UX references state
 
 ## Decision
 
-**Replace Press Start 2P with DejaVu Sans Bold as the single bundled typeface** across the whole render pipeline (`shared/satori.ts` and every `features/*/bmp.tsx`). The change is accompanied by three durable principles.
+**Replace Press Start 2P with DejaVu Sans Bold as the single bundled typeface** across the whole render pipeline (`shared/satori.ts` and every `features/*/view.tsx`). The change is accompanied by three durable principles.
 
 ### 1. The display typeface is DejaVu Sans Bold
 
@@ -43,9 +43,9 @@ Because DejaVu relies on AA that is hard-thresholded to 1-bit, small text can be
 
 These follow deterministically and are listed so the implementation is unambiguous:
 
-- All `FULL` / `SPLIT` sizing constants in `priority_split/bmp.tsx` (hero, labels, `trackW`, `labelMaxW`) and `minimal_clock/bmp.tsx` (`TIME_SIZE`, `DATE_SIZE`) are **re-tuned for the proportional metric**. The "Press Start 2P advances exactly 1em/glyph" reasoning is removed.
+- All `FULL` / `SPLIT` sizing constants in `priority_split/view.tsx` (hero, labels, `trackW`, `labelMaxW`) and `minimal_clock/view.tsx` (`TIME_SIZE`, `DATE_SIZE`) are **re-tuned for the proportional metric**. The "Press Start 2P advances exactly 1em/glyph" reasoning is removed.
 - The headsign keeps its single-line **ellipsis** behaviour; only `labelMaxW` is re-derived so common headsigns render in full and genuinely long ones still truncate (fixed header height preserved).
-- The service-name separator is padded to `' · '` (`service-name.ts`) — the tight middot existed only because the mono font made padding expensive.
+- The service-name separator is padded to `' · '` (in `priority_split/viewmodel.ts`) — the tight middot existed only because the mono font made padding expensive.
 
 ## Consequences
 

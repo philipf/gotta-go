@@ -4,7 +4,7 @@
 - **Date:** 2026-05-31
 - **Deciders:** Philip Fourie
 - **Language reference:** [`../glossary.md`](../glossary.md)
-- **Related:** [Metlink reference](../reference/metlink-stop-predictions.md) (rate limits + call volume), [ADR-0003](0003-radiator-worker-contract.md) (stale-served error model), [ADR-0005](0005-worker-source-architecture.md) (gateway `cache.ts` slot, "Caching: None" default), [#24](https://github.com/philipf/gotta-go/issues/24) (closed by this ADR), [#51](https://github.com/philipf/gotta-go/issues/51), [#56](https://github.com/philipf/gotta-go/issues/56). Evidence: the throwaway spike in `poc/kv-cache/`.
+- **Related:** [Metlink reference](../reference/metlink-stop-predictions.md) (rate limits + call volume), [ADR-0003](0003-radiator-worker-contract.md) (the stale-served error model this retired), [ADR-0005](0005-worker-source-architecture.md) (gateway `cache.ts` slot, "Caching: None" default), [#24](https://github.com/philipf/gotta-go/issues/24) (closed by this ADR), [#51](https://github.com/philipf/gotta-go/issues/51), [#56](https://github.com/philipf/gotta-go/issues/56). Evidence: the throwaway spike in `poc/kv-cache/`.
 
 ## Context
 
@@ -58,5 +58,5 @@ This decision is scoped to **single-household, self-hosted GottaGo on one PoP**.
 ## References
 
 - `poc/kv-cache/` — the spike: `hand-off-next-steps.md` (findings, 60 s-floor proof, options), `plan.md` (experiment matrix).
-- [Metlink reference](../reference/metlink-stop-predictions.md) §"Rate limits and call volume", [ADR-0003](0003-radiator-worker-contract.md) §stale-served error model, [ADR-0005](0005-worker-source-architecture.md) §Gateways / "Caching: None" default.
+- [Metlink reference](../reference/metlink-stop-predictions.md) §"Rate limits and call volume", [ADR-0003](0003-radiator-worker-contract.md) §"Error model" (the stale-served rule this retired, since rewritten), [ADR-0005](0005-worker-source-architecture.md) §Gateways / "Caching: None" default.
 - [#24](https://github.com/philipf/gotta-go/issues/24) (closed by this ADR), [#51](https://github.com/philipf/gotta-go/issues/51) (second-deploy scope), [#56](https://github.com/philipf/gotta-go/issues/56) (failure policy — inherits the stale-served gap).

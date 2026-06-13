@@ -44,35 +44,37 @@ Each project under `src/` owns its own toolchain. The Worker keeps `package.json
 
 ### Worker tier layout
 
-Each tier folder's public-API file is named after what it does (no `index.ts`); the only `index.ts` in the tree is the top-level Worker entry that `wrangler.jsonc` points at. The naming rule keeps editor tabs informative ("validate.ts", "frame-registry.ts") instead of a wall of identical "index.ts".
+Each tier folder's public-API file is named after what it does (no `index.ts`); the only `index.ts` in the tree is the top-level Worker entry that `wrangler.jsonc` points at. The naming rule keeps editor tabs informative ("lookup.ts", "frame-registry.ts") instead of a wall of identical "index.ts".
 
 ```
 src/worker/
 ├── index.ts                # fetch handler — delegates to api/router (wrangler main)
 │
-├── api/                    # HTTP edge: routing, negotiation, response shaping
+├── api/                    # HTTP edge: routing, negotiation, auth, response shaping
 │   ├── router.ts
-│   ├── <endpoint>.ts       # one orchestrator per route (e.g. frame.ts)
+│   ├── <endpoint>.ts       # one self-contained handler per route (e.g. frame.ts)
+│   ├── auth.ts             # shared-token (X-Radiator-Token) validation
 │   ├── format.ts           # Accept header → response format
 │   ├── response.ts         # response/header builders per ADR-0003
-│   └── errors.ts           # error response builders
+│   ├── etag.ts             # conditional-request (ETag / 304) handling per ADR-0013
+│   └── errors.ts, failure.ts  # problem+json error responses per ADR-0011
 │
 ├── features/               # vertical slices — one folder per layout, plus the registry
 │   ├── frame-registry.ts   # composition root: `framePreparers` + `LayoutKey`
 │   └── <layout_name>/      # folder == glossary canonical term
 │       └── …               # internal file roles per the Worker Architecture guide
 │
-├── auth/
-│   └── validate.ts         # domain helper: token validation
-├── config/
-│   ├── lookup.ts           # domain helper: slug → profile lookup
-│   ├── types.ts
+├── config/                 # domain logic: identity + scheduling
+│   ├── lookup.ts           # slug → fully-populated Radiator (the module's public surface)
+│   ├── resolve.ts          # (radiator, now) → active phase / layout / sleep duration
+│   ├── config-types.ts
 │   └── data.ts
-├── schedule/
-│   └── resolve.ts          # domain helper: profile + now → phase/layout/sleep
 │
 ├── gateways/               # one folder per external system — internal structure per the guide
-│   └── <system_name>/      # e.g. metlink/, public_holidays/
+│   └── <system_name>/      # e.g. metlink/, public_holidays/, icanhazdadjoke/
+│
+├── debug/                  # diagnostics-only helpers, gated off in production
+│   └── dev-time.ts         # X-Debug-Now clock override for phase resolution
 │
 ├── shared/                 # format-agnostic infrastructure (flat — one file per concern)
 │   ├── satori.ts           # JSX → SVG → RGBA
@@ -86,14 +88,15 @@ src/worker/
 
 | Tier        | Owns                                                                                  | Knows about         |
 |-------------|---------------------------------------------------------------------------------------|---------------------|
-| `api/`      | HTTP edge: routing, `Accept` negotiation, status codes, response headers from ADR-0003 | `Request`/`Response`, `Headers` |
+| `api/`      | HTTP edge: routing, `Accept` negotiation, shared-token auth, conditional (`ETag`) handling, status codes, response + `problem+json` headers (ADR-0003/0011/0013) | `Request`/`Response`, `Headers` |
 | `features/` | One vertical slice per **layout**: view-model construction + every renderer variant   | Domain types only — never `Request` |
-| `auth/`, `config/`, `schedule/` | **Domain helpers** — pure logic the orchestrator composes        | Domain types and primitives |
+| `config/`   | **Domain logic** — slug→profile lookup (`lookup.ts`) and profile-phase / layout / sleep resolution (`resolve.ts`) | Domain types and primitives |
 | `gateways/` | One folder per external system — internal structure per the [guide](../worker-architecture.md) | The wire format of that one system |
+| `debug/`    | Diagnostics-only helpers (the `X-Debug-Now` clock override), gated off in production   | `Request` + `Env` |
 | `shared/`   | Format-agnostic infrastructure usable by any feature                                  | Bytes, SVG, RGBA — no domain |
 | `assets/`   | Binary / non-TS files (fonts, wasm) + ambient module declarations                     | — |
 
-The split between `auth/`/`config/`/`schedule/` and `shared/` is deliberate: the former carry **domain** meaning (radiator identity, profile resolution, schedule semantics), the latter is pure infrastructure that would be equally at home in another product. Putting auth under `shared/` would hide its domain role.
+The split between `config/` (domain) and `shared/` (infrastructure) is deliberate: `config/` carries **domain** meaning — radiator identity, profile-phase resolution, sleep semantics — while `shared/` is pure infrastructure (bytes, SVG, gzip) that would be equally at home in another product. Token auth lives in `api/` rather than a domain tier because it is an edge concern — a property of the inbound request — and conditional-request (`ETag`) handling sits there for the same reason.
 
 ### Feature folders are the unit of growth
 
@@ -134,7 +137,7 @@ tests live next to the code they exercise, in the same folder.
 
 ### Positive
 
-- **Predictable place for new work.** Every new issue maps to a tier: new layout → `features/`, new upstream → `gateways/`, new route → `api/`, new domain rule → `auth|config|schedule|…/`.
+- **Predictable place for new work.** Every new issue maps to a tier: new layout → `features/`, new upstream → `gateways/`, new route → `api/`, new domain rule → `config/`.
 - **Glossary is enforced by structure.** Folder names == canonical terms; synonyms become syntactically impossible.
 - **Wire-format quirks are quarantined.** Gateway mappers are the only place upstream payload shapes appear; the rest of the code reads domain types.
 - **Tests scale with the code.** Co-located tests stay discoverable; integration-style tests through public interfaces survive refactors.

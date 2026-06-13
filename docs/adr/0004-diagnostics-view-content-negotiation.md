@@ -33,7 +33,7 @@ Auth, slug resolution, sleep-duration logic, error semantics, and observability 
 
 ### Why content negotiation, not a sibling endpoint
 
-- **Atomic per call.** The JSON envelope describes *this exact* render — the same view model that produced the BMP fingerprint we would also be inspecting. A sibling endpoint (`/v1/frame/debug` returning JSON, separate request) would let server time, the active profile phase, the Metlink cache, or any other server-side state flip between the two requests, so the JSON could describe a *different* render than the BMP did. That race only matters at phase boundaries and TTL boundaries, but those are exactly the moments tests care about.
+- **Atomic per call.** The JSON envelope describes *this exact* render — the same view model that produced the BMP fingerprint we would also be inspecting. A sibling endpoint (`/v1/frame/debug` returning JSON, separate request) would let server time, the active profile phase, the live Metlink response, or any other server-side state flip between the two requests, so the JSON could describe a *different* render than the BMP did. That race only matters at phase boundaries and around upstream changes, but those are exactly the moments tests care about.
 - **Standards-compliant.** HTTP already specifies this mechanism. No bespoke header or magic query param to document.
 - **Single URL, single doc, single auth path.** The OpenAPI extension is local to one operation. No new endpoint to wire up, no new code path through the Worker's auth shell.
 - **Radiator path is unchanged.** Firmware sends `Accept: image/bmp` (or omits `Accept` entirely) and is oblivious to the diagnostic surface — the "Dumb Radiator, Smart Edge" invariant from PRD §8 is preserved verbatim.
@@ -75,7 +75,7 @@ The diagnostic surface is gated by the same `X-Radiator-Token` already required 
 - **Tests can assert semantically.** "At time T, slug X, the active phase is `morning_commute` and `columns[0].catchable_service.leave_in_mins == 7`" — meaningful failure messages, root-cause-friendly.
 - **Visual debugging without firmware.** Open the SVG in a browser; no LilyGO panel, no flashing.
 - **Future-proof for different panel sizes.** The upstream pipeline stays single-source.
-- **No new auth surface.** Same `X-Radiator-Token`, same KV cache, same observability headers.
+- **No new auth surface.** Same `X-Radiator-Token`, same request path, same observability headers.
 - **Standards-compliant.** Anyone familiar with HTTP can predict the behaviour without reading our docs.
 
 ### Negative / follow-ups
