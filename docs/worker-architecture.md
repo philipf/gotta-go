@@ -43,7 +43,7 @@ unit of growth — a new layout is a new folder, and nothing else has to move.
 
 - **Features never import each other.** They are composed at a composition
   root, never by reaching into one another. Today that root is the frame
-  registry (`features/registry.ts`), which dispatches the `GET /v1/frame`
+  registry (`features/frame-registry.ts`), which dispatches the `GET /v1/frame`
   request to the right feature; a future endpoint would bring its own.
 - **Speculative sharing is the number-one cause of drift.** A helper used by one
   feature lives _in that feature_. It moves to `shared/` only when a _second_
@@ -320,7 +320,7 @@ deletion residue.
 ### Deleting a feature
 
 Delete the folder, plus a small, _named_ residue: its binder entry in
-`features/registry.ts`, its line in the `ProblemSlug` union, and its entries in
+`features/frame-registry.ts`, its line in the `ProblemSlug` union, and its entries in
 the docs. Anything else left behind is a structure bug.
 
 ### Why this shape
@@ -373,7 +373,7 @@ The reasoning is the load-bearing part — judge edge cases against the reason, 
 the rule.
 
 - **Module-named public file, never `index.ts` barrels.** `fetch-arrivals.ts`,
-  `lookup.ts`, `registry.ts`. The only `index.ts` in the tree is
+  `lookup.ts`, `frame-registry.ts`. The only `index.ts` in the tree is
   the Worker entry. _Why:_ editor tabs stay informative, and barrels risk
   pulling wasm module-evaluation into every caller's eager-load graph
   (`shared/satori.ts` has hand-tuned lazy init precisely because that cost is
@@ -399,7 +399,7 @@ the rule.
   `resolveProfilePhase(radiator, now)` carry different mental models.
 
 - **Type-only cross-tier imports are allowed when they prevent invalid states.**
-  `config/config-types.ts` type-imports `LayoutKey` from `features/registry.ts`,
+  `config/config-types.ts` type-imports `LayoutKey` from `features/frame-registry.ts`,
   so config can never name a layout that isn't implemented. The dependency is
   type-only and one-directional.
 
@@ -420,7 +420,7 @@ only _after_ a trigger has actually fired.
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | A 2nd feature needs a helper that currently lives inside one feature folder         | Lift it to `shared/` as part of that 2nd feature's change                                                                          | Speculative sharing is the #1 cause of horizontal drift                     |
 | `api/router.ts`'s `if`-ladder reaches 3+ endpoints                                  | Replace with a `{ method, path, handler }` table, or adopt Hono                                                                    | Make the convention self-enforcing instead of relying on reviewer vigilance |
-| `features/registry.ts` becomes a merge-conflict hotspot                             | Replace central registration with discovery (each feature exports a descriptor)                                                    | Centralisation cost rises super-linearly with feature count                 |
+| `features/frame-registry.ts` becomes a merge-conflict hotspot                       | Replace central registration with discovery (each feature exports a descriptor)                                                    | Centralisation cost rises super-linearly with feature count                 |
 | A module's public file approaches ~80 lines, or its imports balloon                 | Split the **internals**, not the public surface                                                                                    | Depth beats breadth                                                         |
 | A wire-format field name appears outside `gateways/<system>/`                       | Stop — the bulkhead is leaking; push it back into `mapper.ts`                                                                      | Mappers are the only file that knows the wire                               |
 | A test needs a fixed clock                                                          | Promote `gateways/clock/` _then_, not before                                                                                       | Defaults stay light until they hurt                                         |
@@ -449,7 +449,7 @@ only _after_ a trigger has actually fired.
 When you need these, go to the source — not this doc — so it can't go stale:
 
 - **The current directory tree** → `ls src/worker/`.
-- **The current feature list** → `src/worker/features/registry.ts` (`LayoutKey`
+- **The current feature list** → `src/worker/features/frame-registry.ts` (`LayoutKey`
   is derived from it).
 - **The current endpoint list** → `src/worker/api/router.ts`.
 - **Where each tier lives and what it owns** →

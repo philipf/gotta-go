@@ -5,7 +5,7 @@
 // place each status/header combination is spelled out (ADR-0003), plus the
 // 304 Not Modified shaper for conditional frame requests (ADR-0013).
 
-import type { RenderResult } from '../features/registry';
+import type { RenderResult } from '../features/frame-registry';
 import { gzip } from '../shared/gzip';
 import { buildFrameEnvelope } from './envelope';
 import type { ResponseFormat } from './format';

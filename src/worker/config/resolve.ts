@@ -9,7 +9,7 @@
 
 import type { Radiator } from './lookup';
 import type { ProfilePhase } from './config-types';
-import type { LayoutKey } from '../features/registry';
+import type { LayoutKey } from '../features/frame-registry';
 import { GLOBAL, SYSTEM_IDLE_DEFAULT } from './data';
 import { hhmm } from '../shared/hhmm';
 import { weekday } from '../shared/weekday';

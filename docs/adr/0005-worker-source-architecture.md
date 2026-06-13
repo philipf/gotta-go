@@ -44,7 +44,7 @@ Each project under `src/` owns its own toolchain. The Worker keeps `package.json
 
 ### Worker tier layout
 
-Each tier folder's public-API file is named after what it does (no `index.ts`); the only `index.ts` in the tree is the top-level Worker entry that `wrangler.jsonc` points at. The naming rule keeps editor tabs informative ("validate.ts", "registry.ts") instead of a wall of identical "index.ts".
+Each tier folder's public-API file is named after what it does (no `index.ts`); the only `index.ts` in the tree is the top-level Worker entry that `wrangler.jsonc` points at. The naming rule keeps editor tabs informative ("validate.ts", "frame-registry.ts") instead of a wall of identical "index.ts".
 
 ```
 src/worker/
@@ -58,7 +58,7 @@ src/worker/
 │   └── errors.ts           # error response builders
 │
 ├── features/               # vertical slices — one folder per layout, plus the registry
-│   ├── registry.ts         # composition root: `framePreparers` + `LayoutKey`
+│   ├── frame-registry.ts   # composition root: `framePreparers` + `LayoutKey`
 │   └── <layout_name>/      # folder == glossary canonical term
 │       └── …               # internal file roles per the Worker Architecture guide
 │
@@ -100,7 +100,7 @@ The split between `auth/`/`config/`/`schedule/` and `shared/` is deliberate: the
 - **One folder per layout.** Adding a layout is adding a folder; no other directory needs to change.
 - **Folder name = glossary canonical term.** `minimal_clock`, `priority_split`, `idle_jokes` — never synonyms. The folder name is the same string the config key uses and the same string the schedule resolver returns as the layout key. One name, one place.
 - **Each folder exposes one public capability**, and its internal file roles (contract / impl / view-model / view / tests, plus earned files) are defined in the [Worker Architecture guide](../worker-architecture.md).
-- **Layouts are discovered via the registry.** `features/registry.ts` is the composition root: it declares `framePreparers` and derives `LayoutKey` as the source of truth. `config/config-types.ts` type-only imports `LayoutKey` from there, so adding a layout means registering it once; the type follows automatically.
+- **Layouts are discovered via the registry.** `features/frame-registry.ts` is the composition root: it declares `framePreparers` and derives `LayoutKey` as the source of truth. `config/config-types.ts` type-only imports `LayoutKey` from there, so adding a layout means registering it once; the type follows automatically.
 - **Tests live next to the code they describe** (`<layout>.test.ts` in the same folder). The PoC's separate `test/` tree is not carried over.
 
 ### Gateways — one folder per external system
@@ -150,7 +150,7 @@ tests live next to the code they exercise, in the same folder.
 
 When an implementation issue lands a new piece of Worker code, the following should hold:
 
-1. Each layout occupies exactly one folder under `features/`, named with its glossary canonical term, and is registered in `features/registry.ts`. `LayoutKey` is derived from the registry and is the only `LayoutKey` in the codebase.
+1. Each layout occupies exactly one folder under `features/`, named with its glossary canonical term, and is registered in `features/frame-registry.ts`. `LayoutKey` is derived from the registry and is the only `LayoutKey` in the codebase.
 2. No file outside `gateways/<system>/` references that upstream's wire-format field names. Inside the gateway folder, only `mapper.ts` performs the wire→domain transformation; file roles and naming per the [Worker Architecture guide](../worker-architecture.md).
 3. No file outside the top-level `index.ts` constructs `new Date()` or reads from Cloudflare bindings directly; downstream code receives everything as arguments.
 4. Tests live next to the code they exercise; the only directories matching `**/test/**` are inside gateway `fixtures.ts` neighbourhoods.
