@@ -202,7 +202,7 @@ describe('dual_month_calendar.prepareDualMonthCalendarFrame', () => {
 		expect(view.months[1].holidays).toEqual([]);
 	});
 
-	it('defers rendering — render() with both artefact flags false yields neither artefact', async () => {
+	it('defers rendering - render() with both artefact flags false yields neither artefact', async () => {
 		const prepared = await prepareDualMonthCalendarFrame(requestWith(succeedingSource(new Set())));
 
 		expect(prepared.version).toBe(LAYOUT_VERSION);

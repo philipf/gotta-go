@@ -396,7 +396,7 @@ describe('priority_split.column - Marker', () => {
 // tested in frame.test.ts, turns it into problem+json) rather than degrading
 // silently to dashes. The HTTP → error-kind classification is the gateway's own
 // concern (fetch-arrivals.test.ts); here the stubs are domain-typed.
-describe('priority_split.preparePrioritySplitFrame - gateway failure → throws problem type (#59)', () => {
+describe('priority_split.preparePrioritySplitFrame - gateway failure -> throws problem type (#59)', () => {
 	const failingSource =
 		(error: MetlinkGatewayError): ArrivalsSource =>
 		async () => ({ ok: false, error });

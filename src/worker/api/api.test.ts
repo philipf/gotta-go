@@ -9,7 +9,7 @@ import { frameBmpResponse, frameSvgResponse } from './response';
 
 const TYPE_BASE = 'https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md';
 
-describe('api.errors.problemResponse — unauthorized', () => {
+describe('api.errors.problemResponse - unauthorized', () => {
 	it('shapes a 401 problem+json with type #unauthorized and X-Sleep-Seconds 3600', async () => {
 		const res = problemResponse(unauthorizedError());
 
@@ -26,7 +26,7 @@ describe('api.errors.problemResponse — unauthorized', () => {
 	});
 });
 
-describe('api.errors.problemResponse — unknown-radiator', () => {
+describe('api.errors.problemResponse - unknown-radiator', () => {
 	it('shapes a 404 problem+json naming the slug, X-Sleep-Seconds 3600', async () => {
 		const res = problemResponse(unknownRadiatorError('bedroom-attic'));
 
@@ -39,7 +39,7 @@ describe('api.errors.problemResponse — unknown-radiator', () => {
 	});
 });
 
-describe('api.errors.problemResponse — instance + upstream_detail', () => {
+describe('api.errors.problemResponse - instance + upstream_detail', () => {
 	it('adds an instance URN from the request id and an upstream_detail snippet', async () => {
 		const res = problemResponse(metlinkAuth(403, '{"error":"denied"}'), {
 			requestId: 'abc',

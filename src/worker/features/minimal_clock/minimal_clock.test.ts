@@ -28,7 +28,7 @@ describe('minimal_clock.prepareMinimalClockFrame', () => {
 		expect(view.date).toMatch(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/);
 	});
 
-	it('defers rendering — render() with both artefact flags false yields neither artefact', async () => {
+	it('defers rendering - render() with both artefact flags false yields neither artefact', async () => {
 		const prepared = await prepareMinimalClockFrame(requestAt('2026-05-23T06:48:00Z'));
 
 		expect(prepared.version).toBe(LAYOUT_VERSION);

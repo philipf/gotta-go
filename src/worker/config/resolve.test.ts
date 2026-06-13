@@ -98,7 +98,7 @@ describe('config.resolveProfilePhase', () => {
 		expect(afternoon.layout).toBe('minimal_clock');
 	});
 
-	it('treats the window as half-open — end_time belongs to the next phase', () => {
+	it('treats the window as half-open - end_time belongs to the next phase', () => {
 		// 08:30 NZST is the boundary: excluded from morning, included in afternoon
 		const boundary = resolveProfilePhase(
 			multiPhaseRadiator,
@@ -231,7 +231,7 @@ describe('config.resolveProfilePhase', () => {
 	// 19:30–24:00 — so the idle profile must never engage there, including
 	// across the 24:00 end time (a first in the config: toMinutes("24:00") =
 	// 1440 sits just above the 23:59 wall-clock maximum). June = NZST (UTC+12).
-	it('never resolves idle for office-f5 — full-day coverage incl. the 24:00 end (#86)', () => {
+	it('never resolves idle for office-f5 - full-day coverage incl. the 24:00 end (#86)', () => {
 		const radiator = lookupRadiator('office-f5')!;
 
 		// 09:00 NZST → morning_calendar at the 4h cap.

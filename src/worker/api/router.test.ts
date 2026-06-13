@@ -83,7 +83,7 @@ describe('api.router', () => {
 // workers-pool sandbox per ADR-0005) never runs; the byte-identity of
 // frame_bmp_base64 is verified via `pnpm dev` + curl and unit-tested in
 // api/envelope.test.ts.
-describe('api.router — JSON view-model variant', () => {
+describe('api.router - JSON view-model variant', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
