@@ -107,56 +107,6 @@ export class FatalError extends AppError {
 // per-occurrence prose and any upstream snippet.
 // -----------------------------------------------------------------------
 
-// Metlink 401/403 — a bad/expired METLINK_API_KEY. Ours (500), Fatal, error.
-export function metlinkAuth(upstreamStatus: number, upstreamDetail?: string): FatalError {
-	return new FatalError({
-		slug: 'metlink-auth',
-		title: 'Transit data unavailable',
-		status: 500,
-		detail: `Metlink rejected the configured API key (HTTP ${upstreamStatus}). Check METLINK_API_KEY.`,
-		upstreamDetail,
-	});
-}
-
-// Metlink 4xx other than 429 — a bad stop/service id in config. Ours (500),
-// Fatal, error.
-export function metlinkBadRequest(
-	upstreamStatus: number,
-	stopId: string,
-	upstreamDetail?: string,
-): FatalError {
-	return new FatalError({
-		slug: 'metlink-bad-request',
-		title: 'Transit target misconfigured',
-		status: 500,
-		detail: `Metlink returned HTTP ${upstreamStatus} for stop ${stopId} — check the transit target stop id in config.yaml.`,
-		upstreamDetail,
-	});
-}
-
-// Metlink 5xx / network failure / timeout / unusable body. Upstream's (502),
-// Retryable, warn. `detail` describes the specific cause.
-export function metlinkUnavailable(detail: string, upstreamDetail?: string): RetryableError {
-	return new RetryableError({
-		slug: 'metlink-unavailable',
-		title: 'Transit data unavailable',
-		status: 502,
-		detail,
-		upstreamDetail,
-	});
-}
-
-// Metlink 429 — we exceeded its rate limit. Upstream's (502), Retryable, warn.
-export function metlinkRateLimited(upstreamDetail?: string): RetryableError {
-	return new RetryableError({
-		slug: 'metlink-rate-limited',
-		title: 'Transit data unavailable',
-		status: 502,
-		detail: 'Metlink returned HTTP 429 (rate limited). The radiator will retry on its next wake cycle.',
-		upstreamDetail,
-	});
-}
-
 // Any unhandled thrown error. Retryable (most throws are transient) but logged
 // at `error` because an unexpected throw warrants a human's eyes (ADR-0011).
 export function internalError(): RetryableError {

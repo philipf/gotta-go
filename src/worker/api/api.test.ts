@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { notFound, problemResponse } from './errors';
-import {
-	internalError,
-	metlinkAuth,
-	metlinkUnavailable,
-	unauthorizedError,
-	unknownRadiatorError,
-} from '../shared/errors';
+import { internalError, unauthorizedError, unknownRadiatorError } from '../shared/errors';
+// Metlink problem factories moved to the priority_split feature (ADR-0017 §4);
+// used here only as representative Fatal/Retryable AppError fixtures for the
+// problemResponse shaping tests.
+import { metlinkAuth, metlinkUnavailable } from '../features/priority_split/errors';
 import { frameOk, frameSvg } from './response';
 
 const TYPE_BASE = 'https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md';

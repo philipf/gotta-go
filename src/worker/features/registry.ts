@@ -13,8 +13,9 @@ import type { ProfilePhase } from '../config/types';
 import type { ResponseFormat } from '../api/format';
 import { prepareJokeFrame } from './idle_jokes/prepare-joke-frame';
 import { fetchJoke } from '../gateways/icanhazdadjoke/fetch-joke';
+import { preparePrioritySplitFrame } from './priority_split/prepare-priority-split-frame';
+import { fetchArrivals } from '../gateways/metlink/fetch-arrivals';
 import { layout as minimalClockLayout } from './minimal_clock/service';
-import { layout as prioritySplitLayout } from './priority_split/service';
 import { layout as dualMonthCalendarLayout } from './dual_month_calendar/service';
 
 // The per-request dependency bundle every binder receives. It is the union of
@@ -91,7 +92,24 @@ export type Layout<VM = unknown, Ctx = FrameDeps> = {
 
 export const layouts = {
 	minimal_clock: fromLayout(minimalClockLayout),
-	priority_split: fromLayout(prioritySplitLayout),
+	priority_split: (deps) =>
+		preparePrioritySplitFrame({
+			targets: deps.phase.transitTargets ?? [],
+			fetchArrivals: (target) =>
+				fetchArrivals({
+					fetch: deps.fetchFn,
+					apiKey: deps.env.METLINK_API_KEY,
+					stopId: target.stopId,
+					serviceId: target.serviceId,
+					destinationStopId: target.destinationStopId,
+					destinationNameIncludes: target.destinationNameIncludes,
+					limit: deps.stopPredictionLimit,
+				}),
+			timezone: deps.timezone,
+			now: deps.now,
+			includeBmp: deps.format === 'bmp' || deps.includeBmp,
+			includeSvg: deps.format === 'svg',
+		}),
 	idle_jokes: (deps) =>
 		prepareJokeFrame({
 			fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
