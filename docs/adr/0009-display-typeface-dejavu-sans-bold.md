@@ -65,4 +65,4 @@ These follow deterministically and are listed so the implementation is unambiguo
 
 - [ADR-0005](0005-worker-source-architecture.md) — asset bundling, cold-start budget, vitest sandbox limit on the Satori path.
 - [#43](https://github.com/philipf/gotta-go/issues/43) — the implementing issue; [#40](https://github.com/philipf/gotta-go/issues/40) / [#42](https://github.com/philipf/gotta-go/issues/42) — the fit defects that motivated it.
-- [`../glossary.md`](../glossary.md), `../UI/*` references, `../PRD/GottaGo PRD v0.4.md` — updated to point here for the typeface decision.
+- [`../glossary.md`](../glossary.md), `../UI/*` references, `../PRD/GottaGo PRD.md` — updated to point here for the typeface decision.

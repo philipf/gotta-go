@@ -2,7 +2,7 @@
 
 **Read first:** [`plan.md`](./plan.md) — five-iteration plan with deviation notes embedded against each checkbox.
 **Context:** [`../to-bmp/hand-off-next-steps.md`](../to-bmp/hand-off-next-steps.md) — predecessor PoC; sets the BMP encoder, font, and resvg-wasm decisions this PoC inherited.
-PRD: [`../../docs/PRD/GottaGo PRD v0.4.md`](../../docs/PRD/GottaGo%20PRD%20v0.4.md). Glossary: [`../../docs/glossary.md`](../../docs/glossary.md).
+PRD: [`../../docs/PRD/GottaGo PRD.md`](../../docs/PRD/GottaGo%20PRD.md). Glossary: [`../../docs/glossary.md`](../../docs/glossary.md).
 
 ## What this PoC proved
 

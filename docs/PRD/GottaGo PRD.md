@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD): GottaGo
-**Version:** 0.4  
-**Previous version:** [v0.3](Metlink%20PRD%20v0.3.md)  
+**Version:** 0.4
 **Language reference:** [glossary.md](../glossary.md) — every term in this document is defined there.
 
+> This is the living PRD.
 ---
 
 ## Changelog from v0.3
@@ -20,6 +20,16 @@
   - `DEVICE_SHARED_TOKEN` → `RADIATOR_SHARED_TOKEN`
 - Dropped `show_progress_bar` and `urgency_filter` config flags (both redundant with the chosen layout).
 - Renamed `state` (e.g. `morning_commute`) to **profile phase** throughout to remove overload with "transport mode" and state-machine connotations.
+
+### Reconciliation pass (2026-06-13, in-place)
+
+The document had drifted from the shipped Worker as small changes landed. This pass re-grounds it against the code without minting a new version:
+
+- **§9** now points at `src/worker/config/data.ts` as the canonical config (TypeScript, not `config.yaml`) and shows a trimmed excerpt rather than a full, stale mirror. `wrangler.toml` corrected to `wrangler.jsonc`.
+- **§5.5** documents the shipped **`dual_month_calendar`** layout (GH #76), which had replaced the `workday_focus` desk clock with no spec; **§6** gains EARS rules for it and for the `idle_jokes` fall-through.
+- Cleared stale claims: the Press Start 2P spike text (typeface is **DejaVu Sans Bold**, ADR-0009), the "error model under design" note (settled in ADR-0011), and the dead `workday_focus` battery item.
+- Added the ETag/`304` unchanged-frame skip (ADR-0013) and the diagnostics view (ADR-0004) to the §8 contract surface; repaired broken UI/ADR links.
+- Removed the former "Deployment checklist" section — deploy/ops procedure is not PRD scope; it lives with the code and the issue tracker.
 
 ---
 
@@ -53,6 +63,8 @@ When users are fatigued, rushing, or managing varying household schedules, they 
 **Panel specification:** Native resolution 960×540 px, landscape. Every rendered **frame** matches this exact resolution for native 1-bit EPD buffer flushing.
 
 ## 5. Screen layout specification
+
+This section specifies layout *structure* and *states*. Typeface, element sizing, weight-band guidance, and rendered screen scenarios live in the [GottaGo — UI/UX Reference](../UI/GottaGo%20-%20UI_UX%20Design%20Reference.md).
 
 ### 5.1 `priority_split` layout
 
@@ -104,18 +116,7 @@ position_ratio  = 1 − clamp(leave_margin / window, 0, 1)   # 0 = hard left, 1 
 
 The window length is constant within a profile phase, so the marker's apparent speed is constant — the user learns the rate.
 
-### 5.4 Typography
-
-All text renders in **DejaVu Sans Bold** (bundled as a static Worker asset); the **mode icons** are custom 8-bit pixel art — a deliberate mix, see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md). Recommended sizes (re-tuned for the proportional metric; small tiers honour a minimum-legible-1-bit floor):
-- Tier 1 hero (Leave In value): ~120 px
-- Mode icon / route code: ~24 px
-- Tier 2 (BY + ARRIVES + arrival time): ~16 px
-- Tier 3 (NEXT): ~14 px
-- Global header (wall-clock): ~20 px
-
-See [GottaGo — UI/UX Reference](../UI/GottaGo%20%E2%80%94%20UI_UX%20Design%20Reference.md) for screen scenarios and weight-band guidance.
-
-### 5.5 `idle_jokes` layout
+### 5.4 `idle_jokes` layout
 
 The **idle profile**'s ambient content, shown overnight when no **profile phase** is active. Not utility — amusement: a glance is rewarded with a joke rather than woken with bright information.
 
@@ -125,6 +126,16 @@ The **idle profile**'s ambient content, shown overnight when no **profile phase*
 - **Rotation** — a fresh joke is fetched each **wake cycle**; overnight wakes are rare, so the joke is effectively static for hours.
 - **Failure mode** — if the joke source is unreachable or returns nothing usable, the Worker returns `502` and the radiator shows the standard error screen (no bundled fallback), consistent with [ADR-0011](../adr/0011-error-contract-problem-details.md).
 
+### 5.5 `dual_month_calendar` layout
+
+A two-month wall calendar shown during the long daytime windows between commutes — it replaced the original `minimal_clock` desk clock for those phases (GH #76). Like `minimal_clock`, it makes **no Metlink API call**.
+
+- **Two month grids**, side by side — the current month and the next month, each Monday-start with blank leading/trailing cells.
+- **Today** is highlighted on whichever grid contains it; the other grid carries no highlight.
+- **Weekends and public holidays** are shaded. NZ public holidays come from the Nager.Date API (GH #84); see [`docs/api/nager.date.at-public-holidays.yaml`](../api/nager.date.at-public-holidays.yaml).
+- **Header** — a single caption line above the grids.
+- **Refresh** — the calendar barely changes within a day, so these phases run a long refresh interval (3–4 h). The **sleep duration** is truncated at the next phase boundary so the calendar never delays the following commute, and the ETag/`304` **unchanged-frame skip** (§8, [ADR-0013](../adr/0013-conditional-frame-requests.md)) keeps each wake flash-free.
+
 ---
 
 ## 6. Functional requirements (EARS format)
@@ -132,6 +143,8 @@ The **idle profile**'s ambient content, shown overnight when no **profile phase*
 * **While** the active **profile phase** has two **transit targets**, the Worker **shall** render the `priority_split` layout split evenly into two columns (one per transit target).
 * **While** the active profile phase has one transit target, the Worker **shall** render the `priority_split` layout with a single full-width column.
 * **While** the active profile phase selects `minimal_clock`, the Worker **shall** render the `minimal_clock` layout and **shall not** issue any Metlink API requests.
+* **While** the active profile phase selects `dual_month_calendar`, the Worker **shall** render the two-month calendar layout and **shall not** issue any Metlink API requests.
+* **When** server time falls outside every configured profile phase, the Worker **shall** fall through to the **idle profile**, render the `idle_jokes` layout, and return `200`.
 * **When** **Leave In** for a transit target reaches zero, the Worker **shall** render the literal `NOW` as the Tier 1 hero value under the unchanged `LEAVE IN` label. The column **shall not** be inverted and no separate `LEAVE NOW` banner **shall** be rendered.
 * **When** the **catchable service** becomes a **missed service**, the Worker **shall** promote the **next service** into the catchable slot. If no next service is available, the next-service slot **shall** render `—`.
 * **When** the Metlink feed reports a cancellation for a transit target's catchable service, the Worker **shall** render the cancelled service's scheduled time with strike-through directly above the **replacement service** in the same column.
@@ -144,7 +157,7 @@ The **idle profile**'s ambient content, shown overnight when no **profile phase*
 ## 7. Non-functional requirements (EARS format)
 
 ### Performance & data fetching
-* **When** a radiator requests a frame for a `priority_split` layout, the Worker **shall** issue a request to the Metlink GTFS-Realtime API and render the returned predictions into the frame. There is **no caching layer** — see [ADR-0010](../adr/0010-no-metlink-cache-layer.md); Metlink runs uncached, which is well within its rate-limit headroom at household scale (see the [Metlink reference](../reference/metlink-stop-predictions.md)).
+* **When** a radiator requests a frame for a `priority_split` layout, the Worker **shall** issue a request to the Metlink **Stop Predictions** endpoint (`GET /stop-predictions?stop_id=<id>`) and render the returned predictions into the frame. There is **no caching layer** — see [ADR-0010](../adr/0010-no-metlink-cache-layer.md); Metlink runs uncached, which is well within its rate-limit headroom at household scale (see the [Metlink reference](../reference/metlink-stop-predictions.md)).
 * **When** the active layout is `minimal_clock`, the Worker **shall** bypass the Metlink API entirely and return a clock frame immediately.
 * **When** the rendering pipeline executes, the Worker **shall** render layout elements using **Satori** (for DejaVu Sans Bold font rendering and CSS-based layout) and encode the final output as a flattened 1-bit monochrome BMP byte array at 960×540 via manual BMP byte construction, optimised for direct native flushing by the LilyGO T5 panel.
 
@@ -156,8 +169,8 @@ The **idle profile**'s ambient content, shown overnight when no **profile phase*
 * **When** a radiator cannot reach the Worker (Wi-Fi failure, network error, or unexpected response), the radiator **shall** take no action — the panel retains its last valid frame indefinitely without power. The radiator **shall** silently retry on the next scheduled wake cycle.
 
 ### Pre-implementation spikes required
-* ~~The specific Metlink GTFS-Realtime API endpoints, response shapes, and field mappings for bus stop predictions (`stop_id`) and train station departures (`station_id`) must be validated against the live API before Worker implementation begins.~~ **Complete** — see [`docs/reference/metlink-stop-predictions.md`](../reference/metlink-stop-predictions.md). Key finding: the API uses `stop_id` for both bus and train; a `service_id` filter must be applied client-side in the Worker.
-* The TypeScript BMP rendering pipeline must be validated end-to-end in a Cloudflare Workers environment before full Worker implementation begins. The spike must confirm: Satori rendering with the Press Start 2P TTF asset produces pixel-accurate output at the required sizes; the manual 1-bit BMP encoder correctly encodes the rasterised pixel data; and the resulting BMP byte stream is faithfully flushed by the LilyGO T5 EPD panel without artefacts.
+* ~~The specific Metlink Stop Predictions endpoint, response shapes, and field mappings for bus and train must be validated against the live API before Worker implementation begins.~~ **Complete** — see [`docs/reference/metlink-stop-predictions.md`](../reference/metlink-stop-predictions.md). Key findings: GottaGo uses the REST `GET /stop-predictions` endpoint (**not** GTFS-Realtime); a single `stop_id` serves both bus and train; and a `service_id` filter must be applied client-side in the Worker.
+* ~~The TypeScript BMP rendering pipeline must be validated end-to-end in a Cloudflare Workers environment before full Worker implementation begins: Satori rendering with the bundled DejaVu Sans Bold TTF asset produces pixel-accurate output at the required sizes; the manual 1-bit BMP encoder correctly encodes the rasterised pixel data; and the resulting BMP byte stream is faithfully flushed by the LilyGO T5 EPD panel without artefacts.~~ **Complete** — validated end-to-end and shipped. Typeface is **DejaVu Sans Bold** per [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md) (replaced the earlier Press Start 2P pixel font).
 
 ## 8. High-level architecture & solution design
 
@@ -168,7 +181,7 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 * **Caching layer:** None — the Metlink API is called uncached per frame (see [ADR-0010](../adr/0010-no-metlink-cache-layer.md)).
 * **Graphics engine:** **Satori** for CSS-driven layout and DejaVu Sans Bold font rendering (TTF bundled as a static Worker asset; see [ADR-0009](../adr/0009-display-typeface-dejavu-sans-bold.md)), producing an intermediate SVG. The SVG pixel data is encoded into a 1-bit monochrome BMP byte array via manual BMP byte construction — zero native dependencies, sub-millisecond encode time.
 * **Firmware:** C++/Arduino ESP-IDF framework running on the LilyGO T5 (handles Wi-Fi connection, HTTP fetching, deep sleep management, and raw E-paper EPD buffer flushing).
-* **External data:** Metlink Wellington Open Data API (GTFS-Realtime predictions). API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/reference/metlink-stop-predictions.md`](../reference/metlink-stop-predictions.md).
+* **External data:** Metlink Wellington Open Data API — the REST **Stop Predictions** endpoint (`GET /stop-predictions?stop_id=<id>`), polled once per **wake cycle**; not the GTFS-Realtime feed. API specification: [`docs/metlink-api-swagger.json`](../../docs/metlink-api-swagger.json). Field mapping and rate-limit analysis: [`docs/reference/metlink-stop-predictions.md`](../reference/metlink-stop-predictions.md).
 
 ### Request / response contract
 
@@ -176,7 +189,11 @@ The authoritative wire contract — paths, headers, status codes, response shape
 
 **Endpoint shape.** A single call: `GET /v1/frame`. The radiator identifies itself via `X-Radiator-Slug` and authenticates with the shared `X-Radiator-Token`; the Worker returns a gzipped 1-bit 960×540 BMP **frame** and the next **sleep duration** in `X-Sleep-Seconds`. All future radiator-side telemetry (battery, firmware version, Wi-Fi RSSI) reserves the `X-Radiator-*` header prefix, so firmware can add it later without a Worker change or a contract version bump.
 
-**Error model.** The Worker never errors on "no active profile phase" — server time outside every configured window falls through to the **idle profile** and returns `200`. Because there is **no caching layer** ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)), a Metlink outage has no stale data to fall back on; the Worker's outage response (error/idle frame vs `502`) is under design in [GH #56](https://github.com/philipf/gotta-go/issues/56). The radiator's response to every status code is the same shape: flush the frame if `200`, ignore the body otherwise, and sleep for `X-Sleep-Seconds` (or the firmware's 300-s fallback when no response arrived).
+**Conditional requests.** The Worker returns an `ETag` over the rendered frame; on the next wake a radiator may send `If-None-Match` and receive `304 Not Modified` with no body when the frame is unchanged, skipping both the BMP transfer and the panel flash ([ADR-0013](../adr/0013-conditional-frame-requests.md)). `X-Sleep-Seconds` still drives the next sleep on a `304`.
+
+**Diagnostics.** The same `GET /v1/frame` path serves a JSON diagnostics view (the resolved profile phase and the layout's view model) when the request `Accept`s `application/json` rather than an image ([ADR-0004](../adr/0004-diagnostics-view-content-negotiation.md)).
+
+**Error model.** The Worker never errors on "no active profile phase" — server time outside every configured window falls through to the **idle profile** and returns `200`. Because there is **no caching layer** ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)), a Metlink outage has no stale data to fall back on; the Worker returns an RFC 9457 `problem+json` error (typically `502`) and the radiator shows its standard error screen, per [ADR-0011](../adr/0011-error-contract-problem-details.md). The radiator's response to every status code is the same shape: flush the frame if `200`, ignore the body otherwise, and sleep for `X-Sleep-Seconds` (or the firmware's 300-s fallback when no response arrived).
 
 ### Profile-phase resolution flow (Worker)
 1. Validate `X-Radiator-Token`.
@@ -189,124 +206,54 @@ The authoritative wire contract — paths, headers, status codes, response shape
 
 ## 9. Relevant configuration files
 
-### Master configuration (`config.yaml`)
+### Master configuration (`src/worker/config/data.ts`)
 
-```yaml
-# Global platform configurations
-global:
-  timezone: "Pacific/Auckland"
-  default_refresh_interval_minutes: 3
+The radiator registry and profiles are **TypeScript**, not YAML — the canonical config is [`src/worker/config/data.ts`](../../src/worker/config/data.ts), typed by [`config-types.ts`](../../src/worker/config/config-types.ts). This is the same posture §8 takes with the OpenAPI spec: point at the source of truth and keep this section to the shape, so the two can't drift. The shape:
 
-# Radiator registry.
-# Maps a radiator slug (sent via X-Radiator-Slug) to a profile.
-# The slug is hardcoded as a compile-time constant in each radiator's firmware.
-radiators:
-  bedroom-philip-tania:
-    profile: "philip_and_tania"
-  bedroom-daughter:
-    profile: "daughter_school"
-  # Add additional radiator entries here (up to 5 total).
+- **`global`** — household-wide settings: `timezone`, `defaultRefreshIntervalMinutes`, `stopPredictionLimit` (the upstream Metlink `limit`, set high so a watched service isn't truncated out at a busy shared stop).
+- **`profiles`** — named profiles, each an *ordered* list of **profile phases**. The resolver picks the **first** phase whose time window (and optional `days` weekday filter, [ADR-0015](../adr/0015-profile-phase-active-days.md)) matches server time, so array order encodes precedence. A phase carries a `layout`, `refreshIntervalMinutes`, and — for `priority_split` — its `transitTargets`.
+- **A transit target** carries `mode`, `stopId`, `serviceId` (one route or an any-of array), `timeToStopMins`, `comfortBuffer`, and optional `destinationStopId` / `destinationNameIncludes` filters that narrow a route branching to several termini at a shared stop, and drop express runs that share route and terminus but skip the rider's station (GH #68 / #77).
+- **`radiators`** — maps a **radiator slug** (the `X-Radiator-Slug` header value, hard-coded in firmware) to a profile name.
+- **Idle fall-through** — server time outside every phase resolves to the **idle profile** (`idle_jokes`); a profile may override the system default ([ADR-0003](../adr/0003-radiator-worker-contract.md)).
 
-# Profiles — each profile has multiple profile phases.
-profiles:
-  philip_and_tania:
-    morning_commute:
-      start_time: "06:30"
-      end_time: "09:00"
-      days: ["mon", "tue", "wed", "thu", "fri"]  # Active days — weekday-only; absent = every day (ADR-0015)
-      refresh_interval_minutes: 2
-      layout: "priority_split"
-      transit_targets:
-        bus:
-          stop_id: "3234"         # Westchester Dr at Waitohi Rd — validated, Metlink reference
-          service_id: "1"         # Route 1 to Island Bay
-          time_to_stop_mins: 7   # Walking — predictable, low variance
-          comfort_buffer: 3
-        train:
-          stop_id: "TAKA1"        # Takapu Rd Station (KPL line) — validated, Metlink reference
-          service_id: "KPL"       # Kāpiti Line
-          time_to_stop_mins: 15  # Driving — subject to traffic variance
-          comfort_buffer: 4
+Three radiators ship today: `bedroom-philip-tania` → `philip_and_tania` (morning + afternoon `priority_split`, daytime `dual_month_calendar`), `bedroom-daughter` → `daughter_school` (morning `priority_split`, afternoon `minimal_clock`), and `office-f5` → `philip_office` (all-day `dual_month_calendar` bracketing the afternoon commute, GH #86).
 
-    workday_focus:
-      start_time: "09:00"
-      end_time: "16:00"
-      refresh_interval_minutes: 1   # 1-minute ticks for desk-clock accuracy
-      layout: "minimal_clock"
+Illustrative excerpt — see `data.ts` for the live values and the rationale comments on each stop/service id:
 
-    evening_return:
-      start_time: "16:00"
-      end_time: "19:00"
-      refresh_interval_minutes: 3
-      layout: "priority_split"      # Single-column auto-scales for one target
-      transit_targets:
-        train:
-          stop_id: "WELL1"        # Wellington Station (KPL line outbound) — not yet live-validated
-          service_id: "KPL"       # Kāpiti Line
-          time_to_stop_mins: 10
-          comfort_buffer: 4
-
-  daughter_school:
-    morning_school_run:
-      start_time: "07:15"
-      end_time: "08:30"
-      refresh_interval_minutes: 2
-      layout: "priority_split"
-      transit_targets:
-        bus:
-          stop_id: "3234"         # Westchester Drive at Waverton Terrace — validated GH #16
-          service_id: ["634", "635"]  # Routes 634 and 635 to Newlands College — validated GH #16
-          time_to_stop_mins: 5
-          comfort_buffer: 3
-
-    afternoon_idle:
-      start_time: "08:30"
-      end_time: "21:00"
-      refresh_interval_minutes: 30  # Aggressive battery conservation
-      layout: "minimal_clock"
+```ts
+export const PROFILES: Record<string, Profile> = {
+  philip_and_tania: {
+    name: 'philip_and_tania',
+    phases: [
+      {
+        key: 'morning_commute',
+        startTime: '05:45',
+        endTime: '09:00',
+        layout: 'priority_split',
+        refreshIntervalMinutes: 1,
+        days: ['mon', 'tue', 'wed', 'thu', 'fri'], // Active days (ADR-0015)
+        transitTargets: [
+          { mode: 'bus',   stopId: '3234',  serviceId: '1',   timeToStopMins: 4, comfortBuffer: 1.5 },
+          { mode: 'train', stopId: 'TAKA1', serviceId: 'KPL', timeToStopMins: 8, comfortBuffer: 1.5 },
+        ],
+      },
+      // … afternoon_commute (priority_split) and daytime_calendar (dual_month_calendar)
+    ],
+  },
+  // … philip_office, daughter_school
+};
 ```
 
-### Cloudflare Worker manifest (`wrangler.toml`)
+### Cloudflare Worker manifest (`wrangler.jsonc`)
 
-```toml
-name = "gottago-worker"
-main = "src/worker.ts"
-compatibility_date = "2026-05-16"
+The Worker manifest is [`src/worker/wrangler.jsonc`](../../src/worker/wrangler.jsonc) (JSONC, not TOML). It declares the Worker name and entry point, the `.ttf` font-asset data rule, and the `METLINK_API_URL` var. There is **no KV namespace** — the Metlink gateway runs uncached by design ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)). Secrets are never stored in the manifest; set them once via CLI before the first deploy:
 
-# No KV namespace — the Metlink gateway runs uncached by design (ADR-0010).
-
-[env.production.vars]
-METLINK_API_URL = "https://api.opendata.metlink.org.nz/v1"
-
-# Secrets — never stored in this file.
-# Set once via CLI before first deployment:
-#   wrangler secret put METLINK_API_KEY
-#   wrangler secret put RADIATOR_SHARED_TOKEN
+```sh
+wrangler secret put METLINK_API_KEY
+wrangler secret put RADIATOR_SHARED_TOKEN
 ```
 
-## 10. Deployment checklist
-
-Rollout is split into two production deploys so the already-useful core can ship
-early. The **first deploy** ships the current feature set against the live
-Metlink API with a single radiator; the **second deploy** layers on the
-remaining service-state layouts once they land.
-
-### First deploy — minimal viable production
-
-- [x] Validate Metlink API endpoints for `stop_id` (bus and train) — confirmed field names, response shapes, and rate-limit behaviour. See the [Metlink reference](../reference/metlink-stop-predictions.md).
-- [x] BMP rendering validated: Satori + bundled TTF + manual 1-bit BMP encoder confirmed against the LilyGO T5 EPD panel. Typeface is **DejaVu Sans Bold** per [ADR-0009](adr/0009-display-typeface-dejavu-sans-bold.md) (replaces the earlier Press Start 2P pixel font); already bundled as a static Worker asset (`src/worker/assets/`) and wired via the `.ttf` data rule in `wrangler.jsonc`.
-- [x] Populate the `radiators:` registry and `profiles:` in `src/worker/config/data.ts` (config is TypeScript, not `config.yaml`) for the slug(s) being deployed. `bedroom-philip-tania` → `philip_and_tania` (priority_split morning + minimal_clock fallback) is in place.
-- [x] Set Worker secrets: `wrangler secret put METLINK_API_KEY` and `wrangler secret put RADIATOR_SHARED_TOKEN`.
-- [x] Flash the radiator's firmware (`src/radiator/secrets.h`, gitignored) with its **radiator slug**, the `RADIATOR_SHARED_TOKEN` value, the production `FRAME_URL`, and Wi-Fi creds as compile-time constants.
-- [x] Deploy Worker: `wrangler deploy`. (Metlink runs uncached — the permanent design; no caching layer per [ADR-0010](adr/0010-no-metlink-cache-layer.md), well within Metlink's rate-limit headroom at household scale.)
-- [x] One **wake cycle** from the deployed radiator returns the expected **layout** and a valid `X-Sleep-Seconds`.
-
-### Second deploy — remaining service states
-
-- [ ] Re-deploy once cancelled-service (GH #8), delayed-service (GH #9), and the stale/failed-fetch indicator (GH #47) layouts land.
-- [ ] Flash / add any additional radiators (e.g. `bedroom-daughter`) to bring the full network online.
-
-## 11. Deferred / future work
+## 10. Deferred / future work
 
 * **Battery level indicator:** Requires the radiator to pass its current charge level as a query parameter to the Worker. Deferred to a future version to keep the firmware simple and maintain the dumb-radiator contract.
-* **Battery life validation for `workday_focus`:** The 1-minute refresh cycle during a 7-hour workday on a 2000 mAh LiPo has not been empirically validated. If battery drain is unacceptable, options are: increase the refresh interval, show date only, or remove the workday clock feature.
+* **Battery-life validation:** The 1-minute commute-phase refresh on a 2000 mAh LiPo has not been empirically validated over a full day — most relevant to the always-on `office-f5` radiator, whose `dual_month_calendar` phases run the full weekday. If drain is unacceptable, options are: lengthen the refresh interval, lean harder on the ETag/`304` unchanged-frame skip ([ADR-0013](../adr/0013-conditional-frame-requests.md)), or shorten the active windows.

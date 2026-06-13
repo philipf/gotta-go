@@ -32,9 +32,9 @@ Each radiator — a 4.7" e-ink panel running on a LiPo battery, flush-mounted on
 
 All the work happens at the edge:
 
-- A **Cloudflare Worker** (TypeScript) determines the active profile phase from server time, queries the Metlink real-time API, computes leave countdowns with walk time and comfort buffers, renders the full layout using [Satori](https://github.com/vercel/satori) and the Press Start 2P pixel font, and encodes the result as a gzip-compressed 1-bit 960×540 BMP.
+- A **Cloudflare Worker** (TypeScript) determines the active profile phase from server time, queries the Metlink Stop Predictions API, computes leave countdowns with walk time and comfort buffers, renders the full layout using [Satori](https://github.com/vercel/satori) and the DejaVu Sans Bold typeface, and encodes the result as a gzip-compressed 1-bit 960×540 BMP.
 - The radiator receives the compressed frame, decompresses it, and flushes the raw byte array directly to the EPD panel buffer — no JSON parsing, no schedule logic, no maths.
-- A **Cloudflare KV** cache absorbs burst fetches from multiple radiators, and protects the upstream Metlink rate limit.
+- The Worker also returns the next sleep duration in an `X-Sleep-Seconds` header, so every scheduling decision lives at the edge — the firmware never evaluates a timetable. Metlink is queried uncached per frame, comfortably within its rate limit at household scale.
 
 When Wi-Fi fails or the Worker is unreachable, the panel holds its last good frame indefinitely — e-ink consumes zero power to maintain an image.
 
@@ -58,8 +58,8 @@ The panel renders at native **960×540, 1-bit monochrome**, landscape. No backli
 
 | Document | Description |
 | --- | --- |
-| [PRD v0.4](docs/PRD/GottaGo%20PRD%20v0.4.md) | Full product requirements, screen layout spec, functional & non-functional requirements |
-| [UI/UX Design Reference](docs/UI/Home%20Transit%20Radiator%20%E2%80%94%20UI_UX%20Design%20Reference.md) | Screen scenarios, design rationale, do/don't build guidance |
+| [PRD](docs/PRD/GottaGo%20PRD.md) | Full product requirements, screen layout spec, functional & non-functional requirements |
+| [UI/UX Design Reference](docs/UI/GottaGo%20-%20UI_UX%20Design%20Reference.md) | Screen scenarios, design rationale, do/don't build guidance |
 | [OpenAPI 3.1 spec](docs/api/openapi.yaml) | Authoritative radiator ↔ Worker wire contract |
 | [Glossary](docs/glossary.md) | Ubiquitous language — every term used in conversation, config, code, and docs |
 | [Worker Architecture](docs/worker-architecture.md) | Canonical guide to how Worker code is built — pillars, gateway/feature/endpoint patterns, conventions, and the reasoning behind them |

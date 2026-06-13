@@ -1,7 +1,7 @@
 # Hand-off: `to-bmp` PoC → next PoC
 
 **Read first:** [`plan.md`](./plan.md) — full design, BMP1 header table, encoder rationale, references.
-**Context:** [`../../docs/PRD/GottaGo PRD v0.4.md`](../../docs/PRD/GottaGo%20PRD%20v0.4.md) §7 "Pre-implementation spikes required" — this PoC fulfils the BMP-encoder half of that spike. Glossary is in `../../docs/glossary.md`.
+**Context:** [`../../docs/PRD/GottaGo PRD.md`](../../docs/PRD/GottaGo%20PRD.md) §7 "Pre-implementation spikes required" — this PoC fulfils the BMP-encoder half of that spike. Glossary is in `../../docs/glossary.md`.
 
 ## What this PoC proved
 

@@ -329,7 +329,7 @@ The structured input the renderer (Satori) receives for a given render: the acti
 The remaining terms below come from third-party libraries or industry standards. Used as-is, not redefined.
 
 - **Satori** — the SVG layout engine used inside the Worker.
-- **GTFS-Realtime** — the Metlink API standard.
+- **Stop Predictions** — Metlink's REST departure-prediction endpoint (`GET /stop-predictions?stop_id=<id>`), polled once per **wake cycle** for `priority_split` frames. The data source GottaGo uses — **not** GTFS-Realtime (a separate Metlink standard GottaGo does not consume for predictions).
 - **BMP** — the 1-bit bitmap format flushed to the panel.
 - **DejaVu Sans Bold** — the display typeface used for all text (see [ADR-0009](adr/0009-display-typeface-dejavu-sans-bold.md)). Replaced Press Start 2P, whose monospace metric caused recurring fit problems. The custom 8-bit **mode icons** are kept as a deliberate mix — pixel icons (symbols) beside smooth text (data).
 - **EPD** — Electronic Paper Display (the panel hardware standard).
