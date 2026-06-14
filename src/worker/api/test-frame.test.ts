@@ -51,6 +51,15 @@ describe('resolveTestRadiator', () => {
     expect(r?.profile.phases[0].transitTargets).toBeDefined();
   });
 
+  it('resolves the priority_split_v2 dogfooding phase from its unreferenced profile (#102)', () => {
+    // The demo profile is not wired to any radiator, so it touches no real
+    // radiator's phases — yet the bare-key scan still reaches it for the slug.
+    const r = resolveTestRadiator('test-psplit_v2_demo');
+    expect(r?.profile.name).toBe('priority_split_v2_demo');
+    expect(r?.profile.phases[0].layout).toBe('priority_split_v2');
+    expect(r?.profile.phases[0].transitTargets).toHaveLength(2);
+  });
+
   it('strips active days so a weekday-only phase renders on any day (#92)', () => {
     // office_afternoon_commute is mon–fri in production; a test- slug must
     // render its intent regardless of wall-clock OR weekday, so the synthetic
@@ -102,6 +111,18 @@ describe('GET /v1/frame with a test- slug', () => {
     expect(res.headers.get('X-Profile-Phase')).toBe('morning_commute');
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.layout).toBe('priority_split');
+  });
+
+  it('renders the priority_split_v2 dogfooding scenario through the same core (#102)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(closedStop), { status: 200 })),
+    );
+    const res = await route(frameReq('test-psplit_v2_demo'), env, new Date('2026-05-30T03:00:00Z'));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('X-Profile-Phase')).toBe('psplit_v2_demo');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.layout).toBe('priority_split_v2');
   });
 
   it('404s an unknown test- phase key', async () => {

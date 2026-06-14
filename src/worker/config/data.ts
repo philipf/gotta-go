@@ -204,6 +204,27 @@ export const PROFILES: Record<string, Profile> = {
       },
     ],
   },
+  // Dogfooding profile for the new priority_split_v2 layout (issue #102). It is
+  // deliberately **not referenced by any radiator** (see RADIATOR_REFS below),
+  // so it changes no real radiator's phases — yet resolveTestRadiator scans
+  // every profile by bare phase key, so the layout is reachable side-by-side
+  // with v1 via the `test-psplit_v2_demo` slug. It reuses the live-validated
+  // city→home commute pair so the v2 frame can be compared against the v1
+  // commute against the same data. Delete this profile when v2 graduates onto a
+  // real phase (or when v1 is removed and v2 takes over the commute keys).
+  priority_split_v2_demo: {
+    name: 'priority_split_v2_demo',
+    phases: [
+      {
+        key: 'psplit_v2_demo',
+        startTime: '00:00',
+        endTime: '24:00',
+        layout: 'priority_split_v2',
+        refreshIntervalMinutes: 1,
+        transitTargets: CITY_TO_HOME_TARGETS,
+      },
+    ],
+  },
 };
 
 // PRD §9 `radiators:` block — radiator slug → profile-name reference.
