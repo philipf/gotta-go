@@ -2,9 +2,11 @@
 // date) above one or two columns. Each column has a header (mode icon + service
 // name) and two **co-equal heroes** — the NEXT and THEN slots — split evenly
 // down the column: a slot caption, the `LEAVE IN` label, the hero value (or
-// `NOW`), and the qualifying `BY hh:mm · ARR hh:mm` line (issue #102). Two
-// transit targets render as equal-width columns split by a vertical hairline
-// rule; a single target renders one full-width column with the identical slots.
+// `NOW`), and the qualifying `BY hh:mm · ARR hh:mm` line (issue #102). Below the
+// heroes a compact LATER list shows up to LATER_COUNT further departures as
+// `n MIN · hh:mm` rows, or a dash when none follow (issue #103). Two transit
+// targets render as equal-width columns split by a vertical hairline rule; a
+// single target renders one full-width column with the identical slots.
 // React/JSX → Satori → resvg, exposing the intermediate SVG (ADR-0004) and the
 // rasterised 1-bit BMP, DejaVu Sans Bold throughout (ADR-0009).
 
@@ -13,12 +15,12 @@ import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import { modeIcon, MODE_GRIDS } from './mode-icon';
 import { serviceName } from './viewmodel';
-import type { DepartureSlot, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
+import type { DepartureSlot, LaterRow, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
 
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 1;
+export const LAYOUT_VERSION = 2;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -43,17 +45,28 @@ type Sizing = {
   hero: number; // the LEAVE IN value — the headline
   byArr: number; // "BY hh:mm · ARR hh:mm" qualifier
   heroGap: number; // gap between the lines within one hero
+  laterCaption: number; // "LATER" caption above the compact list
+  laterRow: number; // a compact "n MIN · hh:mm" LATER row
+  laterGap: number; // gap between LATER rows
 };
 
+// A single full-width column has the same 540px height as a split pane, so it
+// cannot afford a much taller hero once the LATER list claims the lower third —
+// the two co-equal heroes and the 3-row LATER block must share the column height
+// (issue #103 render-fit). The hero is only modestly larger than SPLIT's; the
+// width, not the height, is what makes the full-width column read bigger.
 const FULL: Sizing = {
-  modeIconH: 5,
+  modeIconH: 4,
   routeLabel: 30,
   labelMaxW: 820,
-  caption: 24,
-  leaveInLabel: 24,
-  hero: 92,
-  byArr: 28,
-  heroGap: 6,
+  caption: 22,
+  leaveInLabel: 22,
+  hero: 68,
+  byArr: 26,
+  heroGap: 2,
+  laterCaption: 22,
+  laterRow: 24,
+  laterGap: 2,
 };
 
 const SPLIT: Sizing = {
@@ -65,6 +78,9 @@ const SPLIT: Sizing = {
   hero: 64,
   byArr: 24,
   heroGap: 6,
+  laterCaption: 20,
+  laterRow: 22,
+  laterGap: 4,
 };
 
 const MAX_ICON_ROWS = Math.max(...Object.values(MODE_GRIDS).map((g) => g.length));
@@ -126,6 +142,30 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
   );
 }
 
+// The compact LATER list below the two heroes: a caption over up to LATER_COUNT
+// `n MIN · hh:mm` rows. An empty list dashes the section so the column keeps a
+// stable shape rather than the heroes sliding down to fill the gap.
+function laterList(rows: LaterRow[], s: Sizing): ReactNode {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: s.laterGap,
+        paddingTop: 8,
+      }}
+    >
+      <div style={{ fontSize: s.laterCaption }}>LATER</div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize: s.laterRow }}>{DASH}</div>
+      ) : (
+        rows.map((row, i) => <div key={i} style={{ fontSize: s.laterRow }}>{`${row.leaveIn} · ${row.arrives}`}</div>)
+      )}
+    </div>
+  );
+}
+
 function column(col: ServiceColumn, key: number, s: Sizing): ReactNode {
   return (
     <div
@@ -142,6 +182,7 @@ function column(col: ServiceColumn, key: number, s: Sizing): ReactNode {
       {header(col, s)}
       {hero('NEXT', col.next, s)}
       {hero('THEN', col.then, s)}
+      {laterList(col.later, s)}
     </div>
   );
 }
