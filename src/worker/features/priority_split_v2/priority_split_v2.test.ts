@@ -124,7 +124,7 @@ describe('priority_split_v2.column - THEN slot', () => {
     expect(col.then).toBeNull();
   });
 
-  it('shows "0 MIN" (never NOW) when a THEN departure rounds to zero — NOW is the NEXT slot only', () => {
+  it('shows "0 MIN" (never NOW) when a THEN departure rounds to zero - NOW is the NEXT slot only', () => {
     // NEXT 19:35:00 (+5, leave_in 0 → NOW); THEN 19:35:12 (+5.2, leave_in round(0.2) = 0 → "0 MIN")
     const col = column(busTarget, open(arrival('2026-05-22T19:35:00Z'), arrival('2026-05-22T19:35:12Z')), TZ, NOW);
     expect(col.next?.leaveIn).toBe('NOW');
@@ -133,7 +133,7 @@ describe('priority_split_v2.column - THEN slot', () => {
 });
 
 describe('priority_split_v2.column - LATER list', () => {
-  it('lists each compact "n MIN · hh:mm" row after THEN, oldest-first', () => {
+  it('lists each compact "n MIN | hh:mm" row after THEN, oldest-first', () => {
     // NEXT 19:42, THEN 19:54; LATER 20:06 (31 MIN · 08:06) and 20:18 (43 MIN · 08:18)
     const col = column(
       busTarget,
@@ -214,7 +214,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
   // The LAST window for busTarget (time_to_stop 5) at now 19:30Z is arrivals in
   // (19:30, 19:35): leave_by = arrival - 5 has passed, but now < arrival.
 
-  it('tags RUN at minutes_late ≤ runLimit (default 1): -1 MIN renders RUN with the arrival clock', () => {
+  it('tags RUN at minutes_late <= runLimit (default 1): -1 MIN renders RUN with the arrival clock', () => {
     // arrival 19:34Z (07:34): leave_by 19:29 < now, now < 19:34 → missed.
     // leave_in = (4 - 5) = -1 → minutes_late 1 ≤ 1 → RUN.
     const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z')), TZ, NOW);
@@ -246,7 +246,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     });
   });
 
-  it('omits the LAST row at the floor — now ≥ arrival_time hides it', () => {
+  it('omits the LAST row at the floor - now >= arrival_time hides it', () => {
     // arrival exactly at now (19:30Z): the service has reached the stop → omit.
     const col = column(busTarget, open(arrival('2026-05-22T19:30:00Z')), TZ, NOW);
     expect(col.last).toBeNull();
@@ -259,7 +259,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     expect(col.last).toEqual({ tag: 'RUN', leaveIn: '-1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false, routePrefix: '' });
   });
 
-  it('renders the LAST row independently of NEXT — a just-missed echo above the next catchable hero', () => {
+  it('renders the LAST row independently of NEXT - a just-missed echo above the next catchable hero', () => {
     // 19:34Z missed (RUN -1); 19:48Z upcoming (leave_in 13).
     const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z'), arrival('2026-05-22T19:48:00Z')), TZ, NOW);
     expect(col.last?.tag).toBe('RUN');
@@ -271,7 +271,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     expect(col.last).toBeNull();
   });
 
-  it('serialises the LAST row to snake_case (tag, leave_in, arrives — no leave_by)', () => {
+  it('serialises the LAST row to snake_case (tag, leave_in, arrives - no leave_by)', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:34:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { last: unknown }[] };
     expect(json.columns[0].last).toEqual({
@@ -311,14 +311,14 @@ describe('priority_split_v2.column - deviation badges (DELAYED / EARLY, #105)', 
     expect(col.next?.deviation).toBeNull();
   });
 
-  it('rounds a late departure to whole minutes: 30s late → DELAYED +1 MIN, 29s late → no badge', () => {
+  it('rounds a late departure to whole minutes: 30s late -> DELAYED +1 MIN, 29s late -> no badge', () => {
     const late = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', 30)), TZ, NOW);
     const onTime = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', 29)), TZ, NOW);
     expect(late.next?.deviation).toBe('DELAYED +1 MIN');
     expect(onTime.next?.deviation).toBeNull();
   });
 
-  it('rounds an early departure to whole minutes: 31s early → EARLY -1 MIN, 29s early → no badge', () => {
+  it('rounds an early departure to whole minutes: 31s early -> EARLY -1 MIN, 29s early -> no badge', () => {
     const early = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', -31)), TZ, NOW);
     const onTime = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', -29)), TZ, NOW);
     expect(early.next?.deviation).toBe('EARLY -1 MIN');
@@ -471,7 +471,7 @@ describe('priority_split_v2.column - no-service state (#106)', () => {
 });
 
 describe('priority_split_v2.column - partial horizon (#106)', () => {
-  it('fills only the slots within 60 min — one in-horizon departure renders NEXT alone, no no-service', () => {
+  it('fills only the slots within 60 min - one in-horizon departure renders NEXT alone, no no-service', () => {
     // NEXT 19:42 (within); the next departure 20:45 is beyond the horizon, so it
     // does NOT fill THEN — the column renders only what is within 60 min.
     const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T20:45:00Z')), TZ, NOW);
@@ -481,7 +481,7 @@ describe('priority_split_v2.column - partial horizon (#106)', () => {
     expect(col.noService).toBeNull();
   });
 
-  it('a cancelled departure within the horizon is a departure — struck NEXT, not a no-service state', () => {
+  it('a cancelled departure within the horizon is a departure - struck NEXT, not a no-service state', () => {
     const col = column(busTarget, open(cancelledArrival('2026-05-22T19:42:00Z')), TZ, NOW);
     expect(col.noService).toBeNull();
     expect(col.next?.cancelled).toBe(true);
@@ -511,7 +511,7 @@ describe('priority_split_v2.column - per-row service-id prefix for any-of target
     expect(col.later[0]?.routePrefix).toBe('635');
   });
 
-  it('prefixes a cancelled departure too — the struck row stays route-distinguishable', () => {
+  it('prefixes a cancelled departure too - the struck row stays route-distinguishable', () => {
     // Cancelled NEXT on route 636, live THEN on 635.
     const col = column(anyOfTarget, open(cancelledArrival('2026-05-22T19:42:00Z', '636'), arrival('2026-05-22T19:54:00Z', '635')), TZ, NOW);
     expect(col.next?.cancelled).toBe(true);
