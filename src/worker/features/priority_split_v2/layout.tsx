@@ -8,9 +8,11 @@
 //
 // Lays out the global header (wall-clock + date) above one or two columns. Each
 // column has a header (mode icon + service name) and two **co-equal heroes** —
-// the NEXT and THEN slots — split evenly down the column: a combined
-// `NEXT · LEAVE IN` caption line, the hero value (or `NOW`), and the qualifying
-// `BY hh:mm · ARR hh:mm` line (issue #102). Above the heroes a compact LAST row
+// the NEXT and THEN slots — split evenly down the column: the hero value (the
+// LEAVE IN minutes, or `NOW`) and the qualifying `BY hh:mm · ARR hh:mm` line
+// (issue #102). The slot caption line was dropped so the headline can read from
+// across the room — slot position (upper = NEXT, lower = THEN) carries it
+// instead. Above the heroes a compact LAST row
 // echoes the just-missed service with a RUN/MISSED tag (issue #104); below them
 // a compact LATER list shows up to LATER_COUNT further departures as
 // `n MIN BY hh:mm` rows, or a dash when none follow (issue #103). Two transit
@@ -79,19 +81,19 @@ const FULL: Sizing = {
   labelMaxW: 820,
   lastBandH: 44,
   ruleInset: 80,
-  caption: 22,
-  // 58, not 68: in a single full-width column the two stacked heroes must share
-  // the 496px band with LAST + the merged caption line + the inset slot dividers
-  // + a 2-row LATER list. 58 is the largest that clears the BY · ARR line below
-  // in the dense worst case (issue #108 render-fit); width, not height, is what
-  // makes the full-width column read big.
-  hero: 58,
+  caption: 22, // retained for the no-service block's "NEXT" label
+  // Dropping the per-hero caption line freed a whole text row in each hero band,
+  // so the headline grows from 58 → 76 for across-the-room legibility. 76 is the
+  // largest that still clears the BY · ARR line below in the dense worst case
+  // (issue #108 render-fit); width, not height, is what makes the full-width
+  // column read big.
+  hero: 76,
   byArr: 26,
   heroGap: 4,
   last: 24,
   badge: 18,
   noService: 52,
-  laterRow: 24,
+  laterRow: 26,
   laterGap: 2,
 };
 
@@ -101,14 +103,16 @@ const SPLIT: Sizing = {
   labelMaxW: 400,
   lastBandH: 38,
   ruleInset: 40,
-  caption: 22,
-  hero: 64,
+  caption: 22, // retained for the no-service block's "NEXT" label
+  // Dropping the per-hero caption line freed a text row in each hero band, so the
+  // headline grows 64 → 82 for across-the-room legibility in the narrow pane.
+  hero: 82,
   byArr: 24,
   heroGap: 6,
   last: 20,
   badge: 15,
   noService: 44,
-  laterRow: 22,
+  laterRow: 24,
   laterGap: 4,
 };
 
@@ -203,14 +207,6 @@ function heroFrame(children: ReactNode, s: Sizing): ReactNode {
   );
 }
 
-// The slot caption, suffixed with the departure's own service id for an any-of
-// target so mixed routes under one column header stay distinguishable — e.g.
-// "NEXT · 635" (#107). Bare "NEXT" for a single-route target (routePrefix '') or
-// an absent slot.
-function slotCaption(caption: string, slot: DepartureSlot | null): string {
-  return slot?.routePrefix ? `${caption} · ${slot.routePrefix}` : caption;
-}
-
 // The hero value with its unit at half size — "9 MIN" renders the 9 at full
 // hero size and MIN at hero/2, pulling the eye to the minute count (matches the
 // spec, #108). "NOW" and the dash carry no unit and render whole.
@@ -233,17 +229,16 @@ function heroValue(text: string, s: Sizing): ReactNode {
       // — the band centres evenly — and lands MIN mid-height against the digits,
       // the look preferred over a strict baseline.
       // lineHeight 1 collapses the value's line box to the glyph height — but
-      // the value alone is not enough: the caption above and the BY·ARR
-      // qualifier below must ALSO be lineHeight 1, or the font's natural ~1.16
-      // leading on those two neighbours is distributed unevenly around the
-      // centred hero group and the whitespace below the number reads ~8px larger
-      // than above it (measured via tools/render-fit, #108 follow-up). With all
-      // three line boxes tight to their glyphs, heroGap is the only spacing on
-      // each side, so the air above and below the hero is even — and identical
-      // between the NEXT and THEN bands, which share this function. Keep all
-      // three tight together; tightening the value in isolation reintroduces the
-      // asymmetry (the bug that kept coming back). priority_split_v2.test.ts
-      // pins the symmetry as a regression guard.
+      // the value alone is not enough: the BY·ARR qualifier below must ALSO be
+      // lineHeight 1, or the font's natural ~1.16 leading on that neighbour is
+      // distributed unevenly around the centred hero group and the whitespace
+      // below the number reads larger than above it (measured via
+      // tools/render-fit, #108 follow-up). With both line boxes tight to their
+      // glyphs, heroGap is the only spacing on each side, so the air above and
+      // below the hero is even — and identical between the NEXT and THEN bands,
+      // which share this function. Keep both tight together; tightening the value
+      // in isolation reintroduces the asymmetry (the bug that kept coming back).
+      // priority_split_v2.test.ts pins the symmetry as a regression guard.
       style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, lineHeight: 1 }}
     >
       <span style={{ fontSize: s.hero }}>{m[1]}</span>
@@ -252,37 +247,48 @@ function heroValue(text: string, s: Sizing): ReactNode {
   );
 }
 
-// One co-equal hero: the slot caption (NEXT / THEN), the LEAVE IN label, the
-// hero value (or NOW), and the BY · ARR qualifier. An absent slot dashes the
-// value and qualifier so the column keeps a stable two-hero shape rather than
-// collapsing. A cancelled departure keeps its slot but shows only its struck
-// scheduled clock in the hero value area — the LEAVE IN label and qualifier are
-// suppressed, and the real leave-time number falls to the next live hero below
-// (#106).
-function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode {
+// One co-equal hero: the hero value (the LEAVE IN minutes, or NOW) and the
+// BY · ARR qualifier below it. The slot caption + "LEAVE IN" label line was
+// dropped so the headline can grow for across-the-room legibility (the slot's
+// position — upper hero = NEXT, lower = THEN, parted by the hairline — carries
+// the identity the caption used to). An absent slot dashes the value and
+// qualifier so the column keeps a stable two-hero shape rather than collapsing.
+// A cancelled departure keeps its slot but shows only its struck scheduled
+// clock in the hero value area — the real leave-time number falls to the next
+// live hero below (#106). For an any-of target the per-departure route id, which
+// the caption used to suffix (#107), leads the hero on its own compact line so
+// mixed routes under one column header stay distinguishable.
+function hero(slot: DepartureSlot | null, s: Sizing): ReactNode {
   // Children are passed as an array, not a Fragment: Satori wraps a Fragment's
-  // children in an implicit default-row container, which laid the caption, label,
-  // hero value and qualifier out side-by-side instead of stacked (issue #108).
+  // children in an implicit default-row container, which laid the hero value and
+  // qualifier out side-by-side instead of stacked (issue #108).
   if (slot?.cancelled) {
     return heroFrame(
       [
-        <div key="cap" style={{ fontSize: s.caption, lineHeight: 1 }}>
-          {slotCaption(caption, slot)}
-        </div>,
         <div key="val" style={{ fontSize: s.hero, lineHeight: 1, ...STRIKE }}>
           {slot.arrives}
         </div>,
+        slot.routePrefix ? (
+          <div key="qual" style={{ fontSize: s.byArr, lineHeight: 1 }}>
+            {slot.routePrefix}
+          </div>
+        ) : null,
       ],
       s,
     );
   }
   return heroFrame(
     [
-      // Caption and LEAVE IN share one line — "NEXT · LEAVE IN" — per the spec
-      // (#108); merging them also frees a vertical line for the hero value.
-      <div key="cap" style={{ fontSize: s.caption, lineHeight: 1 }}>
-        {`${slotCaption(caption, slot)} · LEAVE IN`}
-      </div>,
+      // For an any-of target the departure's own route id leads the hero on a
+      // compact line of its own (#107) — kept off the qualifier line so it does
+      // not widen "BY · ARR + badge" past the narrow split pane and clip. A
+      // single-route target (routePrefix '') has no such line, so the common case
+      // is just the two big lines the caption removal was meant to deliver.
+      slot?.routePrefix ? (
+        <div key="route" style={{ fontSize: s.caption, lineHeight: 1 }}>
+          {slot.routePrefix}
+        </div>
+      ) : null,
       heroValue(slot ? slot.leaveIn : DASH, s),
       // The deviation badge sits inline to the right of the BY · ARR qualifier,
       // not on its own stacked line: a stacked badge pushed the hero content past
@@ -453,9 +459,9 @@ function column(col: ServiceColumn, key: number, s: Sizing): ReactNode {
       {hRule('r-last', s)}
       {/* No-service state: NO SERVICE in the NEXT band, THEN / LATER suppressed (#106). */}
       {col.noService ? noServiceHero(col.noService, s) : null}
-      {col.noService ? null : hero('NEXT', col.next, s)}
+      {col.noService ? null : hero(col.next, s)}
       {col.noService ? null : hRule('r-next', s)}
-      {col.noService ? null : hero('THEN', col.then, s)}
+      {col.noService ? null : hero(col.then, s)}
       {col.noService ? null : hRule('r-then', s)}
       {col.noService ? null : laterList(col.later, s)}
     </div>

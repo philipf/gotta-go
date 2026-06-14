@@ -708,14 +708,14 @@ describe('priority_split_v2.preparePrioritySplitV2Frame - gateway failure -> thr
 });
 
 // The hero band must carry even air above and below its big value, identically
-// in the NEXT and THEN slots. That even spacing is produced by giving ALL THREE
-// hero lines — caption, value, qualifier — a tight `lineHeight: 1` box, so the
-// only vertical spacing is heroGap (symmetric). Tightening the value alone (the
-// regression that kept coming back) leaves the caption/qualifier on the font's
-// ~1.16 leading, which Satori distributes unevenly and pushes ~8px more air
-// below the number than above it (measured via tools/render-fit). This pins the
-// invariant structurally — no rasteriser needed — so a future edit that drops
-// lineHeight from any hero line fails here. See layout.tsx heroValue().
+// in the NEXT and THEN slots. That even spacing is produced by giving BOTH hero
+// lines — value and qualifier — a tight `lineHeight: 1` box, so the only
+// vertical spacing is heroGap (symmetric). Tightening the value alone (the
+// regression that kept coming back) leaves the qualifier on the font's ~1.16
+// leading, which Satori distributes unevenly and pushes more air below the
+// number than above it (measured via tools/render-fit). This pins the invariant
+// structurally — no rasteriser needed — so a future edit that drops lineHeight
+// from any hero line fails here. See layout.tsx heroValue().
 describe('priority_split_v2.layout - hero line boxes are tight for even vertical centring', () => {
   const slot = (leaveIn: string, leaveBy: string, arrives: string): DepartureSlot => ({
     leaveIn,
@@ -743,37 +743,46 @@ describe('priority_split_v2.layout - hero line boxes are tight for even vertical
   };
 
   // Depth-first over the JSX tree, yielding every React element.
-  function* elements(node: ReactNode): Generator<{ props: { children?: ReactNode; style?: { lineHeight?: unknown } } }> {
+  function* elements(node: ReactNode): Generator<{ props: { children?: ReactNode; style?: Record<string, unknown> } }> {
     if (Array.isArray(node)) {
       for (const child of node) yield* elements(child);
       return;
     }
     if (!isValidElement(node)) return;
-    const el = node as { props: { children?: ReactNode; style?: { lineHeight?: unknown } } };
+    const el = node as { props: { children?: ReactNode; style?: Record<string, unknown> } };
     yield el;
     yield* elements(el.props.children);
   }
 
-  // A hero group is the flex column whose direct children include the caption
-  // line ("NEXT · LEAVE IN" / "THEN · LEAVE IN"). Its three children are the
-  // caption, the hero value, and the BY·ARR qualifier.
-  const isCaption = (k: ReactNode): boolean =>
-    isValidElement(k) && typeof (k.props as { children?: unknown }).children === 'string' && / · LEAVE IN$/.test((k.props as { children: string }).children);
+  // A hero group is the heroFrame flex column: centred on both axes with
+  // flexBasis 0 (so the two share the column height evenly). Its direct children
+  // are the hero value and the BY·ARR qualifier — the caption line was dropped so
+  // the headline can grow (layout.tsx hero()). The outer column wrapper also has
+  // flexBasis 0 but is justified flex-start / aligned stretch, so the centred
+  // axes distinguish the two heroes from it.
+  const isHeroFrame = (el: { props: { style?: Record<string, unknown> } }): boolean => {
+    const st = el.props.style;
+    return (
+      !!st &&
+      st.flexBasis === 0 &&
+      st.flexDirection === 'column' &&
+      st.alignItems === 'center' &&
+      st.justifyContent === 'center'
+    );
+  };
 
-  const heroGroups = [...elements(layout(vm))].filter(
-    (el) => Array.isArray(el.props.children) && (el.props.children as ReactNode[]).some(isCaption),
-  );
+  const heroGroups = [...elements(layout(vm))].filter(isHeroFrame);
 
   it('finds exactly the two hero groups (NEXT and THEN)', () => {
     expect(heroGroups).toHaveLength(2);
   });
 
-  it('gives caption, value and qualifier all a tight lineHeight of 1', () => {
+  it('gives value and qualifier both a tight lineHeight of 1', () => {
     for (const group of heroGroups) {
       const lines = (group.props.children as ReactNode[]).filter(isValidElement) as {
         props: { style?: { lineHeight?: unknown } };
       }[];
-      expect(lines.length).toBeGreaterThanOrEqual(3);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
       for (const line of lines) {
         expect(line.props.style?.lineHeight).toBe(1);
       }
