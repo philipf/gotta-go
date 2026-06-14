@@ -7,6 +7,7 @@ import type { ResponseFormat } from '../api/format';
 import { prepareJokeFrame } from './idle_jokes/prepare-joke-frame';
 import { fetchJoke } from '../gateways/icanhazdadjoke/fetch-joke';
 import { preparePrioritySplitFrame } from './priority_split/prepare-priority-split-frame';
+import { preparePrioritySplitV2Frame } from './priority_split_v2/prepare-priority-split-v2-frame';
 import { fetchArrivals } from '../gateways/metlink/fetch-arrivals';
 import { prepareDualMonthCalendarFrame } from './dual_month_calendar/prepare-dual-month-calendar-frame';
 import { fetchHolidays } from '../gateways/public_holidays/fetch-holidays';
@@ -92,6 +93,28 @@ function bindPrioritySplit(deps: FrameDeps) {
   });
 }
 
+// priority_split_v2 binds the *same* Metlink gateway as v1 (issue #102): the
+// two layouts differ only in domain projection and view, so the transport is
+// reused as-is. No additional request — one fetchArrivals call per target.
+function bindPrioritySplitV2(deps: FrameDeps) {
+  return preparePrioritySplitV2Frame({
+    targets: deps.phase.transitTargets ?? [],
+    fetchArrivals: (target) =>
+      fetchArrivals({
+        fetch: deps.fetchFn,
+        apiKey: deps.env.METLINK_API_KEY,
+        stopId: target.stopId,
+        serviceId: target.serviceId,
+        destinationStopId: target.destinationStopId,
+        destinationNameIncludes: target.destinationNameIncludes,
+        limit: deps.stopPredictionLimit,
+      }),
+    timezone: deps.timezone,
+    now: deps.now,
+    ...renderFlagsFrom(deps),
+  });
+}
+
 function bindIdleJokes(deps: FrameDeps) {
   return prepareJokeFrame({
     fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
@@ -113,11 +136,12 @@ function bindDualMonthCalendar(deps: FrameDeps) {
 // config/config-types.ts so phase config and the registry can never drift). The
 // `satisfies Record<LayoutKey, FramePreparer>` below proves the registry covers
 // exactly these keys — a missing binder or a stray one is a compile error.
-export type LayoutKey = 'minimal_clock' | 'priority_split' | 'idle_jokes' | 'dual_month_calendar';
+export type LayoutKey = 'minimal_clock' | 'priority_split' | 'priority_split_v2' | 'idle_jokes' | 'dual_month_calendar';
 
 export const framePreparers = {
   minimal_clock: bindMinimalClock,
   priority_split: bindPrioritySplit,
+  priority_split_v2: bindPrioritySplitV2,
   idle_jokes: bindIdleJokes,
   dual_month_calendar: bindDualMonthCalendar,
 } satisfies Record<LayoutKey, FramePreparer>;
