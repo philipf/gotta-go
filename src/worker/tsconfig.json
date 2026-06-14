@@ -15,5 +15,10 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts"],
+  // The render-fit harness (issue #108) is a Node script bundled by its own
+  // run.mjs, not Worker code — it uses node: builtins and `process`, which this
+  // workerd config deliberately has no types for. esbuild transpiles it; it is
+  // not part of the Worker typecheck.
+  "exclude": ["tools/render-fit"]
 }

@@ -18,6 +18,10 @@ export type PreparePrioritySplitV2FrameRequest = {
   // The RUN limit for the LAST row's RUN/MISSED split (#104), from the resolved
   // profile phase; absent → the domain default of 1 min.
   runLimitMins?: number;
+  // Dev-only dogfooding aid (#108): when true, pad sparse feeds with synthetic
+  // future departures so THEN/LATER populate. Set from DEV_PAD_LATER; never true
+  // in production. See debug/dev-pad-arrivals.ts.
+  padLater?: boolean;
   // Artefact flags — format negotiation already collapsed by the caller.
   includeBmp: boolean;
   includeSvg: boolean;

@@ -1,0 +1,57 @@
+<svg viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" role="img" width="100%">
+<title>GottaGo priority_split v2 — twin services with just-missed line</title>
+<rect x="2" y="2" width="956" height="536" fill="#ffffff" stroke="#111111" stroke-width="3"/>
+<line x1="2" y1="46" x2="958" y2="46" stroke="#111111" stroke-width="2"/>
+<line x1="480" y1="46" x2="480" y2="538" stroke="#111111" stroke-width="1.5"/>
+<g font-family="Verdana,'DejaVu Sans',sans-serif" font-weight="700" fill="#111111" text-anchor="middle">
+<text x="480" y="33" font-size="26" letter-spacing="1">08:04   Mon 15 Jun</text>
+
+<rect x="96" y="66" width="44" height="24" rx="4" fill="#111111"/>
+<rect x="101" y="71" width="14" height="9" fill="#ffffff"/>
+<rect x="121" y="71" width="14" height="9" fill="#ffffff"/>
+<circle cx="107" cy="93" r="4" fill="#111111"/>
+<circle cx="129" cy="93" r="4" fill="#111111"/>
+<text x="152" y="90" font-size="24" text-anchor="start" letter-spacing="1">1 · ISLAND BAY</text>
+
+<text x="240" y="120" font-size="17"><tspan font-size="13" letter-spacing="2">RUN  </tspan><tspan font-size="17">−1 MIN · ARR 08:07</tspan></text>
+<line x1="60" y1="134" x2="420" y2="134" stroke="#111111" stroke-width="1.5"/>
+
+<text x="240" y="162" font-size="16" letter-spacing="2">NEXT · LEAVE IN</text>
+<text x="240" y="208" font-size="46"><tspan font-size="46">9</tspan><tspan font-size="24"> MIN</tspan></text>
+<text x="240" y="236" font-size="18" letter-spacing="1">BY 08:13 · ARR 08:17</text>
+<line x1="60" y1="256" x2="420" y2="256" stroke="#111111" stroke-width="1.5"/>
+
+<text x="240" y="284" font-size="16" letter-spacing="2">THEN · LEAVE IN</text>
+<text x="240" y="330" font-size="46"><tspan font-size="46">19</tspan><tspan font-size="24"> MIN</tspan></text>
+<text x="240" y="358" font-size="18" letter-spacing="1">BY 08:23 · ARR 08:27</text>
+<line x1="60" y1="378" x2="420" y2="378" stroke="#111111" stroke-width="1.5"/>
+
+<text x="240" y="402" font-size="14" letter-spacing="2">LATER · LEAVE IN / ARRIVES</text>
+<text x="240" y="430" font-size="20">29 MIN · 08:37</text>
+<text x="240" y="458" font-size="20">39 MIN · 08:47</text>
+
+<rect x="538" y="66" width="38" height="26" rx="5" fill="#111111"/>
+<rect x="543" y="71" width="11" height="9" fill="#ffffff"/>
+<rect x="560" y="71" width="11" height="9" fill="#ffffff"/>
+<circle cx="547" cy="87" r="2" fill="#ffffff"/>
+<circle cx="567" cy="87" r="2" fill="#ffffff"/>
+<text x="590" y="90" font-size="21" text-anchor="start" letter-spacing="1">KPL · WELLINGTON STATION</text>
+
+<text x="720" y="120" font-size="17"><tspan font-size="13" letter-spacing="2">MISSED  </tspan><tspan font-size="17">−2 MIN · ARR 08:10</tspan></text>
+<line x1="540" y1="134" x2="900" y2="134" stroke="#111111" stroke-width="1.5"/>
+
+<text x="720" y="162" font-size="16" letter-spacing="2">NEXT · LEAVE IN</text>
+<text x="720" y="208" font-size="46"><tspan font-size="46">13</tspan><tspan font-size="24"> MIN</tspan></text>
+<text x="720" y="236" font-size="18" letter-spacing="1">BY 08:17 · ARR 08:25</text>
+<line x1="540" y1="256" x2="900" y2="256" stroke="#111111" stroke-width="1.5"/>
+
+<text x="720" y="284" font-size="16" letter-spacing="2">THEN · LEAVE IN</text>
+<text x="720" y="330" font-size="46"><tspan font-size="46">28</tspan><tspan font-size="24"> MIN</tspan></text>
+<text x="720" y="358" font-size="18" letter-spacing="1">BY 08:32 · ARR 08:40</text>
+<line x1="540" y1="378" x2="900" y2="378" stroke="#111111" stroke-width="1.5"/>
+
+<text x="720" y="402" font-size="14" letter-spacing="2">LATER · LEAVE IN / ARRIVES</text>
+<text x="720" y="430" font-size="20">43 MIN · 08:55</text>
+<text x="720" y="458" font-size="20">58 MIN · 09:10</text>
+</g>
+</svg>

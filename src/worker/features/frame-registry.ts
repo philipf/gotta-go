@@ -112,6 +112,9 @@ function bindPrioritySplitV2(deps: FrameDeps) {
     timezone: deps.timezone,
     now: deps.now,
     runLimitMins: deps.phase.runLimitMins,
+    // Dev-only (#108): pads sparse feeds so THEN/LATER populate. Gated by
+    // DEV_PAD_LATER in .dev.vars; never set in production.
+    padLater: deps.env.DEV_PAD_LATER === 'true',
     ...renderFlagsFrom(deps),
   });
 }

@@ -27,17 +27,18 @@ export type DepartureSlot = {
   routePrefix: string; // this departure's service id ("635") for an any-of target; '' for single-route (#107)
 };
 
-// One LATER row: a departure after THEN, rendered compactly as `n MIN · hh:mm`
-// (Leave In + bare arrival clock) — no `LEAVE IN`/`BY`/`ARR` labels, the row's
-// position under the THEN hero carries the meaning. Always a positive Leave In:
-// every LATER departure follows the two heroes, so it never reaches the NEXT
-// slot's NOW zero-state. When `cancelled`, `leaveIn` is empty and `arrives`
-// carries the bare struck scheduled clock (#106).
+// One LATER row: a departure after THEN, rendered compactly as `n MIN BY hh:mm`
+// (Leave In + Leave By clock, no separator) — the `LEAVE IN` label is dropped,
+// the row's position under the THEN hero carries that meaning, and the `BY`
+// names the clock so it is not mistaken for an arrival (#108). Always a positive
+// Leave In: every LATER departure follows the two heroes, so it never reaches
+// the NEXT slot's NOW zero-state. When `cancelled`, `leaveIn` is empty and
+// `clock` carries the bare struck scheduled clock (#106).
 export type LaterRow = {
   leaveIn: string; // "29 MIN" — empty when cancelled
-  arrives: string; // "08:37" — arrival clock only, no "ARR " prefix
+  clock: string; // "BY 08:31" — the Leave By clock; bare struck scheduled clock when cancelled (#108)
   deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
-  cancelled: boolean; // operator-cancelled — render arrives struck, no Leave In (#106)
+  cancelled: boolean; // operator-cancelled — render clock struck, no Leave In (#106)
   routePrefix: string; // this departure's service id ("635") for an any-of target; '' for single-route (#107)
 };
 
@@ -109,7 +110,7 @@ function slotJson(slot: DepartureSlot | null): Record<string, unknown> | null {
 
 // Serialises one LATER row to its snake_case wire shape.
 function laterJson(row: LaterRow): Record<string, unknown> {
-  return { leave_in: row.leaveIn, arrives: row.arrives, deviation: row.deviation, cancelled: row.cancelled, route_prefix: row.routePrefix };
+  return { leave_in: row.leaveIn, clock: row.clock, deviation: row.deviation, cancelled: row.cancelled, route_prefix: row.routePrefix };
 }
 
 // Serialises the LAST row to its snake_case wire shape, or null when there is

@@ -13,3 +13,7 @@ settings.h
 dist/
 coverage/
 .local/
+
+# render-fit harness output + temp bundle (issue #108)
+src/worker/tools/render-fit/out/
+**/.render.bundle.mjs
