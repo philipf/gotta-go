@@ -198,6 +198,10 @@ The slack between *now* and **Leave By**. Drives the **marker** position on the 
 - **Appears as:** code symbol `leave_margin`.
 - **Not to be confused with:** ~~safety margin~~ (legacy, deprecated).
 
+### RUN limit
+The largest lateness, in minutes, at which a **just-missed service** on the LAST row is still sprintable — tagged `RUN` rather than `MISSED`. A just-missed service is one whose **Leave By** has already passed but which has not yet reached the stop, so it lingers one more frame in the live feed; the LAST row echoes it with a *negative* **Leave In** until it arrives and drops out. At or below the RUN limit the rider can plausibly still make it (tag `RUN`); above it, the service is shown `MISSED`. Set per **profile phase**; absent → the domain default of **1 minute**. Only `priority_split_v2` honours it — the old `priority_split` (v1) ignores it.
+- **Appears as:** config key `runLimitMins:`, code symbol `runLimitMins`; UI tags `RUN` / `MISSED` on the LAST row.
+
 ---
 
 ## 7. Profiles & modes

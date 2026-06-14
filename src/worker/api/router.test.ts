@@ -122,8 +122,8 @@ describe('api.router - JSON view-model variant', () => {
     expect(res.headers.get('X-Sleep-Seconds')).toBe('10800');
   });
 
-  it('returns the priority_split per-column view model with glossary field names', async () => {
-    // A closed stop degrades the column to dashes, so the assertion is
+  it('returns the priority_split_v2 per-column view model with glossary field names', async () => {
+    // A closed stop yields the no-service state, so the assertion is
     // independent of fixture timing while still exercising the column shape.
     vi.stubGlobal(
       'fetch',
@@ -147,19 +147,19 @@ describe('api.router - JSON view-model variant', () => {
       columns: Array<Record<string, unknown>>;
     };
     expect(body.profile_phase).toBe('morning_school_run');
-    expect(body.layout).toBe('priority_split');
+    expect(body.layout).toBe('priority_split_v2');
     expect(body.wall_clock).toBe('07:30');
     expect(body.columns).toHaveLength(1);
     expect(body.columns[0]).toEqual({
-      kind: 'service',
       mode: 'bus',
+      // No live departure → service_id falls back to the target's first any-of id.
       service_id: '634',
       trip_headsign: '',
-      leave_in: '—',
-      leave_by: '—',
-      arrives: '—',
-      next: '—',
-      marker_ratio: 1,
+      last: null,
+      no_service: { next_departure: null },
+      next: null,
+      then: null,
+      later: [],
     });
   });
 });

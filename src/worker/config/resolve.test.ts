@@ -147,7 +147,7 @@ describe('config.resolveProfilePhase', () => {
     // 05:45 NZST: the half-open window opens → morning_commute, not idle.
     const at0545 = resolveProfilePhase(radiator, new Date('2026-05-31T17:45:00Z'));
     expect(at0545.profilePhase).toBe('morning_commute');
-    expect(at0545.layout).toBe('priority_split');
+    expect(at0545.layout).toBe('priority_split_v2');
 
     // No overrun: every capped idle wake lands at or before the 05:45 start.
     const FIRST_PHASE_START_MIN = 5 * 60 + 45;
@@ -234,7 +234,7 @@ describe('config.resolveProfilePhase', () => {
     // 15:00 NZST: half-open boundary — the commute window opens.
     const commute = resolveProfilePhase(radiator, new Date('2026-06-08T03:00:00Z'));
     expect(commute.profilePhase).toBe('office_afternoon_commute');
-    expect(commute.layout).toBe('priority_split');
+    expect(commute.layout).toBe('priority_split_v2');
     expect(commute.sleepSeconds).toBe(60);
 
     // 19:30 NZST: commute hands off to the evening calendar, not idle.

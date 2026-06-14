@@ -47,17 +47,8 @@ describe('resolveTestRadiator', () => {
   it('finds a phase in any profile, reusing its transit targets', () => {
     const r = resolveTestRadiator('test-morning_school_run');
     expect(r?.profile.name).toBe('daughter_school');
-    expect(r?.profile.phases[0].layout).toBe('priority_split');
-    expect(r?.profile.phases[0].transitTargets).toBeDefined();
-  });
-
-  it('resolves the priority_split_v2 dogfooding phase from its unreferenced profile (#102)', () => {
-    // The demo profile is not wired to any radiator, so it touches no real
-    // radiator's phases — yet the bare-key scan still reaches it for the slug.
-    const r = resolveTestRadiator('test-psplit_v2_demo');
-    expect(r?.profile.name).toBe('priority_split_v2_demo');
     expect(r?.profile.phases[0].layout).toBe('priority_split_v2');
-    expect(r?.profile.phases[0].transitTargets).toHaveLength(2);
+    expect(r?.profile.phases[0].transitTargets).toBeDefined();
   });
 
   it('strips active days so a weekday-only phase renders on any day (#92)', () => {
@@ -95,7 +86,7 @@ describe('GET /v1/frame with a test- slug', () => {
     }
   });
 
-  it('routes a priority_split scenario through the same core', async () => {
+  it('routes a priority_split_v2 scenario through the same core', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(JSON.stringify(closedStop), { status: 200 })),
@@ -109,18 +100,6 @@ describe('GET /v1/frame with a test- slug', () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get('X-Profile-Phase')).toBe('morning_commute');
-    const body = (await res.json()) as Record<string, unknown>;
-    expect(body.layout).toBe('priority_split');
-  });
-
-  it('renders the priority_split_v2 dogfooding scenario through the same core (#102)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(JSON.stringify(closedStop), { status: 200 })),
-    );
-    const res = await route(frameReq('test-psplit_v2_demo'), env, new Date('2026-05-30T03:00:00Z'));
-    expect(res.status).toBe(200);
-    expect(res.headers.get('X-Profile-Phase')).toBe('psplit_v2_demo');
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.layout).toBe('priority_split_v2');
   });
