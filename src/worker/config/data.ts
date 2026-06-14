@@ -69,16 +69,17 @@ export const PROFILES: Record<string, Profile> = {
   philip_and_tania: {
     name: 'philip_and_tania',
     phases: [
-      // Morning commute (PRD §9): a two-target priority_split phase rendering
-      // the bus stop and train station side by side. Stop 3234 + route 1 and
-      // station TAKA1 + line KPL are the live-validated IDs from the Metlink spike (the
-      // PRD's 7104/WELL/5112 are placeholders the spike replaced). Listed first
-      // so its window wins over the all-day fallback during 06:30–09:00.
+      // Morning commute (PRD §9): a two-target priority_split_v2 phase
+      // rendering the bus stop and train station side by side. Stop 3234 +
+      // route 1 and station TAKA1 + line KPL are the live-validated IDs from the
+      // Metlink spike (the PRD's 7104/WELL/5112 are placeholders the spike
+      // replaced). Listed first so its window wins over the all-day fallback
+      // during 06:30–09:00. runLimitMins left default (1) — see glossary.
       {
         key: 'morning_commute',
         startTime: '05:45',
         endTime: '09:00',
-        layout: 'priority_split',
+        layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: [
@@ -99,16 +100,16 @@ export const PROFILES: Record<string, Profile> = {
         ],
       },
       // Afternoon commute home from the city (the reverse of morning).
-      // priority_split over the shared city→home pair (CITY_TO_HOME_TARGETS
+      // priority_split_v2 over the shared city→home pair (CITY_TO_HOME_TARGETS
       // above — stop/service rationale lives on the constant). Listed before
       // daytime_calendar so its 15:15–21:00 window wins over the calendar
       // during the evening commute (resolver picks the first matching phase —
-      // see resolve.ts).
+      // see resolve.ts). runLimitMins left default (1) — see glossary.
       {
         key: 'afternoon_commute',
         startTime: '15:15',
         endTime: '21:00',
-        layout: 'priority_split',
+        layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
@@ -158,7 +159,7 @@ export const PROFILES: Record<string, Profile> = {
         key: 'office_afternoon_commute',
         startTime: '15:00',
         endTime: '19:30',
-        layout: 'priority_split',
+        layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
@@ -172,9 +173,10 @@ export const PROFILES: Record<string, Profile> = {
       },
     ],
   },
-  // Daughter's school-run profile (PRD §9): a priority_split morning phase
+  // Daughter's school-run profile (PRD §9): a priority_split_v2 morning phase
   // over one bus transit target, then a minimal_clock idle phase. Stop 3234
-  // + routes 634/635 validated in GH #16 / the Metlink spike.
+  // + routes 634/635 validated in GH #16 / the Metlink spike. runLimitMins left
+  // default (1) — see glossary.
   daughter_school: {
     name: 'daughter_school',
     phases: [
@@ -182,7 +184,7 @@ export const PROFILES: Record<string, Profile> = {
         key: 'morning_school_run',
         startTime: '07:15',
         endTime: '08:30',
-        layout: 'priority_split',
+        layout: 'priority_split_v2',
         refreshIntervalMinutes: 2,
         days: WEEKDAYS,
         transitTargets: [
@@ -201,27 +203,6 @@ export const PROFILES: Record<string, Profile> = {
         endTime: '21:00',
         layout: 'minimal_clock',
         refreshIntervalMinutes: 30,
-      },
-    ],
-  },
-  // Dogfooding profile for the new priority_split_v2 layout (issue #102). It is
-  // deliberately **not referenced by any radiator** (see RADIATOR_REFS below),
-  // so it changes no real radiator's phases — yet resolveTestRadiator scans
-  // every profile by bare phase key, so the layout is reachable side-by-side
-  // with v1 via the `test-psplit_v2_demo` slug. It reuses the live-validated
-  // city→home commute pair so the v2 frame can be compared against the v1
-  // commute against the same data. Delete this profile when v2 graduates onto a
-  // real phase (or when v1 is removed and v2 takes over the commute keys).
-  priority_split_v2_demo: {
-    name: 'priority_split_v2_demo',
-    phases: [
-      {
-        key: 'psplit_v2_demo',
-        startTime: '00:00',
-        endTime: '24:00',
-        layout: 'priority_split_v2',
-        refreshIntervalMinutes: 1,
-        transitTargets: CITY_TO_HOME_TARGETS,
       },
     ],
   },

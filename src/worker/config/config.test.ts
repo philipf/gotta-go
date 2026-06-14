@@ -16,11 +16,11 @@ describe('config.lookupRadiator', () => {
     expect(lookupRadiator('ghost')).toBeUndefined();
   });
 
-  it('seeds philip_and_tania with a morning_commute priority_split phase carrying two transit targets (bus + train)', () => {
+  it('seeds philip_and_tania with a morning_commute priority_split_v2 phase carrying two transit targets (bus + train)', () => {
     const radiator = lookupRadiator('bedroom-philip-tania');
 
     const phase = radiator?.profile.phases.find((p) => p.key === 'morning_commute');
-    expect(phase?.layout).toBe('priority_split');
+    expect(phase?.layout).toBe('priority_split_v2');
     expect(phase?.transitTargets).toHaveLength(2);
 
     const [bus, train] = phase?.transitTargets ?? [];
@@ -49,7 +49,7 @@ describe('config.lookupRadiator', () => {
     expect(commute?.key).toBe('office_afternoon_commute');
     expect(commute?.startTime).toBe('15:00');
     expect(commute?.endTime).toBe('19:30');
-    expect(commute?.layout).toBe('priority_split');
+    expect(commute?.layout).toBe('priority_split_v2');
     expect(commute?.refreshIntervalMinutes).toBe(1);
 
     expect(evening?.key).toBe('evening_calendar');
@@ -75,12 +75,12 @@ describe('config.lookupRadiator', () => {
     expect(train?.destinationNameIncludes).toBe('All stops');
   });
 
-  it('seeds bedroom-daughter with a morning_school_run priority_split phase carrying one bus transit target', () => {
+  it('seeds bedroom-daughter with a morning_school_run priority_split_v2 phase carrying one bus transit target', () => {
     const radiator = lookupRadiator('bedroom-daughter');
 
     expect(radiator?.profile.name).toBe('daughter_school');
     const phase = radiator?.profile.phases.find((p) => p.key === 'morning_school_run');
-    expect(phase?.layout).toBe('priority_split');
+    expect(phase?.layout).toBe('priority_split_v2');
     expect(phase?.transitTargets).toHaveLength(1);
 
     const target = phase?.transitTargets?.[0];
