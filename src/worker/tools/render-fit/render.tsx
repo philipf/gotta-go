@@ -39,8 +39,11 @@ const fontBuffer = new Uint8Array(readFileSync(fontPath));
 function slot(leaveIn: string, leaveBy: string, arrives: string, extra: Partial<DepartureSlot> = {}): DepartureSlot {
   return { leaveIn, leaveBy, arrives, deviation: null, cancelled: false, routePrefix: '', ...extra };
 }
-function later(leaveIn: string, arrives: string, extra: Partial<LaterRow> = {}): LaterRow {
-  return { leaveIn, arrives, deviation: null, cancelled: false, routePrefix: '', ...extra };
+// `clock` is the bare hh:mm; mirrors the domain by prefixing `BY ` for a live
+// row and leaving a cancelled row's struck scheduled clock bare (#108).
+function later(leaveIn: string, clock: string, extra: Partial<LaterRow> = {}): LaterRow {
+  const cancelled = extra.cancelled ?? false;
+  return { leaveIn, clock: cancelled ? clock : `BY ${clock}`, deviation: null, cancelled: false, routePrefix: '', ...extra };
 }
 function last(tag: string, leaveIn: string, arrives: string, extra: Partial<LastSlot> = {}): LastSlot {
   return { tag, leaveIn, arrives, deviation: null, cancelled: false, routePrefix: '', ...extra };
@@ -66,7 +69,7 @@ const denseSplit = vm([
     last: last('RUN', '−1 MIN', 'ARR 08:07', { deviation: 'DELAYED +2 MIN' }),
     next: slot('9 MIN', 'BY 08:13', 'ARR 08:17', { deviation: 'EARLY −1 MIN' }),
     then: slot('19 MIN', 'BY 08:23', 'ARR 08:27', { deviation: 'DELAYED +3 MIN' }),
-    later: [later('29 MIN', '08:37', { deviation: 'DELAYED +1 MIN' }), later('39 MIN', '08:47'), later('49 MIN', '08:57')],
+    later: [later('29 MIN', '08:37', { deviation: 'DELAYED +1 MIN' }), later('39 MIN', '08:47')],
   }),
   col({
     mode: 'train',
@@ -75,12 +78,12 @@ const denseSplit = vm([
     last: last('MISSED', '−2 MIN', 'ARR 08:10'),
     next: slot('13 MIN', 'BY 08:17', 'ARR 08:25', { deviation: 'DELAYED +4 MIN' }),
     then: slot('28 MIN', 'BY 08:32', 'ARR 08:40', { deviation: 'EARLY −2 MIN' }),
-    later: [later('43 MIN', '08:55'), later('58 MIN', '09:10', { deviation: 'DELAYED +2 MIN' }), later('73 MIN', '09:25')],
+    later: [later('43 MIN', '08:55'), later('58 MIN', '09:10', { deviation: 'DELAYED +2 MIN' })],
   }),
 ]);
 
 // 2. Normal twin-column morning peak — mockup parity (RUN vs MISSED at once,
-// no badges), but with LATER_COUNT = 3 rows as shipped (the mockup showed 2).
+// no badges), with LATER_COUNT = 2 rows as shipped.
 const normalTwin = vm([
   col({
     mode: 'bus',
@@ -89,7 +92,7 @@ const normalTwin = vm([
     last: last('RUN', '−1 MIN', 'ARR 08:07'),
     next: slot('9 MIN', 'BY 08:13', 'ARR 08:17'),
     then: slot('19 MIN', 'BY 08:23', 'ARR 08:27'),
-    later: [later('29 MIN', '08:37'), later('39 MIN', '08:47'), later('49 MIN', '08:57')],
+    later: [later('29 MIN', '08:37'), later('39 MIN', '08:47')],
   }),
   col({
     mode: 'train',
@@ -98,7 +101,7 @@ const normalTwin = vm([
     last: last('MISSED', '−2 MIN', 'ARR 08:10'),
     next: slot('13 MIN', 'BY 08:17', 'ARR 08:25'),
     then: slot('28 MIN', 'BY 08:32', 'ARR 08:40'),
-    later: [later('43 MIN', '08:55'), later('58 MIN', '09:10'), later('73 MIN', '09:25')],
+    later: [later('43 MIN', '08:55'), later('58 MIN', '09:10')],
   }),
 ]);
 
@@ -113,7 +116,7 @@ const cancelledNoService = vm([
     last: last('MISSED', '−3 MIN', 'ARR 08:05'),
     next: slot('', '', '08:13', { cancelled: true }),
     then: slot('19 MIN', 'BY 08:23', 'ARR 08:27'),
-    later: [later('29 MIN', '08:37'), later('', '08:47', { cancelled: true }), later('49 MIN', '08:57')],
+    later: [later('29 MIN', '08:37'), later('', '08:47', { cancelled: true })],
   }),
   col({
     mode: 'train',
@@ -134,7 +137,7 @@ const denseFull = vm([
     last: last('RUN', '−1 MIN', 'ARR 08:07', { deviation: 'DELAYED +2 MIN' }),
     next: slot('9 MIN', 'BY 08:13', 'ARR 08:17', { deviation: 'EARLY −1 MIN' }),
     then: slot('19 MIN', 'BY 08:23', 'ARR 08:27', { deviation: 'DELAYED +3 MIN' }),
-    later: [later('29 MIN', '08:37', { deviation: 'DELAYED +1 MIN' }), later('39 MIN', '08:47'), later('49 MIN', '08:57')],
+    later: [later('29 MIN', '08:37', { deviation: 'DELAYED +1 MIN' }), later('39 MIN', '08:47')],
   }),
 ]);
 
@@ -152,7 +155,6 @@ const anyOfMixed = vm([
     later: [
       later('22 MIN', '08:32', { routePrefix: '110' }),
       later('29 MIN', '08:39', { routePrefix: '120' }),
-      later('36 MIN', '08:46', { routePrefix: '130' }),
     ],
   }),
   col({
@@ -165,7 +167,46 @@ const anyOfMixed = vm([
     later: [
       later('33 MIN', '08:44', { routePrefix: '635' }),
       later('44 MIN', '08:55', { routePrefix: '650' }),
-      later('55 MIN', '09:06', { routePrefix: '635' }),
+    ],
+  }),
+]);
+
+// 6. Badge-overflow worst case (split) — the tightest pane carrying the widest
+// possible row: a route prefix AND a 3-digit deviation on the same line
+// ("120 · 29 MIN · 08:39  DELAYED +120 MIN"), on NEXT, THEN, and every LATER row
+// of a narrow ~480px column. The deviation string is uncapped (#108), so this is
+// the realistic maximum width.
+//
+// KNOWN, ACCEPTED BOUNDARY (reviewed #108): at this pathological 3-digit width
+// the widest badge ("DELAYED +nnn MIN") touches the centre divider on the left
+// column — it does NOT clip off the panel, and 2-digit deviations (every real
+// delay, < ~60 min) clear with a comfortable gutter. We chose not to cap the
+// figure or shrink the badge for a near-impossible ≥100-minute deviation. This
+// scenario stays as a regression guard: it must keep all content ON the panel —
+// a future change that pushes a badge off the frame edge is the real failure.
+const badgeOverflow = vm([
+  col({
+    mode: 'bus',
+    serviceId: '120',
+    tripHeadsign: 'WAINUIOMATA',
+    last: last('MISSED', '−2 MIN', 'ARR 08:09', { routePrefix: '120' }),
+    next: slot('7 MIN', 'BY 08:11', 'ARR 08:18', { routePrefix: '120', deviation: 'DELAYED +120 MIN' }),
+    then: slot('14 MIN', 'BY 08:18', 'ARR 08:24', { routePrefix: '130', deviation: 'EARLY −120 MIN' }),
+    later: [
+      later('22 MIN', '08:32', { routePrefix: '120', deviation: 'DELAYED +120 MIN' }),
+      later('29 MIN', '08:39', { routePrefix: '130', deviation: 'DELAYED +120 MIN' }),
+    ],
+  }),
+  col({
+    mode: 'train',
+    serviceId: 'WELL',
+    tripHeadsign: 'WELLINGTON',
+    last: last('RUN', '−1 MIN', 'ARR 08:07', { routePrefix: 'WELL' }),
+    next: slot('11 MIN', 'BY 08:15', 'ARR 08:22', { routePrefix: 'WELL', deviation: 'DELAYED +120 MIN' }),
+    then: slot('21 MIN', 'BY 08:25', 'ARR 08:32', { routePrefix: 'KPL', deviation: 'EARLY −120 MIN' }),
+    later: [
+      later('33 MIN', '08:44', { routePrefix: 'WELL', deviation: 'DELAYED +120 MIN' }),
+      later('44 MIN', '08:55', { routePrefix: 'KPL', deviation: 'DELAYED +120 MIN' }),
     ],
   }),
 ]);
@@ -176,6 +217,7 @@ const scenarios: { name: string; vm: PrioritySplitV2ViewModel }[] = [
   { name: '3-cancelled-no-service', vm: cancelledNoService },
   { name: '4-dense-full', vm: denseFull },
   { name: '5-any-of-mixed', vm: anyOfMixed },
+  { name: '6-badge-overflow', vm: badgeOverflow },
 ];
 
 // ── render pipeline (mirrors shared/satori.ts + shared/bmp.ts) ───────────────

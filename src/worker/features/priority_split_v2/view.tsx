@@ -14,7 +14,7 @@ import type { PrioritySplitV2ViewModel } from './viewmodel';
 // changes without changing the view model — sizing, spacing, styling, whether
 // the change lands here or in layout.tsx — so radiators holding a matching ETag
 // redraw on their next wake.
-export const LAYOUT_VERSION = 6;
+export const LAYOUT_VERSION = 12;
 
 // The intermediate Satori SVG for this view model. The diagnostics SVG variant
 // (ADR-0004) returns it verbatim, and renderBmp rasterises this exact string —

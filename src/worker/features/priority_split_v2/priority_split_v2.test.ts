@@ -147,13 +147,13 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false, routePrefix: '' },
-      { leaveIn: '43 MIN', arrives: '08:18', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '31 MIN', clock: 'BY 08:01', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '43 MIN', clock: 'BY 08:13', deviation: null, cancelled: false, routePrefix: '' },
     ]);
   });
 
-  it('caps the list at LATER_COUNT (3), dropping any further departures', () => {
-    // NEXT, THEN, then four more all within the horizon — only the first three show.
+  it('caps the list at LATER_COUNT (2), dropping any further departures', () => {
+    // NEXT, THEN, then three more all within the horizon — only the first two show.
     const col = column(
       busTarget,
       open(
@@ -161,16 +161,14 @@ describe('priority_split_v2.column - LATER list', () => {
         arrival('2026-05-22T19:54:00Z'), // THEN
         arrival('2026-05-22T20:00:00Z'), // LATER 25 MIN · 08:00
         arrival('2026-05-22T20:06:00Z'), // LATER 31 MIN · 08:06
-        arrival('2026-05-22T20:12:00Z'), // LATER 37 MIN · 08:12
-        arrival('2026-05-22T20:18:00Z'), // dropped — 4th would-be row
+        arrival('2026-05-22T20:12:00Z'), // dropped — 3rd would-be row
       ),
       TZ,
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '25 MIN', arrives: '08:00', deviation: null, cancelled: false, routePrefix: '' },
-      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false, routePrefix: '' },
-      { leaveIn: '37 MIN', arrives: '08:12', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '25 MIN', clock: 'BY 07:55', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '31 MIN', clock: 'BY 08:01', deviation: null, cancelled: false, routePrefix: '' },
     ]);
   });
 
@@ -180,7 +178,7 @@ describe('priority_split_v2.column - LATER list', () => {
   });
 
   it('excludes departures beyond the 60-minute horizon, keeping the one exactly on it', () => {
-    // 20:30Z is exactly now + 60 → kept (leave_in 55, arr 08:30); 20:31Z is 61 min → excluded.
+    // 20:30Z is exactly now + 60 → kept (leave_in 55, BY 08:25); 20:31Z is 61 min → excluded.
     const col = column(
       busTarget,
       open(
@@ -192,7 +190,7 @@ describe('priority_split_v2.column - LATER list', () => {
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30', deviation: null, cancelled: false, routePrefix: '' }]);
+    expect(col.later).toEqual([{ leaveIn: '55 MIN', clock: 'BY 08:25', deviation: null, cancelled: false, routePrefix: '' }]);
   });
 });
 
@@ -422,7 +420,7 @@ describe('priority_split_v2.column - cancelled service (#106)', () => {
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '', arrives: '08:06', deviation: null, cancelled: true, routePrefix: '' }]);
+    expect(col.later).toEqual([{ leaveIn: '', clock: '08:06', deviation: null, cancelled: true, routePrefix: '' }]);
   });
 
   it('renders a cancelled LAST (just-missed) service struck with no RUN/MISSED tag', () => {
@@ -632,8 +630,8 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
     expect(json.columns[0].then).toBeNull();
   });
 
-  it('serialises the LATER rows as compact snake_case { leave_in, arrives } objects', () => {
-    // NEXT 19:42, THEN 19:54, one LATER 20:06 = now + 36, leave_in = 36 - 5 = 31, arr 08:06
+  it('serialises the LATER rows as compact snake_case { leave_in, clock } objects', () => {
+    // NEXT 19:42, THEN 19:54, one LATER 20:06 = now + 36, leave_in = 36 - 5 = 31, BY 08:01 (08:06 − 5)
     const vm = viewModelFromStopStates(
       [busTarget],
       [open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z'), arrival('2026-05-22T20:06:00Z'))],
@@ -641,7 +639,7 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
       NOW,
     );
     const json = toJsonView(vm) as { columns: { later: unknown }[] };
-    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06', deviation: null, cancelled: false, route_prefix: '' }]);
+    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', clock: 'BY 08:01', deviation: null, cancelled: false, route_prefix: '' }]);
   });
 });
 

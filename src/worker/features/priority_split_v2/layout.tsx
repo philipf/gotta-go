@@ -13,7 +13,7 @@
 // `BY hh:mm · ARR hh:mm` line (issue #102). Above the heroes a compact LAST row
 // echoes the just-missed service with a RUN/MISSED tag (issue #104); below them
 // a compact LATER list shows up to LATER_COUNT further departures as
-// `n MIN · hh:mm` rows, or a dash when none follow (issue #103). Two transit
+// `n MIN BY hh:mm` rows, or a dash when none follow (issue #103). Two transit
 // targets render as equal-width columns split by a vertical hairline rule; a
 // single target renders one full-width column with the identical slots.
 // DejaVu Sans Bold throughout (ADR-0009).
@@ -28,6 +28,15 @@ const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
 const WHITE = '#fff';
 const DASH = '—';
+
+// Dithered "grey" fill for the badges — the same ordered-dither illusion the
+// dual_month_calendar uses for weekend cells, which reads as a clean grey on the
+// 1-bit e-ink panel (#108 review). A tiled 2×2 vector checkerboard (one black
+// pixel per tile = 25% density): the dots are real black pixels at raster time,
+// so they pass bmp.ts's luma-128 threshold untouched, where a CSS grey
+// backgroundColor would collapse to solid white. See dual_month_calendar/view.tsx.
+const SHADE_TILE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2'%3E%3Crect width='1' height='1' fill='black'/%3E%3C/svg%3E";
 
 // A cancelled departure's struck scheduled clock — no `CANCELLED` text label,
 // the strike-through is the signal (glossary cancelled service, #106).
@@ -53,17 +62,15 @@ type Sizing = {
   byArr: number; // "BY hh:mm · ARR hh:mm" qualifier
   heroGap: number; // gap between the lines within one hero
   last: number; // the compact LAST row ("RUN  −1 MIN · ARR 08:07")
-  lastTag: number; // the RUN / MISSED tag within the LAST row
-  deviation: number; // the DELAYED / EARLY badge on any slot (#105)
+  badge: number; // one size for every pill: DELAYED / EARLY deviations (#105) and the RUN / MISSED tag (#104), so all share a height (#108 review)
   noService: number; // the "NO SERVICE" hero value in the no-service state (#106)
-  laterCaption: number; // "LATER" caption above the compact list
-  laterRow: number; // a compact "n MIN · hh:mm" LATER row
+  laterRow: number; // a compact "n MIN BY hh:mm" LATER row
   laterGap: number; // gap between LATER rows
 };
 
 // A single full-width column has the same 540px height as a split pane, so it
 // cannot afford a much taller hero once the LATER list claims the lower third —
-// the two co-equal heroes and the 3-row LATER block must share the column height
+// the two co-equal heroes and the 2-row LATER block must share the column height
 // (issue #103 render-fit). The hero is only modestly larger than SPLIT's; the
 // width, not the height, is what makes the full-width column read bigger.
 const FULL: Sizing = {
@@ -75,17 +82,15 @@ const FULL: Sizing = {
   caption: 22,
   // 58, not 68: in a single full-width column the two stacked heroes must share
   // the 496px band with LAST + the merged caption line + the inset slot dividers
-  // + a 3-row LATER list. 58 is the largest that clears the BY · ARR line below
+  // + a 2-row LATER list. 58 is the largest that clears the BY · ARR line below
   // in the dense worst case (issue #108 render-fit); width, not height, is what
   // makes the full-width column read big.
   hero: 58,
   byArr: 26,
   heroGap: 4,
   last: 24,
-  lastTag: 18,
-  deviation: 18,
+  badge: 18,
   noService: 52,
-  laterCaption: 22,
   laterRow: 24,
   laterGap: 2,
 };
@@ -101,23 +106,41 @@ const SPLIT: Sizing = {
   byArr: 24,
   heroGap: 6,
   last: 20,
-  lastTag: 15,
-  deviation: 15,
+  badge: 15,
   noService: 44,
-  laterCaption: 20,
   laterRow: 22,
   laterGap: 4,
 };
 
 const MAX_ICON_ROWS = Math.max(...Object.values(MODE_GRIDS).map((g) => g.length));
 
-// A schedule-deviation badge — the bordered DELAYED / EARLY label rendered on
-// whichever slot the affected departure occupies (#105). Density across the
-// LATER + LAST stack is provisional here; the render-fit review slice tunes the
-// exact sizing/wrapping (priority_split_v2_delta §6).
-function badge(text: string, size: number): ReactNode {
+// The one pill used everywhere a label needs a bordered box: schedule
+// deviations (DELAYED / EARLY, #105) and the LAST row's RUN / MISSED tag (#104).
+// Routing every badge through this function — one font size (s.badge), one
+// padding, one corner radius — guarantees they all render at the same height,
+// whichever line they sit on (#108 review). The text width still tracks its
+// content, but the box geometry is uniform.
+const BADGE_RADIUS = 6;
+const BADGE_GAP = 8; // consistent left margin between a line's text and its badge (#108 review)
+
+function badge(text: string, s: Sizing): ReactNode {
   return (
-    <div key="badge" style={{ fontSize: size, border: `2px solid ${BLACK}`, padding: '1px 6px', lineHeight: 1 }}>
+    <div
+      key="badge"
+      style={{
+        fontSize: s.badge,
+        border: `2px solid ${BLACK}`,
+        borderRadius: BADGE_RADIUS,
+        padding: '2px 8px',
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+        // Dithered-grey fill so the badge pops off the white frame, matching the
+        // calendar's weekend shading (#108 review). Black text stays legible on
+        // the 25%-density dither.
+        backgroundImage: `url("${SHADE_TILE}")`,
+        backgroundSize: '2px 2px',
+      }}
+    >
       {text}
     </div>
   );
@@ -202,7 +225,19 @@ function heroValue(text: string, s: Sizing): ReactNode {
   return (
     <div
       key="val"
-      style={{ display: 'flex', flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 8, lineHeight: 1 }}
+      // alignItems center, NOT a transform: an earlier translateY nudge seated
+      // MIN visually but left the row's layout box unchanged, so the band's
+      // vertical centring measured a box that no longer matched the ink and the
+      // whitespace above/below the hero went uneven (#108 review). Centring the
+      // half-size MIN against the number's line box keeps the layout box honest
+      // — the band centres evenly — and lands MIN mid-height against the digits,
+      // the look preferred over a strict baseline.
+      // lineHeight 1 collapses the value's line box to the glyph height: the
+      // font's natural ~1.16 leading otherwise pads the box asymmetrically, so
+      // the caption-to-value gap ballooned while value-to-qualifier stayed tight
+      // (#108 review). With the box tight to the glyph, heroGap is the only
+      // spacing on each side and the whitespace above/below the hero is even.
+      style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, lineHeight: 1 }}
     >
       <span style={{ fontSize: s.hero }}>{m[1]}</span>
       <span style={{ fontSize: Math.round(s.hero / 2) }}>MIN</span>
@@ -245,14 +280,14 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
       // The deviation badge sits inline to the right of the BY · ARR qualifier,
       // not on its own stacked line: a stacked badge pushed the hero content past
       // its band and the big value collided with the qualifier (issue #108).
-      // alignItems baseline so the badge text sits on the BY · ARR baseline
-      // rather than centring the (shorter) badge box against the line (#108).
+      // alignItems center so the pill is vertically centred against the line
+      // rather than hanging off a baseline that doesn't match its box (#108 review).
       <div
         key="qual"
-        style={{ display: 'flex', flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 8, fontSize: s.byArr }}
+        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: BADGE_GAP, fontSize: s.byArr }}
       >
         <span>{slot ? `${slot.leaveBy} · ${slot.arrives}` : DASH}</span>
-        {slot?.deviation ? badge(slot.deviation, s.deviation) : null}
+        {slot?.deviation ? badge(slot.deviation, s) : null}
       </div>,
     ],
     s,
@@ -300,15 +335,18 @@ function lastRow(slot: LastSlot, s: Sizing): ReactNode {
       style={{
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'baseline',
+        alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
+        gap: BADGE_GAP,
         fontSize: s.last,
       }}
     >
-      <span style={{ fontSize: s.lastTag, letterSpacing: 2 }}>{slot.tag}</span>
+      {/* RUN / MISSED is now the same pill as a deviation badge, not a bare
+          letter-spaced word, so the tag matches every other badge's height and
+          corner radius (#108 review). */}
+      {badge(slot.tag, s)}
       <span>{slot.routePrefix ? `${slot.routePrefix} · ${slot.leaveIn} · ${slot.arrives}` : `${slot.leaveIn} · ${slot.arrives}`}</span>
-      {slot.deviation ? badge(slot.deviation, s.deviation) : null}
+      {slot.deviation ? badge(slot.deviation, s) : null}
     </div>
   );
 }
@@ -325,9 +363,11 @@ function lastBand(slot: LastSlot | null, s: Sizing): ReactNode {
   );
 }
 
-// The compact LATER list below the two heroes: a caption over up to LATER_COUNT
-// `n MIN · hh:mm` rows. An empty list dashes the section so the column keeps a
-// stable shape rather than the heroes sliding down to fill the gap.
+// The compact LATER list below the two heroes: up to LATER_COUNT
+// `n MIN BY hh:mm` rows. No caption — we are too pressed for vertical space and
+// the rows read as "further departures" without a label (#108 review). An empty
+// list dashes the section so the column keeps a stable shape rather than the
+// heroes sliding down to fill the gap.
 function laterList(rows: LaterRow[], s: Sizing): ReactNode {
   return (
     <div
@@ -336,27 +376,36 @@ function laterList(rows: LaterRow[], s: Sizing): ReactNode {
         flexDirection: 'column',
         alignItems: 'center',
         gap: s.laterGap,
-        paddingTop: 8,
       }}
     >
-      <div style={{ fontSize: s.laterCaption }}>LATER</div>
       {rows.length === 0 ? (
         <div style={{ fontSize: s.laterRow }}>{DASH}</div>
       ) : (
         rows.map((row, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, fontSize: s.laterRow }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: BADGE_GAP, fontSize: s.laterRow }}>
             {row.cancelled ? (
               // A cancelled LATER departure shows only its struck scheduled clock,
-              // kept distinguishable by its bare route prefix for any-of targets (#106/#107).
-              <>
+              // kept distinguishable by its bare route prefix for any-of targets
+              // (#106/#107). Wrapped in one nested box so the prefix and struck
+              // clock stay tight (their own " · " separates them) — the row's
+              // BADGE_GAP must not wedge them apart.
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
                 {row.routePrefix ? <span>{row.routePrefix} · </span> : null}
-                <span style={STRIKE}>{row.arrives}</span>
-              </>
+                <span style={STRIKE}>{row.clock}</span>
+              </div>
             ) : (
-              <>
-                <span>{row.routePrefix ? `${row.routePrefix} · ${row.leaveIn} · ${row.arrives}` : `${row.leaveIn} · ${row.arrives}`}</span>
-                {row.deviation ? badge(row.deviation, s.deviation) : null}
-              </>
+              // Direct children, NOT a Fragment: Satori collapses a Fragment into
+              // an implicit row container, so the row's BADGE_GAP would apply to
+              // that single wrapper and the badge would jam against the text
+              // (#108 review — the gap that looked tighter than the qual line's).
+              // No middot between Leave In and the BY clock — "16 MIN BY 21:12"
+              // reads as one phrase and the dropped separator saves space (#108).
+              [
+                <span key="txt">
+                  {row.routePrefix ? `${row.routePrefix} · ${row.leaveIn} ${row.clock}` : `${row.leaveIn} ${row.clock}`}
+                </span>,
+                row.deviation ? badge(row.deviation, s) : null,
+              ]
             )}
           </div>
         ))
@@ -411,11 +460,23 @@ function rule(key: number): ReactNode {
   return <div key={key} style={{ width: RULE_W, alignSelf: 'stretch', backgroundColor: BLACK }} />;
 }
 
+// Vertical breathing room above and below each slot divider, so LAST | NEXT |
+// THEN | LATER read as distinct groups rather than one dense stack. Funded by
+// the space reclaimed from dropping the LATER caption and trimming LATER 3 → 2
+// (#108 review).
+const BAND_GAP = 12;
+
 // A horizontal hairline separating two slot bands within a column (LAST | NEXT |
 // THEN | LATER), inset from the column edges so it reads as a divider, not a
-// full-width border (matches the original spec, #108 review).
+// full-width border, and given vertical margin so the bands it parts have air
+// between them (#108 review).
 function hRule(key: string, s: Sizing): ReactNode {
-  return <div key={key} style={{ height: RULE_W, backgroundColor: BLACK, marginLeft: s.ruleInset, marginRight: s.ruleInset }} />;
+  return (
+    <div
+      key={key}
+      style={{ height: RULE_W, backgroundColor: BLACK, marginLeft: s.ruleInset, marginRight: s.ruleInset, marginTop: BAND_GAP, marginBottom: BAND_GAP }}
+    />
+  );
 }
 
 // The full priority_split_v2 frame tree for a view model — the exact JSX both

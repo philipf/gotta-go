@@ -16,8 +16,9 @@ const MS_PER_MIN = 60_000;
 
 // LATER renders up to this many departures below THEN — a fixed render constant
 // (pixel fit, nothing about a phase changes it), not a per-phase setting
-// (priority_split_v2_delta §6).
-const LATER_COUNT = 3;
+// (priority_split_v2_delta §6). Trimmed 3 → 2 to reclaim vertical space for
+// breathing room between the slot bands (#108 review).
+const LATER_COUNT = 2;
 
 // LATER only shows departures within the next hour; anything beyond is too far
 // off to plan around (priority_split_v2_delta §4).
@@ -180,12 +181,15 @@ function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date)
   // A cancelled LATER departure renders its scheduled clock struck, with no
   // Leave In (#106).
   if (isCancelled(a)) {
-    return { leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true, routePrefix: rowRoutePrefix(a, target) };
+    return { leaveIn: '', clock: cancelledClock(a, tz), deviation: null, cancelled: true, routePrefix: rowRoutePrefix(a, target) };
   }
   const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
   return {
     leaveIn: `${leaveInMins} MIN`,
-    arrives: hhmm(a.predicted, tz),
+    // `BY hh:mm` — the bare LATER clock was ambiguous (leave-by or arrival?) on a
+    // glance, so it is labelled `BY` (the leave-by time, the actionable one) to
+    // match the hero's `BY …` qualifier (#108).
+    clock: `BY ${hhmm(leaveByTime(a, target), tz)}`,
     deviation: deviationBadge(a),
     cancelled: false,
     routePrefix: rowRoutePrefix(a, target),
