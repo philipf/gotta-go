@@ -10,7 +10,7 @@ import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/config-types';
 import { hhmm } from '../../shared/hhmm';
 import { shortDate } from '../../shared/shortDate';
-import type { DepartureSlot, LastSlot, LaterRow, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
+import type { DepartureSlot, LastSlot, LaterRow, NoServiceSlot, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
 
 const MS_PER_MIN = 60_000;
 
@@ -36,6 +36,21 @@ const MINUS = '−';
 
 function minutesUntil(target: Date, now: Date): number {
   return (target.getTime() - now.getTime()) / MS_PER_MIN;
+}
+
+// An operator-cancelled departure (glossary cancelled service, #106). It keeps
+// its chronological slot but carries no actionable leave time — the renderer
+// shows only its struck scheduled clock.
+function isCancelled(a: Arrival): boolean {
+  return a.status === 'cancelled';
+}
+
+// The bare struck **scheduled** clock for a cancelled departure (#106) — its
+// timetable time, struck through by the renderer. A cancelled service never
+// arrives, so the arrival-clock position repurposes to carry this scheduled
+// time; the other value fields go empty.
+function cancelledClock(a: Arrival, tz: string): string {
+  return hhmm(a.scheduled, tz);
 }
 
 // The schedule-deviation badge for a departure — the explicit label naming how
@@ -90,12 +105,18 @@ function selectJustMissed(arrivals: Arrival[], target: TransitTarget, now: Date)
 // sprint (`minutes_late ≤ runLimit`), MISSED above. The Leave In renders
 // negative ("−1 MIN") by design — the leave time is behind the rider.
 function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, runLimitMins: number): LastSlot {
+  // A cancelled just-missed service renders struck with no RUN/MISSED tag — it
+  // was never catchable, so the tag would be meaningless (#106).
+  if (isCancelled(a)) {
+    return { tag: '', leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true };
+  }
   const minutesLate = -Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins);
   return {
     tag: minutesLate <= runLimitMins ? 'RUN' : 'MISSED',
     leaveIn: `${MINUS}${minutesLate} MIN`,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
     deviation: deviationBadge(a),
+    cancelled: false,
   };
 }
 
@@ -108,12 +129,19 @@ function fallbackRouteId(target: TransitTarget): string {
 // THEN departure that rounds to zero shows "0 MIN" (it is, by construction,
 // never sooner than NEXT, so this is a degenerate near-tie, not a real NOW).
 function buildSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, isNext: boolean): DepartureSlot {
+  // A cancelled departure keeps its hero slot but shows only its struck
+  // scheduled clock — the LEAVE IN label and value are suppressed and the real
+  // leave-time number falls to the next live hero below (#106).
+  if (isCancelled(a)) {
+    return { leaveIn: '', leaveBy: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true };
+  }
   const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
   return {
     leaveIn: leaveInMins === 0 && isNext ? 'NOW' : `${leaveInMins} MIN`,
     leaveBy: `BY ${hhmm(leaveByTime(a, target), tz)}`,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
     deviation: deviationBadge(a),
+    cancelled: false,
   };
 }
 
@@ -121,11 +149,17 @@ function buildSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, isN
 // and the bare arrival clock. Always positive minutes — a LATER departure
 // follows both heroes, so it never reaches the NEXT slot's NOW zero-state.
 function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date): LaterRow {
+  // A cancelled LATER departure renders its scheduled clock struck, with no
+  // Leave In (#106).
+  if (isCancelled(a)) {
+    return { leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true };
+  }
   const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
   return {
     leaveIn: `${leaveInMins} MIN`,
     arrives: hhmm(a.predicted, tz),
     deviation: deviationBadge(a),
+    cancelled: false,
   };
 }
 
@@ -134,29 +168,50 @@ function buildColumn(target: TransitTarget, state: StopState, tz: string, now: D
   // slots dash. A gateway *error* never reaches here: prepare throws it (#59).
   const arrivals = state.kind === 'closed' ? [] : state.arrivals;
   const upcoming = selectUpcoming(arrivals, target, now);
-  const next = upcoming[0];
-  const then = upcoming[1];
   // LAST is derived from the same arrivals — no extra fetch, no persisted state.
   const justMissed = selectJustMissed(arrivals, target, now);
+  const last = justMissed ? buildLastSlot(justMissed, target, tz, now, runLimitMins) : null;
 
-  // LATER is the departures after THEN, keeping only those arriving within the
-  // 60-min horizon and capped at LATER_COUNT. Fewer rows render when fewer
-  // follow; an empty list dashes the section.
-  const later = upcoming
-    .slice(2)
-    .filter((a) => minutesUntil(a.predicted, now) <= HORIZON_MINS)
-    .slice(0, LATER_COUNT)
-    .map((a) => buildLaterRow(a, target, tz, now));
+  // The 60-min horizon now governs **every** upcoming slot, not just LATER: a
+  // departure beyond it is too far off to plan around (priority_split_v2_delta
+  // §4). NEXT / THEN / LATER are filled from the in-horizon departures only, in
+  // chronological order, so the column renders fewer slots when fewer exist.
+  // Because `upcoming` is sorted by arrival, the in-horizon departures are a
+  // prefix of it.
+  const inHorizon = upcoming.filter((a) => minutesUntil(a.predicted, now) <= HORIZON_MINS);
+
+  // No-service: nothing within the horizon. NEXT shows `NO SERVICE` with the
+  // next available departure clock (the soonest upcoming beyond the horizon, if
+  // any); THEN and LATER are suppressed; the LAST row may still render (#106). A
+  // cancelled departure *within* the horizon is still a departure — it shows
+  // struck in its slot, so it does not trigger the no-service state.
+  if (inHorizon.length === 0) {
+    const nextUp = upcoming[0];
+    return {
+      mode: target.mode,
+      serviceId: nextUp ? nextUp.serviceId : fallbackRouteId(target),
+      tripHeadsign: '',
+      last,
+      noService: { nextDeparture: nextUp ? hhmm(nextUp.predicted, tz) : null },
+      next: null,
+      then: null,
+      later: [],
+    };
+  }
+
+  const next = inHorizon[0];
+  const then = inHorizon[1];
+  const later = inHorizon.slice(2, 2 + LATER_COUNT).map((a) => buildLaterRow(a, target, tz, now));
 
   return {
     mode: target.mode,
-    // The header names the NEXT departure's service; with no departure at all
-    // it falls back to the target's first configured id so the column still
-    // identifies its route.
-    serviceId: next ? next.serviceId : fallbackRouteId(target),
-    tripHeadsign: next ? next.tripHeadsign : '',
-    last: justMissed ? buildLastSlot(justMissed, target, tz, now, runLimitMins) : null,
-    next: next ? buildSlot(next, target, tz, now, true) : null,
+    // The header names the NEXT departure's service; a cancelled NEXT still
+    // carries its route id/headsign, so the column keeps identifying its route.
+    serviceId: next.serviceId,
+    tripHeadsign: next.tripHeadsign,
+    last,
+    noService: null,
+    next: buildSlot(next, target, tz, now, true),
     then: then ? buildSlot(then, target, tz, now, false) : null,
     later,
   };
