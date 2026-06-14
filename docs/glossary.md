@@ -81,6 +81,10 @@ The upstream Metlink `service_id` — a route identifier used inside the gateway
 - **Appears as:** the leading part of the column-header **service name** (e.g. `1` in `1·Island Bay`), wire field `service_id`, code symbol `serviceId`.
 - **Not to be confused with:** ~~route code~~ (legacy, deprecated).
 
+### Per-row service-id prefix
+When a **transit target**'s **service id** is an any-of array, successive departures under one **column header** may be different routes. Each rendered row (**NEXT**, **THEN**, **LATER**, **LAST**) is then prefixed with its own service id so the mixed routes stay distinguishable (e.g. `635 · 31 MIN · 08:06`). A single-route target needs no prefix — the column header already names its one route — so its rows render bare.
+- **Appears as:** the leading service id on a row's value line; wire field `route_prefix` on each slot (empty string for a single-route target), code symbol `routePrefix`.
+
 ### Destination stop id
 An optional second filter on a **transit target**: the upstream Metlink `destination.stop_id` of the terminus a departure runs to. When a single route branches to several termini at a shared stop, the **service id** filter alone passes all branches; setting a destination stop id narrows the target to the wanted terminus (e.g. Churton Park `3281` at stop 5012). Accepts a single id or an any-of array, mirroring **service id**; absent means no destination filter. Internal to the gateway — not shown to the user.
 - **Appears as:** config key `destinationStopId` under a transit target, wire field `destination.stop_id`, code symbol `destinationStopId`.

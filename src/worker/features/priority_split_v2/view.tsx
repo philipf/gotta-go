@@ -22,7 +22,7 @@ import type { DepartureSlot, LastSlot, LaterRow, NoServiceSlot, PrioritySplitV2V
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 4;
+export const LAYOUT_VERSION = 5;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -163,6 +163,14 @@ function heroFrame(children: ReactNode, s: Sizing): ReactNode {
   );
 }
 
+// The slot caption, suffixed with the departure's own service id for an any-of
+// target so mixed routes under one column header stay distinguishable — e.g.
+// "NEXT · 635" (#107). Bare "NEXT" for a single-route target (routePrefix '') or
+// an absent slot.
+function slotCaption(caption: string, slot: DepartureSlot | null): string {
+  return slot?.routePrefix ? `${caption} · ${slot.routePrefix}` : caption;
+}
+
 // One co-equal hero: the slot caption (NEXT / THEN), the LEAVE IN label, the
 // hero value (or NOW), and the BY · ARR qualifier. An absent slot dashes the
 // value and qualifier so the column keeps a stable two-hero shape rather than
@@ -174,7 +182,7 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
   if (slot?.cancelled) {
     return heroFrame(
       <>
-        <div style={{ fontSize: s.caption }}>{caption}</div>
+        <div style={{ fontSize: s.caption }}>{slotCaption(caption, slot)}</div>
         <div style={{ fontSize: s.hero, lineHeight: 1, ...STRIKE }}>{slot.arrives}</div>
       </>,
       s,
@@ -182,7 +190,7 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
   }
   return heroFrame(
     <>
-      <div style={{ fontSize: s.caption }}>{caption}</div>
+      <div style={{ fontSize: s.caption }}>{slotCaption(caption, slot)}</div>
       <div style={{ fontSize: s.leaveInLabel }}>LEAVE IN</div>
       <div style={{ fontSize: s.hero, lineHeight: 1 }}>{slot ? slot.leaveIn : DASH}</div>
       <div style={{ fontSize: s.byArr }}>{slot ? `${slot.leaveBy} · ${slot.arrives}` : DASH}</div>
@@ -216,7 +224,8 @@ function lastRow(slot: LastSlot, s: Sizing): ReactNode {
   // RUN/MISSED tag, it was never catchable (#106).
   if (slot.cancelled) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', fontSize: s.last }}>
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 10, fontSize: s.last }}>
+        {slot.routePrefix ? <span>{slot.routePrefix}</span> : null}
         <span style={STRIKE}>{slot.arrives}</span>
       </div>
     );
@@ -233,7 +242,7 @@ function lastRow(slot: LastSlot, s: Sizing): ReactNode {
       }}
     >
       <span style={{ fontSize: s.lastTag, letterSpacing: 2 }}>{slot.tag}</span>
-      <span>{`${slot.leaveIn} · ${slot.arrives}`}</span>
+      <span>{slot.routePrefix ? `${slot.routePrefix} · ${slot.leaveIn} · ${slot.arrives}` : `${slot.leaveIn} · ${slot.arrives}`}</span>
       {slot.deviation ? badge(slot.deviation, s.deviation) : null}
     </div>
   );
@@ -260,11 +269,15 @@ function laterList(rows: LaterRow[], s: Sizing): ReactNode {
         rows.map((row, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, fontSize: s.laterRow }}>
             {row.cancelled ? (
-              // A cancelled LATER departure shows only its struck scheduled clock (#106).
-              <span style={STRIKE}>{row.arrives}</span>
+              // A cancelled LATER departure shows only its struck scheduled clock,
+              // kept distinguishable by its bare route prefix for any-of targets (#106/#107).
+              <>
+                {row.routePrefix ? <span>{row.routePrefix} · </span> : null}
+                <span style={STRIKE}>{row.arrives}</span>
+              </>
             ) : (
               <>
-                <span>{`${row.leaveIn} · ${row.arrives}`}</span>
+                <span>{row.routePrefix ? `${row.routePrefix} · ${row.leaveIn} · ${row.arrives}` : `${row.leaveIn} · ${row.arrives}`}</span>
                 {row.deviation ? badge(row.deviation, s.deviation) : null}
               </>
             )}
