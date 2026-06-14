@@ -108,7 +108,14 @@ function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date,
   // A cancelled just-missed service renders struck with no RUN/MISSED tag — it
   // was never catchable, so the tag would be meaningless (#106).
   if (isCancelled(a)) {
-    return { tag: '', leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true };
+    return {
+      tag: '',
+      leaveIn: '',
+      arrives: cancelledClock(a, tz),
+      deviation: null,
+      cancelled: true,
+      routePrefix: rowRoutePrefix(a, target),
+    };
   }
   const minutesLate = -Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins);
   return {
@@ -117,11 +124,21 @@ function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
     deviation: deviationBadge(a),
     cancelled: false,
+    routePrefix: rowRoutePrefix(a, target),
   };
 }
 
 function fallbackRouteId(target: TransitTarget): string {
   return Array.isArray(target.serviceId) ? target.serviceId[0] : target.serviceId;
+}
+
+// The per-row service-id prefix (#107). For an any-of `serviceId` target,
+// successive departures under one column header may be different routes, so each
+// rendered row (NEXT, THEN, LATER, LAST) carries its own service id to keep them
+// distinguishable. A single-route target needs no prefix — the column header
+// already names its one route — so it renders bare ('').
+function rowRoutePrefix(a: Arrival, target: TransitTarget): string {
+  return Array.isArray(target.serviceId) ? a.serviceId : '';
 }
 
 // Projects one upcoming departure into a hero slot. `isNext` enables the NOW
@@ -133,7 +150,14 @@ function buildSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, isN
   // scheduled clock — the LEAVE IN label and value are suppressed and the real
   // leave-time number falls to the next live hero below (#106).
   if (isCancelled(a)) {
-    return { leaveIn: '', leaveBy: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true };
+    return {
+      leaveIn: '',
+      leaveBy: '',
+      arrives: cancelledClock(a, tz),
+      deviation: null,
+      cancelled: true,
+      routePrefix: rowRoutePrefix(a, target),
+    };
   }
   const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
   return {
@@ -142,6 +166,7 @@ function buildSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, isN
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
     deviation: deviationBadge(a),
     cancelled: false,
+    routePrefix: rowRoutePrefix(a, target),
   };
 }
 
@@ -152,7 +177,7 @@ function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date)
   // A cancelled LATER departure renders its scheduled clock struck, with no
   // Leave In (#106).
   if (isCancelled(a)) {
-    return { leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true };
+    return { leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true, routePrefix: rowRoutePrefix(a, target) };
   }
   const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
   return {
@@ -160,6 +185,7 @@ function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date)
     arrives: hhmm(a.predicted, tz),
     deviation: deviationBadge(a),
     cancelled: false,
+    routePrefix: rowRoutePrefix(a, target),
   };
 }
 

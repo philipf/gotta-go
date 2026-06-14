@@ -24,6 +24,7 @@ export type DepartureSlot = {
   arrives: string; // "ARR 07:14" — arrival clock; bare struck "07:14" when cancelled
   deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
   cancelled: boolean; // operator-cancelled — render arrives struck, no Leave In (#106)
+  routePrefix: string; // this departure's service id ("635") for an any-of target; '' for single-route (#107)
 };
 
 // One LATER row: a departure after THEN, rendered compactly as `n MIN · hh:mm`
@@ -37,6 +38,7 @@ export type LaterRow = {
   arrives: string; // "08:37" — arrival clock only, no "ARR " prefix
   deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
   cancelled: boolean; // operator-cancelled — render arrives struck, no Leave In (#106)
+  routePrefix: string; // this departure's service id ("635") for an any-of target; '' for single-route (#107)
 };
 
 // The LAST row: the single just-missed service (its Leave By has passed but it
@@ -53,6 +55,7 @@ export type LastSlot = {
   arrives: string; // "ARR 08:07" — arrival clock; bare struck "08:07" when cancelled
   deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
   cancelled: boolean; // operator-cancelled just-missed service — struck, no tag (#106)
+  routePrefix: string; // this departure's service id ("635") for an any-of target; '' for single-route (#107)
 };
 
 // The no-service state of a column (#106, glossary no-service state): no
@@ -100,12 +103,13 @@ function slotJson(slot: DepartureSlot | null): Record<string, unknown> | null {
         arrives: slot.arrives,
         deviation: slot.deviation,
         cancelled: slot.cancelled,
+        route_prefix: slot.routePrefix,
       };
 }
 
 // Serialises one LATER row to its snake_case wire shape.
 function laterJson(row: LaterRow): Record<string, unknown> {
-  return { leave_in: row.leaveIn, arrives: row.arrives, deviation: row.deviation, cancelled: row.cancelled };
+  return { leave_in: row.leaveIn, arrives: row.arrives, deviation: row.deviation, cancelled: row.cancelled, route_prefix: row.routePrefix };
 }
 
 // Serialises the LAST row to its snake_case wire shape, or null when there is
@@ -120,6 +124,7 @@ function lastJson(slot: LastSlot | null): Record<string, unknown> | null {
         arrives: slot.arrives,
         deviation: slot.deviation,
         cancelled: slot.cancelled,
+        route_prefix: slot.routePrefix,
       };
 }
 

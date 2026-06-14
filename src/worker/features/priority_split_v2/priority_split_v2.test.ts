@@ -147,8 +147,8 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false },
-      { leaveIn: '43 MIN', arrives: '08:18', deviation: null, cancelled: false },
+      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '43 MIN', arrives: '08:18', deviation: null, cancelled: false, routePrefix: '' },
     ]);
   });
 
@@ -168,9 +168,9 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '25 MIN', arrives: '08:00', deviation: null, cancelled: false },
-      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false },
-      { leaveIn: '37 MIN', arrives: '08:12', deviation: null, cancelled: false },
+      { leaveIn: '25 MIN', arrives: '08:00', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false, routePrefix: '' },
+      { leaveIn: '37 MIN', arrives: '08:12', deviation: null, cancelled: false, routePrefix: '' },
     ]);
   });
 
@@ -192,7 +192,7 @@ describe('priority_split_v2.column - LATER list', () => {
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30', deviation: null, cancelled: false }]);
+    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30', deviation: null, cancelled: false, routePrefix: '' }]);
   });
 });
 
@@ -220,18 +220,32 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     // arrival 19:34Z (07:34): leave_by 19:29 < now, now < 19:34 → missed.
     // leave_in = (4 − 5) = −1 → minutes_late 1 ≤ 1 → RUN.
     const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false });
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false, routePrefix: '' });
   });
 
   it('tags MISSED above the runLimit: −2 MIN renders MISSED', () => {
     // arrival 19:33Z: leave_in = (3 − 5) = −2 → minutes_late 2 > 1 → MISSED.
     const col = column(busTarget, open(arrival('2026-05-22T19:33:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'MISSED', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null, cancelled: false });
+    expect(col.last).toEqual({
+      tag: 'MISSED',
+      leaveIn: '−2 MIN',
+      arrives: 'ARR 07:33',
+      deviation: null,
+      cancelled: false,
+      routePrefix: '',
+    });
   });
 
   it('honours a per-phase runLimitMins override: −2 MIN is RUN when runLimit is 2', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:33:00Z'))], TZ, NOW, 2);
-    expect(vm.columns[0].last).toEqual({ tag: 'RUN', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null, cancelled: false });
+    expect(vm.columns[0].last).toEqual({
+      tag: 'RUN',
+      leaveIn: '−2 MIN',
+      arrives: 'ARR 07:33',
+      deviation: null,
+      cancelled: false,
+      routePrefix: '',
+    });
   });
 
   it('omits the LAST row at the floor — now ≥ arrival_time hides it', () => {
@@ -244,7 +258,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     // Both 19:31Z (late 4, MISSED) and 19:34Z (late 1, RUN) qualify; only the
     // most recent — 19:34Z — renders, so the row is RUN −1, not the older one.
     const col = column(busTarget, open(arrival('2026-05-22T19:31:00Z'), arrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false });
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false, routePrefix: '' });
   });
 
   it('renders the LAST row independently of NEXT — a just-missed echo above the next catchable hero', () => {
@@ -262,7 +276,14 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
   it('serialises the LAST row to snake_case (tag, leave_in, arrives — no leave_by)', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:34:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { last: unknown }[] };
-    expect(json.columns[0].last).toEqual({ tag: 'RUN', leave_in: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false });
+    expect(json.columns[0].last).toEqual({
+      tag: 'RUN',
+      leave_in: '−1 MIN',
+      arrives: 'ARR 07:34',
+      deviation: null,
+      cancelled: false,
+      route_prefix: '',
+    });
   });
 });
 
@@ -385,7 +406,7 @@ describe('priority_split_v2.column - cancelled service (#106)', () => {
     // Cancelled 19:42 (07:42) is NEXT; the live 19:54 becomes THEN with the real
     // Leave In (24 − 5 = 19). The struck scheduled clock fills NEXT's value area.
     const col = column(busTarget, open(cancelledArrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z')), TZ, NOW);
-    expect(col.next).toEqual({ leaveIn: '', leaveBy: '', arrives: '07:42', deviation: null, cancelled: true });
+    expect(col.next).toEqual({ leaveIn: '', leaveBy: '', arrives: '07:42', deviation: null, cancelled: true, routePrefix: '' });
     expect(col.then?.leaveIn).toBe('19 MIN');
     expect(col.then?.cancelled).toBe(false);
   });
@@ -398,20 +419,27 @@ describe('priority_split_v2.column - cancelled service (#106)', () => {
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '', arrives: '08:06', deviation: null, cancelled: true }]);
+    expect(col.later).toEqual([{ leaveIn: '', arrives: '08:06', deviation: null, cancelled: true, routePrefix: '' }]);
   });
 
   it('renders a cancelled LAST (just-missed) service struck with no RUN/MISSED tag', () => {
     // Cancelled 19:34 (07:34): leave_by 19:29 < now, now < 19:34 → just-missed,
     // but cancelled → struck, no tag (it was never catchable).
     const col = column(busTarget, open(cancelledArrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: '', leaveIn: '', arrives: '07:34', deviation: null, cancelled: true });
+    expect(col.last).toEqual({ tag: '', leaveIn: '', arrives: '07:34', deviation: null, cancelled: true, routePrefix: '' });
   });
 
   it('serialises a cancelled slot to snake_case (cancelled flag, struck clock in arrives)', () => {
     const vm = viewModelFromStopStates([busTarget], [open(cancelledArrival('2026-05-22T19:42:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { next: unknown }[] };
-    expect(json.columns[0].next).toEqual({ leave_in: '', leave_by: '', arrives: '07:42', deviation: null, cancelled: true });
+    expect(json.columns[0].next).toEqual({
+      leave_in: '',
+      leave_by: '',
+      arrives: '07:42',
+      deviation: null,
+      cancelled: true,
+      route_prefix: '',
+    });
   });
 });
 
@@ -456,6 +484,88 @@ describe('priority_split_v2.column - partial horizon (#106)', () => {
     const col = column(busTarget, open(cancelledArrival('2026-05-22T19:42:00Z')), TZ, NOW);
     expect(col.noService).toBeNull();
     expect(col.next?.cancelled).toBe(true);
+  });
+});
+
+describe('priority_split_v2.column - per-row service-id prefix for any-of targets (#107)', () => {
+  // An any-of serviceId target: successive departures under one column header may
+  // be different routes (635 / 636), so each row carries its own service id.
+  const anyOfTarget: TransitTarget = { ...busTarget, serviceId: ['635', '636'] };
+
+  it("prefixes every row (NEXT/THEN/LATER/LAST) with that departure's own service id", () => {
+    const col = column(
+      anyOfTarget,
+      open(
+        arrival('2026-05-22T19:34:00Z', '636'), // LAST (just-missed)
+        arrival('2026-05-22T19:42:00Z', '635'), // NEXT
+        arrival('2026-05-22T19:54:00Z', '636'), // THEN
+        arrival('2026-05-22T20:06:00Z', '635'), // LATER
+      ),
+      TZ,
+      NOW,
+    );
+    expect(col.last?.routePrefix).toBe('636');
+    expect(col.next?.routePrefix).toBe('635');
+    expect(col.then?.routePrefix).toBe('636');
+    expect(col.later[0]?.routePrefix).toBe('635');
+  });
+
+  it('prefixes a cancelled departure too — the struck row stays route-distinguishable', () => {
+    // Cancelled NEXT on route 636, live THEN on 635.
+    const col = column(anyOfTarget, open(cancelledArrival('2026-05-22T19:42:00Z', '636'), arrival('2026-05-22T19:54:00Z', '635')), TZ, NOW);
+    expect(col.next?.cancelled).toBe(true);
+    expect(col.next?.routePrefix).toBe('636');
+    expect(col.then?.routePrefix).toBe('635');
+  });
+
+  it('serialises the per-row prefix to snake_case route_prefix on every slot', () => {
+    const vm = viewModelFromStopStates(
+      [anyOfTarget],
+      [
+        open(
+          arrival('2026-05-22T19:34:00Z', '636'), // LAST
+          arrival('2026-05-22T19:42:00Z', '635'), // NEXT
+          arrival('2026-05-22T19:54:00Z', '636'), // THEN
+          arrival('2026-05-22T20:06:00Z', '635'), // LATER
+        ),
+      ],
+      TZ,
+      NOW,
+    );
+    const json = toJsonView(vm) as {
+      columns: {
+        last: { route_prefix: unknown };
+        next: { route_prefix: unknown };
+        then: { route_prefix: unknown };
+        later: { route_prefix: unknown }[];
+      }[];
+    };
+    const c = json.columns[0];
+    expect(c.last.route_prefix).toBe('636');
+    expect(c.next.route_prefix).toBe('635');
+    expect(c.then.route_prefix).toBe('636');
+    expect(c.later[0].route_prefix).toBe('635');
+  });
+});
+
+describe('priority_split_v2.column - single-route target renders no per-row prefix (#107)', () => {
+  it("leaves every row's routePrefix empty for a single-route target", () => {
+    // busTarget is a bare single-route ('1') target — no row carries a prefix.
+    const col = column(
+      busTarget,
+      open(
+        arrival('2026-05-22T19:34:00Z', '1'), // LAST
+        arrival('2026-05-22T19:42:00Z', '1'), // NEXT
+        arrival('2026-05-22T19:54:00Z', '1'), // THEN
+        arrival('2026-05-22T20:06:00Z', '1'), // LATER
+      ),
+      TZ,
+      NOW,
+    );
+    expect(col.last?.routePrefix).toBe('');
+    expect(col.next?.routePrefix).toBe('');
+    expect(col.then?.routePrefix).toBe('');
+    expect(col.later[0]?.routePrefix).toBe('');
   });
 });
 
@@ -505,8 +615,8 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
           trip_headsign: 'Island Bay',
           last: null,
           no_service: null,
-          next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42', deviation: null, cancelled: false },
-          then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54', deviation: null, cancelled: false },
+          next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42', deviation: null, cancelled: false, route_prefix: '' },
+          then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54', deviation: null, cancelled: false, route_prefix: '' },
           later: [],
         },
       ],
@@ -528,7 +638,7 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
       NOW,
     );
     const json = toJsonView(vm) as { columns: { later: unknown }[] };
-    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06', deviation: null, cancelled: false }]);
+    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06', deviation: null, cancelled: false, route_prefix: '' }]);
   });
 });
 
