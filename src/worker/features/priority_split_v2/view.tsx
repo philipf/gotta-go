@@ -22,7 +22,7 @@ import type { DepartureSlot, LastSlot, LaterRow, PrioritySplitV2ViewModel, Servi
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 3;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -49,6 +49,7 @@ type Sizing = {
   heroGap: number; // gap between the lines within one hero
   last: number; // the compact LAST row ("RUN  −1 MIN · ARR 08:07")
   lastTag: number; // the RUN / MISSED tag within the LAST row
+  deviation: number; // the DELAYED / EARLY badge on any slot (#105)
   laterCaption: number; // "LATER" caption above the compact list
   laterRow: number; // a compact "n MIN · hh:mm" LATER row
   laterGap: number; // gap between LATER rows
@@ -70,6 +71,7 @@ const FULL: Sizing = {
   heroGap: 2,
   last: 24,
   lastTag: 18,
+  deviation: 18,
   laterCaption: 22,
   laterRow: 24,
   laterGap: 2,
@@ -86,12 +88,21 @@ const SPLIT: Sizing = {
   heroGap: 6,
   last: 20,
   lastTag: 15,
+  deviation: 15,
   laterCaption: 20,
   laterRow: 22,
   laterGap: 4,
 };
 
 const MAX_ICON_ROWS = Math.max(...Object.values(MODE_GRIDS).map((g) => g.length));
+
+// A schedule-deviation badge — the bordered DELAYED / EARLY label rendered on
+// whichever slot the affected departure occupies (#105). Density across the
+// LATER + LAST stack is provisional here; the render-fit review slice tunes the
+// exact sizing/wrapping (priority_split_v2_delta §6).
+function badge(text: string, size: number): ReactNode {
+  return <div style={{ fontSize: size, border: `2px solid ${BLACK}`, padding: '1px 6px', lineHeight: 1 }}>{text}</div>;
+}
 
 // Column header — mode icon on the left, service name to its right
 // (service_id · trip_headsign). A long headsign truncates with an ellipsis
@@ -146,6 +157,7 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
       <div style={{ fontSize: s.leaveInLabel }}>LEAVE IN</div>
       <div style={{ fontSize: s.hero, lineHeight: 1 }}>{slot ? slot.leaveIn : DASH}</div>
       <div style={{ fontSize: s.byArr }}>{slot ? `${slot.leaveBy} · ${slot.arrives}` : DASH}</div>
+      {slot?.deviation ? badge(slot.deviation, s.deviation) : null}
     </div>
   );
 }
@@ -169,6 +181,7 @@ function lastRow(slot: LastSlot, s: Sizing): ReactNode {
     >
       <span style={{ fontSize: s.lastTag, letterSpacing: 2 }}>{slot.tag}</span>
       <span>{`${slot.leaveIn} · ${slot.arrives}`}</span>
+      {slot.deviation ? badge(slot.deviation, s.deviation) : null}
     </div>
   );
 }
@@ -191,7 +204,12 @@ function laterList(rows: LaterRow[], s: Sizing): ReactNode {
       {rows.length === 0 ? (
         <div style={{ fontSize: s.laterRow }}>{DASH}</div>
       ) : (
-        rows.map((row, i) => <div key={i} style={{ fontSize: s.laterRow }}>{`${row.leaveIn} · ${row.arrives}`}</div>)
+        rows.map((row, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, fontSize: s.laterRow }}>
+            <span>{`${row.leaveIn} · ${row.arrives}`}</span>
+            {row.deviation ? badge(row.deviation, s.deviation) : null}
+          </div>
+        ))
       )}
     </div>
   );

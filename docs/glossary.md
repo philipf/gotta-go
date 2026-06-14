@@ -150,6 +150,9 @@ The next scheduled service that takes over Tier 1 after a **cancelled service** 
 ### Delayed service
 A service running later than scheduled. Rendered with a bordered `DELAYED +n MIN` banner above Tier 2. A delay is **good news** — it grows **Leave In** and slides the marker leftward (recovered **leave margin**). Never an error state.
 
+### Early service
+A service running ahead of schedule (negative delay). The signed twin of a **delayed service**: rendered with a bordered `EARLY −n MIN` badge on whichever slot the departure occupies. Where a delay is good news, an early run is **bad news** — it *shrinks* **Leave In** (leave sooner). The badge shows only when the deviation rounds to 1 minute or more early; an on-time service (rounds to 0) carries no badge.
+
 ### No-service state
 The state when zero **catchable services** exist within the next 60 minutes. The Tier 1 hero is replaced by the literal `NO SERVICE`, with the next available departure clock time below it.
 

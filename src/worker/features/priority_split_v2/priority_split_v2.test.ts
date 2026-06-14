@@ -38,16 +38,19 @@ const trainTarget: TransitTarget = {
   comfortBuffer: 1.5,
 };
 
-function arrival(predictedIso: string, serviceId = '1'): Arrival {
+// `predicted` is the expected arrival the slots compute against; `delaySeconds`
+// is the signed drift from the timetable that drives the DELAYED/EARLY badge
+// (#105) — positive late, negative early, 0 on time.
+function arrival(predictedIso: string, serviceId = '1', delaySeconds = 0): Arrival {
   const predicted = new Date(predictedIso);
   return {
     serviceId,
     tripHeadsign: 'Island Bay',
     name: '',
-    scheduled: predicted,
+    scheduled: new Date(predicted.getTime() - delaySeconds * 1000),
     predicted,
-    delaySeconds: 0,
-    status: 'scheduled',
+    delaySeconds,
+    status: delaySeconds > 0 ? 'delayed' : delaySeconds < 0 ? 'early' : 'scheduled',
     tripId: `trip-${predictedIso}`,
   };
 }
@@ -127,8 +130,8 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '31 MIN', arrives: '08:06' },
-      { leaveIn: '43 MIN', arrives: '08:18' },
+      { leaveIn: '31 MIN', arrives: '08:06', deviation: null },
+      { leaveIn: '43 MIN', arrives: '08:18', deviation: null },
     ]);
   });
 
@@ -148,9 +151,9 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '25 MIN', arrives: '08:00' },
-      { leaveIn: '31 MIN', arrives: '08:06' },
-      { leaveIn: '37 MIN', arrives: '08:12' },
+      { leaveIn: '25 MIN', arrives: '08:00', deviation: null },
+      { leaveIn: '31 MIN', arrives: '08:06', deviation: null },
+      { leaveIn: '37 MIN', arrives: '08:12', deviation: null },
     ]);
   });
 
@@ -172,7 +175,7 @@ describe('priority_split_v2.column - LATER list', () => {
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30' }]);
+    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30', deviation: null }]);
   });
 });
 
@@ -200,18 +203,18 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     // arrival 19:34Z (07:34): leave_by 19:29 < now, now < 19:34 → missed.
     // leave_in = (4 − 5) = −1 → minutes_late 1 ≤ 1 → RUN.
     const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34' });
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null });
   });
 
   it('tags MISSED above the runLimit: −2 MIN renders MISSED', () => {
     // arrival 19:33Z: leave_in = (3 − 5) = −2 → minutes_late 2 > 1 → MISSED.
     const col = column(busTarget, open(arrival('2026-05-22T19:33:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'MISSED', leaveIn: '−2 MIN', arrives: 'ARR 07:33' });
+    expect(col.last).toEqual({ tag: 'MISSED', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null });
   });
 
   it('honours a per-phase runLimitMins override: −2 MIN is RUN when runLimit is 2', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:33:00Z'))], TZ, NOW, 2);
-    expect(vm.columns[0].last).toEqual({ tag: 'RUN', leaveIn: '−2 MIN', arrives: 'ARR 07:33' });
+    expect(vm.columns[0].last).toEqual({ tag: 'RUN', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null });
   });
 
   it('omits the LAST row at the floor — now ≥ arrival_time hides it', () => {
@@ -224,7 +227,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     // Both 19:31Z (late 4, MISSED) and 19:34Z (late 1, RUN) qualify; only the
     // most recent — 19:34Z — renders, so the row is RUN −1, not the older one.
     const col = column(busTarget, open(arrival('2026-05-22T19:31:00Z'), arrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34' });
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null });
   });
 
   it('renders the LAST row independently of NEXT — a just-missed echo above the next catchable hero', () => {
@@ -242,7 +245,103 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
   it('serialises the LAST row to snake_case (tag, leave_in, arrives — no leave_by)', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:34:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { last: unknown }[] };
-    expect(json.columns[0].last).toEqual({ tag: 'RUN', leave_in: '−1 MIN', arrives: 'ARR 07:34' });
+    expect(json.columns[0].last).toEqual({ tag: 'RUN', leave_in: '−1 MIN', arrives: 'ARR 07:34', deviation: null });
+  });
+});
+
+describe('priority_split_v2.column - deviation badges (DELAYED / EARLY, #105)', () => {
+  it('badges a late NEXT departure DELAYED +n MIN, the delay growing Leave In', () => {
+    // scheduled 19:40Z (leave_in would be (10 − 5) = 5); predicted 19:43Z, delay
+    // +180s → +3 min. Leave In is computed against predicted: (13 − 5) = 8 — the
+    // delay *grew* it from 5 — and the badge names the +3.
+    const col = column(busTarget, open(arrival('2026-05-22T19:43:00Z', '1', 180)), TZ, NOW);
+    expect(col.next?.leaveIn).toBe('8 MIN');
+    expect(col.next?.arrives).toBe('ARR 07:43');
+    expect(col.next?.deviation).toBe('DELAYED +3 MIN');
+  });
+
+  it('badges an early NEXT departure EARLY −n MIN, the early run shrinking Leave In', () => {
+    // scheduled 19:50Z (leave_in would be (20 − 5) = 15); predicted 19:47Z, delay
+    // −180s → 3 min early. Leave In against predicted: (17 − 5) = 12 — the early
+    // run *shrank* it from 15 — and the badge names the −3 (leave sooner).
+    const col = column(busTarget, open(arrival('2026-05-22T19:47:00Z', '1', -180)), TZ, NOW);
+    expect(col.next?.leaveIn).toBe('12 MIN');
+    expect(col.next?.arrives).toBe('ARR 07:47');
+    expect(col.next?.deviation).toBe('EARLY −3 MIN');
+  });
+
+  it('shows no badge on an on-time departure (deviation rounds to 0)', () => {
+    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', 0)), TZ, NOW);
+    expect(col.next?.deviation).toBeNull();
+  });
+
+  it('rounds a late departure to whole minutes: 30s late → DELAYED +1 MIN, 29s late → no badge', () => {
+    const late = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', 30)), TZ, NOW);
+    const onTime = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', 29)), TZ, NOW);
+    expect(late.next?.deviation).toBe('DELAYED +1 MIN');
+    expect(onTime.next?.deviation).toBeNull();
+  });
+
+  it('rounds an early departure to whole minutes: 31s early → EARLY −1 MIN, 29s early → no badge', () => {
+    const early = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', -31)), TZ, NOW);
+    const onTime = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', -29)), TZ, NOW);
+    expect(early.next?.deviation).toBe('EARLY −1 MIN');
+    expect(onTime.next?.deviation).toBeNull();
+  });
+
+  it('badges the THEN hero when the second departure is the affected one', () => {
+    // NEXT on time; THEN 19:55Z delayed +180s → DELAYED +3 MIN on THEN only.
+    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z', '1', 0), arrival('2026-05-22T19:55:00Z', '1', 180)), TZ, NOW);
+    expect(col.next?.deviation).toBeNull();
+    expect(col.then?.deviation).toBe('DELAYED +3 MIN');
+  });
+
+  it('badges a compact LATER row when its departure is early', () => {
+    // NEXT, THEN on time; the LATER departure 20:06Z is 2 min early.
+    const col = column(
+      busTarget,
+      open(arrival('2026-05-22T19:42:00Z', '1', 0), arrival('2026-05-22T19:54:00Z', '1', 0), arrival('2026-05-22T20:06:00Z', '1', -120)),
+      TZ,
+      NOW,
+    );
+    expect(col.later[0]?.deviation).toBe('EARLY −2 MIN');
+  });
+
+  it('badges the LAST row when the just-missed service ran early', () => {
+    // 19:34Z just-missed (RUN −1), delay −120s → EARLY −2 MIN on the LAST row.
+    const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z', '1', -120)), TZ, NOW);
+    expect(col.last?.tag).toBe('RUN');
+    expect(col.last?.deviation).toBe('EARLY −2 MIN');
+  });
+
+  it('serialises the deviation badge on every slot to its wire field', () => {
+    // NEXT delayed +3, THEN early −2, one LATER delayed +1, plus a just-missed LAST early −2.
+    const vm = viewModelFromStopStates(
+      [busTarget],
+      [
+        open(
+          arrival('2026-05-22T19:34:00Z', '1', -120), // LAST (just-missed, early −2)
+          arrival('2026-05-22T19:43:00Z', '1', 180), // NEXT (delayed +3)
+          arrival('2026-05-22T19:55:00Z', '1', -120), // THEN (early −2)
+          arrival('2026-05-22T20:06:00Z', '1', 60), // LATER (delayed +1)
+        ),
+      ],
+      TZ,
+      NOW,
+    );
+    const json = toJsonView(vm) as {
+      columns: {
+        last: { deviation: unknown };
+        next: { deviation: unknown };
+        then: { deviation: unknown };
+        later: { deviation: unknown }[];
+      }[];
+    };
+    const c = json.columns[0];
+    expect(c.last.deviation).toBe('EARLY −2 MIN');
+    expect(c.next.deviation).toBe('DELAYED +3 MIN');
+    expect(c.then.deviation).toBe('EARLY −2 MIN');
+    expect(c.later[0].deviation).toBe('DELAYED +1 MIN');
   });
 });
 
@@ -307,8 +406,8 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
           service_id: '1',
           trip_headsign: 'Island Bay',
           last: null,
-          next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42' },
-          then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54' },
+          next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42', deviation: null },
+          then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54', deviation: null },
           later: [],
         },
       ],
@@ -330,7 +429,7 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
       NOW,
     );
     const json = toJsonView(vm) as { columns: { later: unknown }[] };
-    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06' }]);
+    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06', deviation: null }]);
   });
 });
 
