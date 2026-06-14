@@ -112,6 +112,70 @@ describe('priority_split_v2.column - THEN slot', () => {
   });
 });
 
+describe('priority_split_v2.column - LATER list', () => {
+  it('lists each compact "n MIN · hh:mm" row after THEN, oldest-first', () => {
+    // NEXT 19:42, THEN 19:54; LATER 20:06 (31 MIN · 08:06) and 20:18 (43 MIN · 08:18)
+    const col = column(
+      busTarget,
+      open(
+        arrival('2026-05-22T19:42:00Z'),
+        arrival('2026-05-22T19:54:00Z'),
+        arrival('2026-05-22T20:06:00Z'),
+        arrival('2026-05-22T20:18:00Z'),
+      ),
+      TZ,
+      NOW,
+    );
+    expect(col.later).toEqual([
+      { leaveIn: '31 MIN', arrives: '08:06' },
+      { leaveIn: '43 MIN', arrives: '08:18' },
+    ]);
+  });
+
+  it('caps the list at LATER_COUNT (3), dropping any further departures', () => {
+    // NEXT, THEN, then four more all within the horizon — only the first three show.
+    const col = column(
+      busTarget,
+      open(
+        arrival('2026-05-22T19:42:00Z'), // NEXT
+        arrival('2026-05-22T19:54:00Z'), // THEN
+        arrival('2026-05-22T20:00:00Z'), // LATER 25 MIN · 08:00
+        arrival('2026-05-22T20:06:00Z'), // LATER 31 MIN · 08:06
+        arrival('2026-05-22T20:12:00Z'), // LATER 37 MIN · 08:12
+        arrival('2026-05-22T20:18:00Z'), // dropped — 4th would-be row
+      ),
+      TZ,
+      NOW,
+    );
+    expect(col.later).toEqual([
+      { leaveIn: '25 MIN', arrives: '08:00' },
+      { leaveIn: '31 MIN', arrives: '08:06' },
+      { leaveIn: '37 MIN', arrives: '08:12' },
+    ]);
+  });
+
+  it('is empty when nothing follows THEN', () => {
+    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z')), TZ, NOW);
+    expect(col.later).toEqual([]);
+  });
+
+  it('excludes departures beyond the 60-minute horizon, keeping the one exactly on it', () => {
+    // 20:30Z is exactly now + 60 → kept (leave_in 55, arr 08:30); 20:31Z is 61 min → excluded.
+    const col = column(
+      busTarget,
+      open(
+        arrival('2026-05-22T19:42:00Z'), // NEXT
+        arrival('2026-05-22T19:54:00Z'), // THEN
+        arrival('2026-05-22T20:30:00Z'), // exactly 60 min away → within horizon
+        arrival('2026-05-22T20:31:00Z'), // 61 min away → beyond horizon
+      ),
+      TZ,
+      NOW,
+    );
+    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30' }]);
+  });
+});
+
 describe('priority_split_v2.column - upcoming selection', () => {
   it('drops a missed departure (leave_by already passed) and starts NEXT at the earliest catchable one', () => {
     // 19:32Z: leave_by 19:27Z < now → missed. 19:48Z: leave_by 19:43Z ≥ now → upcoming.
@@ -190,6 +254,7 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
           trip_headsign: 'Island Bay',
           next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42' },
           then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54' },
+          later: [],
         },
       ],
     });
@@ -199,6 +264,18 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:42:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { then: unknown }[] };
     expect(json.columns[0].then).toBeNull();
+  });
+
+  it('serialises the LATER rows as compact snake_case { leave_in, arrives } objects', () => {
+    // NEXT 19:42, THEN 19:54, one LATER 20:06 = now + 36, leave_in = 36 − 5 = 31, arr 08:06
+    const vm = viewModelFromStopStates(
+      [busTarget],
+      [open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z'), arrival('2026-05-22T20:06:00Z'))],
+      TZ,
+      NOW,
+    );
+    const json = toJsonView(vm) as { columns: { later: unknown }[] };
+    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06' }]);
   });
 });
 
