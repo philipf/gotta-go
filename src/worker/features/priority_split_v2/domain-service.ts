@@ -16,8 +16,9 @@ const MS_PER_MIN = 60_000;
 
 // LATER renders up to this many departures below THEN — a fixed render constant
 // (pixel fit, nothing about a phase changes it), not a per-phase setting
-// (priority_split_v2_delta §6).
-const LATER_COUNT = 3;
+// (priority_split_v2_delta §6). Trimmed 3 → 2 to reclaim vertical space for
+// breathing room between the slot bands (#108 review).
+const LATER_COUNT = 2;
 
 // LATER only shows departures within the next hour; anything beyond is too far
 // off to plan around (priority_split_v2_delta §4).
@@ -29,10 +30,10 @@ const HORIZON_MINS = 60;
 // phase overrides it via runLimitMins (#104).
 const DEFAULT_RUN_LIMIT_MINS = 1;
 
-// The Unicode minus sign (U+2212), not a hyphen — the LAST row's Leave In is
-// negative by design ("−1 MIN") and U+2212 reads as a proper minus on the
-// 1-bit panel, matching the reference mockup.
-const MINUS = '−';
+// A plain ASCII hyphen-minus for the negative Leave In ("-1 MIN") and the EARLY
+// badge. The wider Unicode minus (U+2212) read as too long on the panel (#108),
+// so the hyphen is used instead.
+const MINUS = '-';
 
 function minutesUntil(target: Date, now: Date): number {
   return (target.getTime() - now.getTime()) / MS_PER_MIN;
@@ -103,7 +104,10 @@ function selectJustMissed(arrivals: Arrival[], target: TransitTarget, now: Date)
 // Projects the just-missed service into the LAST row. minutes_late = −leave_in
 // and is always ≥ 1 here (leave_by has passed). RUN while it is small enough to
 // sprint (`minutes_late ≤ runLimit`), MISSED above. The Leave In renders
-// negative ("−1 MIN") by design — the leave time is behind the rider.
+// negative ("-1 MIN") by design — the leave time is behind the rider. The LAST
+// row carries no deviation badge (#108): it is the most compact row and the
+// badge overran the split column, and a just-missed service's deviation is moot
+// — you have already missed it, so why does not change the next action.
 function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, runLimitMins: number): LastSlot {
   // A cancelled just-missed service renders struck with no RUN/MISSED tag — it
   // was never catchable, so the tag would be meaningless (#106).
@@ -122,7 +126,7 @@ function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date,
     tag: minutesLate <= runLimitMins ? 'RUN' : 'MISSED',
     leaveIn: `${MINUS}${minutesLate} MIN`,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
-    deviation: deviationBadge(a),
+    deviation: null, // omitted on the LAST row (#108) — see the note above
     cancelled: false,
     routePrefix: rowRoutePrefix(a, target),
   };
@@ -177,12 +181,15 @@ function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date)
   // A cancelled LATER departure renders its scheduled clock struck, with no
   // Leave In (#106).
   if (isCancelled(a)) {
-    return { leaveIn: '', arrives: cancelledClock(a, tz), deviation: null, cancelled: true, routePrefix: rowRoutePrefix(a, target) };
+    return { leaveIn: '', clock: cancelledClock(a, tz), deviation: null, cancelled: true, routePrefix: rowRoutePrefix(a, target) };
   }
   const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
   return {
     leaveIn: `${leaveInMins} MIN`,
-    arrives: hhmm(a.predicted, tz),
+    // `BY hh:mm` — the bare LATER clock was ambiguous (leave-by or arrival?) on a
+    // glance, so it is labelled `BY` (the leave-by time, the actionable one) to
+    // match the hero's `BY …` qualifier (#108).
+    clock: `BY ${hhmm(leaveByTime(a, target), tz)}`,
     deviation: deviationBadge(a),
     cancelled: false,
     routePrefix: rowRoutePrefix(a, target),
