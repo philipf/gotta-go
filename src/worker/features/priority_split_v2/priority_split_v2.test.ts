@@ -179,20 +179,20 @@ describe('priority_split_v2.column - LATER list', () => {
     expect(col.later).toEqual([]);
   });
 
-  it('excludes departures beyond the 60-minute horizon, keeping the one exactly on it', () => {
-    // 20:30Z is exactly now + 60 → kept (leave_in 55, BY 08:25); 20:31Z is 61 min → excluded.
+  it('excludes departures beyond the 120-minute horizon, keeping the one exactly on it', () => {
+    // 21:30Z is exactly now + 120 → kept (leave_in 115, BY 09:25); 21:31Z is 121 min → excluded.
     const col = column(
       busTarget,
       open(
         arrival('2026-05-22T19:42:00Z'), // NEXT
         arrival('2026-05-22T19:54:00Z'), // THEN
-        arrival('2026-05-22T20:30:00Z'), // exactly 60 min away → within horizon
-        arrival('2026-05-22T20:31:00Z'), // 61 min away → beyond horizon
+        arrival('2026-05-22T21:30:00Z'), // exactly 120 min away → within horizon
+        arrival('2026-05-22T21:31:00Z'), // 121 min away → beyond horizon
       ),
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '55 MIN', clock: 'BY 08:25', deviation: null, cancelled: false, routePrefix: '' }]);
+    expect(col.later).toEqual([{ leaveIn: '115 MIN', clock: 'BY 09:25', deviation: null, cancelled: false, routePrefix: '' }]);
   });
 });
 
@@ -447,10 +447,10 @@ describe('priority_split_v2.column - cancelled service (#106)', () => {
 });
 
 describe('priority_split_v2.column - no-service state (#106)', () => {
-  it('shows NO SERVICE with the next available clock and suppresses THEN/LATER when nothing is within 60 min', () => {
-    // Sole departure 20:45 (08:45) is 75 min away → beyond the horizon.
-    const col = column(busTarget, open(arrival('2026-05-22T20:45:00Z')), TZ, NOW);
-    expect(col.noService).toEqual({ nextDeparture: '08:45' });
+  it('shows NO SERVICE with the next available clock and suppresses THEN/LATER when nothing is within 120 min', () => {
+    // Sole departure 21:45 (09:45) is 135 min away → beyond the horizon.
+    const col = column(busTarget, open(arrival('2026-05-22T21:45:00Z')), TZ, NOW);
+    expect(col.noService).toEqual({ nextDeparture: '09:45' });
     expect(col.next).toBeNull();
     expect(col.then).toBeNull();
     expect(col.later).toEqual([]);
@@ -458,25 +458,25 @@ describe('priority_split_v2.column - no-service state (#106)', () => {
   });
 
   it('still renders the LAST row in the no-service state', () => {
-    // Just-missed 19:34 (RUN -1) plus a far 20:45 departure beyond the horizon.
-    const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z'), arrival('2026-05-22T20:45:00Z')), TZ, NOW);
-    expect(col.noService).toEqual({ nextDeparture: '08:45' });
+    // Just-missed 19:34 (RUN -1) plus a far 21:45 departure beyond the horizon.
+    const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z'), arrival('2026-05-22T21:45:00Z')), TZ, NOW);
+    expect(col.noService).toEqual({ nextDeparture: '09:45' });
     expect(col.last?.tag).toBe('RUN');
   });
 
   it('serialises the no-service state to snake_case', () => {
-    const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T20:45:00Z'))], TZ, NOW);
+    const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T21:45:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { no_service: unknown; next: unknown }[] };
-    expect(json.columns[0].no_service).toEqual({ next_departure: '08:45' });
+    expect(json.columns[0].no_service).toEqual({ next_departure: '09:45' });
     expect(json.columns[0].next).toBeNull();
   });
 });
 
 describe('priority_split_v2.column - partial horizon (#106)', () => {
-  it('fills only the slots within 60 min - one in-horizon departure renders NEXT alone, no no-service', () => {
-    // NEXT 19:42 (within); the next departure 20:45 is beyond the horizon, so it
-    // does NOT fill THEN — the column renders only what is within 60 min.
-    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T20:45:00Z')), TZ, NOW);
+  it('fills only the slots within 120 min - one in-horizon departure renders NEXT alone, no no-service', () => {
+    // NEXT 19:42 (within); the next departure 21:45 is beyond the horizon, so it
+    // does NOT fill THEN — the column renders only what is within 120 min.
+    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T21:45:00Z')), TZ, NOW);
     expect(col.next?.leaveIn).toBe('7 MIN');
     expect(col.then).toBeNull();
     expect(col.later).toEqual([]);
