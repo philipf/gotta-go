@@ -232,11 +232,18 @@ function heroValue(text: string, s: Sizing): ReactNode {
       // half-size MIN against the number's line box keeps the layout box honest
       // — the band centres evenly — and lands MIN mid-height against the digits,
       // the look preferred over a strict baseline.
-      // lineHeight 1 collapses the value's line box to the glyph height: the
-      // font's natural ~1.16 leading otherwise pads the box asymmetrically, so
-      // the caption-to-value gap ballooned while value-to-qualifier stayed tight
-      // (#108 review). With the box tight to the glyph, heroGap is the only
-      // spacing on each side and the whitespace above/below the hero is even.
+      // lineHeight 1 collapses the value's line box to the glyph height — but
+      // the value alone is not enough: the caption above and the BY·ARR
+      // qualifier below must ALSO be lineHeight 1, or the font's natural ~1.16
+      // leading on those two neighbours is distributed unevenly around the
+      // centred hero group and the whitespace below the number reads ~8px larger
+      // than above it (measured via tools/render-fit, #108 follow-up). With all
+      // three line boxes tight to their glyphs, heroGap is the only spacing on
+      // each side, so the air above and below the hero is even — and identical
+      // between the NEXT and THEN bands, which share this function. Keep all
+      // three tight together; tightening the value in isolation reintroduces the
+      // asymmetry (the bug that kept coming back). priority_split_v2.test.ts
+      // pins the symmetry as a regression guard.
       style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, lineHeight: 1 }}
     >
       <span style={{ fontSize: s.hero }}>{m[1]}</span>
@@ -259,7 +266,7 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
   if (slot?.cancelled) {
     return heroFrame(
       [
-        <div key="cap" style={{ fontSize: s.caption }}>
+        <div key="cap" style={{ fontSize: s.caption, lineHeight: 1 }}>
           {slotCaption(caption, slot)}
         </div>,
         <div key="val" style={{ fontSize: s.hero, lineHeight: 1, ...STRIKE }}>
@@ -273,7 +280,7 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
     [
       // Caption and LEAVE IN share one line — "NEXT · LEAVE IN" — per the spec
       // (#108); merging them also frees a vertical line for the hero value.
-      <div key="cap" style={{ fontSize: s.caption }}>
+      <div key="cap" style={{ fontSize: s.caption, lineHeight: 1 }}>
         {`${slotCaption(caption, slot)} · LEAVE IN`}
       </div>,
       heroValue(slot ? slot.leaveIn : DASH, s),
@@ -284,7 +291,7 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
       // rather than hanging off a baseline that doesn't match its box (#108 review).
       <div
         key="qual"
-        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: BADGE_GAP, fontSize: s.byArr }}
+        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: BADGE_GAP, fontSize: s.byArr, lineHeight: 1 }}
       >
         <span>{slot ? `${slot.leaveBy} · ${slot.arrives}` : DASH}</span>
         {slot?.deviation ? badge(slot.deviation, s) : null}
@@ -300,13 +307,13 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
 function noServiceHero(slot: NoServiceSlot, s: Sizing): ReactNode {
   return heroFrame(
     [
-      <div key="cap" style={{ fontSize: s.caption }}>
+      <div key="cap" style={{ fontSize: s.caption, lineHeight: 1 }}>
         NEXT
       </div>,
       <div key="val" style={{ fontSize: s.noService, lineHeight: 1 }}>
         NO SERVICE
       </div>,
-      <div key="next" style={{ fontSize: s.byArr }}>
+      <div key="next" style={{ fontSize: s.byArr, lineHeight: 1 }}>
         {slot.nextDeparture ? `NEXT ${slot.nextDeparture}` : DASH}
       </div>,
     ],

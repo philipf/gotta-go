@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { toJsonView, serviceName, type ServiceColumn } from './viewmodel';
+import { isValidElement, type ReactNode } from 'react';
+import { toJsonView, serviceName, type ServiceColumn, type DepartureSlot, type PrioritySplitV2ViewModel } from './viewmodel';
+import { layout } from './layout';
 import { viewModelFromStopStates } from './domain-service';
 import {
   preparePrioritySplitV2Frame,
@@ -702,5 +704,79 @@ describe('priority_split_v2.preparePrioritySplitV2Frame - gateway failure -> thr
   it('still builds a normal view model for a legitimate closed/empty-feed stop (no throw)', async () => {
     const prepared = await preparePrioritySplitV2Frame(requestWith(succeedingSource({ kind: 'closed' })));
     expect((prepared.view as { columns: unknown[] }).columns).toHaveLength(1);
+  });
+});
+
+// The hero band must carry even air above and below its big value, identically
+// in the NEXT and THEN slots. That even spacing is produced by giving ALL THREE
+// hero lines — caption, value, qualifier — a tight `lineHeight: 1` box, so the
+// only vertical spacing is heroGap (symmetric). Tightening the value alone (the
+// regression that kept coming back) leaves the caption/qualifier on the font's
+// ~1.16 leading, which Satori distributes unevenly and pushes ~8px more air
+// below the number than above it (measured via tools/render-fit). This pins the
+// invariant structurally — no rasteriser needed — so a future edit that drops
+// lineHeight from any hero line fails here. See layout.tsx heroValue().
+describe('priority_split_v2.layout - hero line boxes are tight for even vertical centring', () => {
+  const slot = (leaveIn: string, leaveBy: string, arrives: string): DepartureSlot => ({
+    leaveIn,
+    leaveBy,
+    arrives,
+    deviation: null,
+    cancelled: false,
+    routePrefix: '',
+  });
+  const vm: PrioritySplitV2ViewModel = {
+    wallClock: '08:04',
+    date: 'Mon 15 Jun',
+    columns: [
+      {
+        mode: 'bus',
+        serviceId: '1',
+        tripHeadsign: 'ISLAND BAY',
+        last: null,
+        noService: null,
+        next: slot('9 MIN', 'BY 08:13', 'ARR 08:17'),
+        then: slot('19 MIN', 'BY 08:23', 'ARR 08:27'),
+        later: [],
+      },
+    ],
+  };
+
+  // Depth-first over the JSX tree, yielding every React element.
+  function* elements(node: ReactNode): Generator<{ props: { children?: ReactNode; style?: { lineHeight?: unknown } } }> {
+    if (Array.isArray(node)) {
+      for (const child of node) yield* elements(child);
+      return;
+    }
+    if (!isValidElement(node)) return;
+    const el = node as { props: { children?: ReactNode; style?: { lineHeight?: unknown } } };
+    yield el;
+    yield* elements(el.props.children);
+  }
+
+  // A hero group is the flex column whose direct children include the caption
+  // line ("NEXT · LEAVE IN" / "THEN · LEAVE IN"). Its three children are the
+  // caption, the hero value, and the BY·ARR qualifier.
+  const isCaption = (k: ReactNode): boolean =>
+    isValidElement(k) && typeof (k.props as { children?: unknown }).children === 'string' && / · LEAVE IN$/.test((k.props as { children: string }).children);
+
+  const heroGroups = [...elements(layout(vm))].filter(
+    (el) => Array.isArray(el.props.children) && (el.props.children as ReactNode[]).some(isCaption),
+  );
+
+  it('finds exactly the two hero groups (NEXT and THEN)', () => {
+    expect(heroGroups).toHaveLength(2);
+  });
+
+  it('gives caption, value and qualifier all a tight lineHeight of 1', () => {
+    for (const group of heroGroups) {
+      const lines = (group.props.children as ReactNode[]).filter(isValidElement) as {
+        props: { style?: { lineHeight?: unknown } };
+      }[];
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+      for (const line of lines) {
+        expect(line.props.style?.lineHeight).toBe(1);
+      }
+    }
   });
 });
