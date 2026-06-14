@@ -24,7 +24,7 @@ const preparePrioritySplitV2FrameImplementation: PreparePrioritySplitV2Frame = a
     }),
   );
 
-  const vm = viewModelFromStopStates(req.targets, states, req.timezone, req.now);
+  const vm = viewModelFromStopStates(req.targets, states, req.timezone, req.now, req.runLimitMins);
 
   return {
     view: toJsonView(vm),

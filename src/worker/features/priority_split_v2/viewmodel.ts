@@ -26,16 +26,29 @@ export type LaterRow = {
   arrives: string; // "08:37" — arrival clock only, no "ARR " prefix
 };
 
-// A transit target's column: the header (mode + service name), the two hero
-// slots, and the LATER list. `null` for a hero slot means the live feed carries
-// no departure there — the renderer dashes it. `later` is the departures after
-// THEN within the 60-min horizon (up to LATER_COUNT); empty when none follow, in
-// which case the renderer dashes the section. (Cancelled / NO SERVICE is a later
-// slice; here a missing slot is just an empty hero.)
+// The LAST row: the single just-missed service (its Leave By has passed but it
+// has not yet reached the stop), echoed as one compact line until the floor
+// (`now ≥ arrival_time`) hides it (#104, glossary just-missed service). Unlike
+// a hero it carries a state tag and a *negative* Leave In by design, and no
+// `LEAVE BY` — the rider's leave time is already behind them.
+export type LastSlot = {
+  tag: string; // "RUN" | "MISSED" — split at the RUN limit
+  leaveIn: string; // "−1 MIN" — negative by design (the leave time has passed)
+  arrives: string; // "ARR 08:07" — arrival clock, the still-future stop time
+};
+
+// A transit target's column: the header (mode + service name), the just-missed
+// LAST row, the two hero slots, and the LATER list. `null` for `last` or a hero
+// slot means the live feed carries no departure there — the renderer dashes (or
+// omits) it. `later` is the departures after THEN within the 60-min horizon (up
+// to LATER_COUNT); empty when none follow, in which case the renderer dashes the
+// section. (Cancelled / NO SERVICE is a later slice; here a missing slot is just
+// an empty hero.)
 export type ServiceColumn = {
   mode: Mode;
   serviceId: string; // NEXT departure's service id, e.g. "1"; falls back to the target's first id when empty
   tripHeadsign: string; // NEXT departure's destination headsign; '' when unknown
+  last: LastSlot | null; // the just-missed service, or null when none is within the LAST window
   next: DepartureSlot | null; // soonest upcoming departure
   then: DepartureSlot | null; // the departure after NEXT
   later: LaterRow[]; // departures after THEN, oldest-first; empty when none follow
@@ -63,6 +76,19 @@ function laterJson(row: LaterRow): Record<string, unknown> {
   return { leave_in: row.leaveIn, arrives: row.arrives };
 }
 
+// Serialises the LAST row to its snake_case wire shape, or null when there is
+// no just-missed service in the window. No `leave_by` — the LAST row never
+// carries one.
+function lastJson(slot: LastSlot | null): Record<string, unknown> | null {
+  return slot === null
+    ? null
+    : {
+        tag: slot.tag,
+        leave_in: slot.leaveIn,
+        arrives: slot.arrives,
+      };
+}
+
 // Serialises the view model for the JSON diagnostics envelope (ADR-0004): maps
 // the renderer's camelCase fields to their snake_case wire names. The values
 // are exactly the strings Satori is fed, so the JSON view is a serialiser of
@@ -75,6 +101,7 @@ export function toJsonView(vm: PrioritySplitV2ViewModel): Record<string, unknown
       mode: c.mode,
       service_id: c.serviceId,
       trip_headsign: c.tripHeadsign,
+      last: lastJson(c.last),
       next: slotJson(c.next),
       then: slotJson(c.then),
       later: c.later.map(laterJson),
