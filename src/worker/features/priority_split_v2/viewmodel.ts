@@ -10,34 +10,59 @@ import type { Mode } from './mode-icon';
 // (the value the rider acts on); `BY hh:mm` and the arrival clock `ARR hh:mm`
 // qualify it. v2 drops v1's `ARRIVES IN n MIN` — the hero carries the arrival
 // **clock** only.
+//
+// `cancelled` flags an operator-cancelled departure (#106): it keeps its
+// chronological slot but carries **no actionable leave time**. When cancelled,
+// `leaveIn`/`leaveBy` are empty and `deviation` is null; `arrives` carries the
+// bare **struck scheduled clock** (`hh:mm`, no `ARR ` prefix — a cancelled
+// service never arrives, so the arrival position repurposes to show the struck
+// scheduled time the renderer strikes through). No `CANCELLED` text label — the
+// strike-through is the signal (glossary cancelled service).
 export type DepartureSlot = {
-  leaveIn: string; // "7 MIN" | "NOW" (NOW is the zero-state of the NEXT slot only)
-  leaveBy: string; // "BY 07:08"
-  arrives: string; // "ARR 07:14" — arrival clock, no "ARRIVES IN n MIN"
-  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105)
+  leaveIn: string; // "7 MIN" | "NOW" — empty when cancelled
+  leaveBy: string; // "BY 07:08" — empty when cancelled
+  arrives: string; // "ARR 07:14" — arrival clock; bare struck "07:14" when cancelled
+  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
+  cancelled: boolean; // operator-cancelled — render arrives struck, no Leave In (#106)
 };
 
 // One LATER row: a departure after THEN, rendered compactly as `n MIN · hh:mm`
 // (Leave In + bare arrival clock) — no `LEAVE IN`/`BY`/`ARR` labels, the row's
 // position under the THEN hero carries the meaning. Always a positive Leave In:
 // every LATER departure follows the two heroes, so it never reaches the NEXT
-// slot's NOW zero-state.
+// slot's NOW zero-state. When `cancelled`, `leaveIn` is empty and `arrives`
+// carries the bare struck scheduled clock (#106).
 export type LaterRow = {
-  leaveIn: string; // "29 MIN"
+  leaveIn: string; // "29 MIN" — empty when cancelled
   arrives: string; // "08:37" — arrival clock only, no "ARR " prefix
-  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105)
+  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
+  cancelled: boolean; // operator-cancelled — render arrives struck, no Leave In (#106)
 };
 
 // The LAST row: the single just-missed service (its Leave By has passed but it
 // has not yet reached the stop), echoed as one compact line until the floor
 // (`now ≥ arrival_time`) hides it (#104, glossary just-missed service). Unlike
 // a hero it carries a state tag and a *negative* Leave In by design, and no
-// `LEAVE BY` — the rider's leave time is already behind them.
+// `LEAVE BY` — the rider's leave time is already behind them. A cancelled
+// service in the LAST position renders struck with **no RUN/MISSED tag** — it
+// was never catchable, so the tag would be meaningless (#106); `tag`/`leaveIn`
+// are empty and `arrives` carries the bare struck scheduled clock.
 export type LastSlot = {
-  tag: string; // "RUN" | "MISSED" — split at the RUN limit
-  leaveIn: string; // "−1 MIN" — negative by design (the leave time has passed)
-  arrives: string; // "ARR 08:07" — arrival clock, the still-future stop time
-  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105)
+  tag: string; // "RUN" | "MISSED" — split at the RUN limit; empty when cancelled
+  leaveIn: string; // "−1 MIN" — negative by design; empty when cancelled
+  arrives: string; // "ARR 08:07" — arrival clock; bare struck "08:07" when cancelled
+  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105) / cancelled
+  cancelled: boolean; // operator-cancelled just-missed service — struck, no tag (#106)
+};
+
+// The no-service state of a column (#106, glossary no-service state): no
+// departure falls within the next 60-minute horizon, so the NEXT slot is
+// replaced by the literal `NO SERVICE` with the next available departure clock
+// below it, and THEN / LATER are suppressed. `nextDeparture` is the soonest
+// upcoming departure's clock (beyond the horizon), or null when the feed has no
+// further departure at all.
+export type NoServiceSlot = {
+  nextDeparture: string | null; // "08:45" — the next available departure clock, or null when none
 };
 
 // A transit target's column: the header (mode + service name), the just-missed
@@ -45,14 +70,16 @@ export type LastSlot = {
 // slot means the live feed carries no departure there — the renderer dashes (or
 // omits) it. `later` is the departures after THEN within the 60-min horizon (up
 // to LATER_COUNT); empty when none follow, in which case the renderer dashes the
-// section. (Cancelled / NO SERVICE is a later slice; here a missing slot is just
-// an empty hero.)
+// section. When `noService` is set, no departure falls within the 60-min
+// horizon: the renderer shows `NO SERVICE` in the NEXT position and suppresses
+// THEN / LATER (which are null / empty), while `last` may still render (#106).
 export type ServiceColumn = {
   mode: Mode;
   serviceId: string; // NEXT departure's service id, e.g. "1"; falls back to the target's first id when empty
   tripHeadsign: string; // NEXT departure's destination headsign; '' when unknown
   last: LastSlot | null; // the just-missed service, or null when none is within the LAST window
-  next: DepartureSlot | null; // soonest upcoming departure
+  noService: NoServiceSlot | null; // the no-service state, or null when a departure is within the horizon (#106)
+  next: DepartureSlot | null; // soonest upcoming departure within the horizon; null in the no-service state
   then: DepartureSlot | null; // the departure after NEXT
   later: LaterRow[]; // departures after THEN, oldest-first; empty when none follow
 };
@@ -72,12 +99,13 @@ function slotJson(slot: DepartureSlot | null): Record<string, unknown> | null {
         leave_by: slot.leaveBy,
         arrives: slot.arrives,
         deviation: slot.deviation,
+        cancelled: slot.cancelled,
       };
 }
 
 // Serialises one LATER row to its snake_case wire shape.
 function laterJson(row: LaterRow): Record<string, unknown> {
-  return { leave_in: row.leaveIn, arrives: row.arrives, deviation: row.deviation };
+  return { leave_in: row.leaveIn, arrives: row.arrives, deviation: row.deviation, cancelled: row.cancelled };
 }
 
 // Serialises the LAST row to its snake_case wire shape, or null when there is
@@ -91,7 +119,14 @@ function lastJson(slot: LastSlot | null): Record<string, unknown> | null {
         leave_in: slot.leaveIn,
         arrives: slot.arrives,
         deviation: slot.deviation,
+        cancelled: slot.cancelled,
       };
+}
+
+// Serialises the no-service state to its snake_case wire shape, or null when the
+// column has a departure within the horizon.
+function noServiceJson(slot: NoServiceSlot | null): Record<string, unknown> | null {
+  return slot === null ? null : { next_departure: slot.nextDeparture };
 }
 
 // Serialises the view model for the JSON diagnostics envelope (ADR-0004): maps
@@ -107,6 +142,7 @@ export function toJsonView(vm: PrioritySplitV2ViewModel): Record<string, unknown
       service_id: c.serviceId,
       trip_headsign: c.tripHeadsign,
       last: lastJson(c.last),
+      no_service: noServiceJson(c.noService),
       next: slotJson(c.next),
       then: slotJson(c.then),
       later: c.later.map(laterJson),

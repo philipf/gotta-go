@@ -55,6 +55,23 @@ function arrival(predictedIso: string, serviceId = '1', delaySeconds = 0): Arriv
   };
 }
 
+// A cancelled departure: status 'cancelled', no schedule deviation. Its
+// `scheduled` clock is what the renderer strikes through (#106). predicted =
+// scheduled — a cancelled service carries no live prediction.
+function cancelledArrival(scheduledIso: string, serviceId = '1'): Arrival {
+  const scheduled = new Date(scheduledIso);
+  return {
+    serviceId,
+    tripHeadsign: 'Island Bay',
+    name: '',
+    scheduled,
+    predicted: scheduled,
+    delaySeconds: 0,
+    status: 'cancelled',
+    tripId: `trip-${scheduledIso}`,
+  };
+}
+
 function open(...arrivals: Arrival[]): StopState {
   return { kind: 'open', arrivals };
 }
@@ -130,8 +147,8 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '31 MIN', arrives: '08:06', deviation: null },
-      { leaveIn: '43 MIN', arrives: '08:18', deviation: null },
+      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false },
+      { leaveIn: '43 MIN', arrives: '08:18', deviation: null, cancelled: false },
     ]);
   });
 
@@ -151,9 +168,9 @@ describe('priority_split_v2.column - LATER list', () => {
       NOW,
     );
     expect(col.later).toEqual([
-      { leaveIn: '25 MIN', arrives: '08:00', deviation: null },
-      { leaveIn: '31 MIN', arrives: '08:06', deviation: null },
-      { leaveIn: '37 MIN', arrives: '08:12', deviation: null },
+      { leaveIn: '25 MIN', arrives: '08:00', deviation: null, cancelled: false },
+      { leaveIn: '31 MIN', arrives: '08:06', deviation: null, cancelled: false },
+      { leaveIn: '37 MIN', arrives: '08:12', deviation: null, cancelled: false },
     ]);
   });
 
@@ -175,7 +192,7 @@ describe('priority_split_v2.column - LATER list', () => {
       TZ,
       NOW,
     );
-    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30', deviation: null }]);
+    expect(col.later).toEqual([{ leaveIn: '55 MIN', arrives: '08:30', deviation: null, cancelled: false }]);
   });
 });
 
@@ -203,18 +220,18 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     // arrival 19:34Z (07:34): leave_by 19:29 < now, now < 19:34 → missed.
     // leave_in = (4 − 5) = −1 → minutes_late 1 ≤ 1 → RUN.
     const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null });
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false });
   });
 
   it('tags MISSED above the runLimit: −2 MIN renders MISSED', () => {
     // arrival 19:33Z: leave_in = (3 − 5) = −2 → minutes_late 2 > 1 → MISSED.
     const col = column(busTarget, open(arrival('2026-05-22T19:33:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'MISSED', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null });
+    expect(col.last).toEqual({ tag: 'MISSED', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null, cancelled: false });
   });
 
   it('honours a per-phase runLimitMins override: −2 MIN is RUN when runLimit is 2', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:33:00Z'))], TZ, NOW, 2);
-    expect(vm.columns[0].last).toEqual({ tag: 'RUN', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null });
+    expect(vm.columns[0].last).toEqual({ tag: 'RUN', leaveIn: '−2 MIN', arrives: 'ARR 07:33', deviation: null, cancelled: false });
   });
 
   it('omits the LAST row at the floor — now ≥ arrival_time hides it', () => {
@@ -227,7 +244,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
     // Both 19:31Z (late 4, MISSED) and 19:34Z (late 1, RUN) qualify; only the
     // most recent — 19:34Z — renders, so the row is RUN −1, not the older one.
     const col = column(busTarget, open(arrival('2026-05-22T19:31:00Z'), arrival('2026-05-22T19:34:00Z')), TZ, NOW);
-    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null });
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false });
   });
 
   it('renders the LAST row independently of NEXT — a just-missed echo above the next catchable hero', () => {
@@ -245,7 +262,7 @@ describe('priority_split_v2.column - LAST row (just-missed service, #104)', () =
   it('serialises the LAST row to snake_case (tag, leave_in, arrives — no leave_by)', () => {
     const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:34:00Z'))], TZ, NOW);
     const json = toJsonView(vm) as { columns: { last: unknown }[] };
-    expect(json.columns[0].last).toEqual({ tag: 'RUN', leave_in: '−1 MIN', arrives: 'ARR 07:34', deviation: null });
+    expect(json.columns[0].last).toEqual({ tag: 'RUN', leave_in: '−1 MIN', arrives: 'ARR 07:34', deviation: null, cancelled: false });
   });
 });
 
@@ -346,18 +363,99 @@ describe('priority_split_v2.column - deviation badges (DELAYED / EARLY, #105)', 
 });
 
 describe('priority_split_v2.column - closed stop', () => {
-  it('dashes both slots (no upcoming) and keeps the configured route id in the header', () => {
+  it('is a no-service column (no departure at all) keeping the configured route id in the header', () => {
     const col = column(busTarget, { kind: 'closed' }, TZ, NOW);
     expect(col.serviceId).toBe('1'); // fallback to the target's first service id
     expect(col.tripHeadsign).toBe('');
     expect(col.next).toBeNull();
     expect(col.then).toBeNull();
+    // No departures at all → no-service with no next-available clock (#106).
+    expect(col.noService).toEqual({ nextDeparture: null });
   });
 
   it('resolves the any-of array to its first id for the header fallback', () => {
     const arrayTarget: TransitTarget = { ...busTarget, serviceId: ['634', '635'] };
     const col = column(arrayTarget, { kind: 'closed' }, TZ, NOW);
     expect(col.serviceId).toBe('634');
+  });
+});
+
+describe('priority_split_v2.column - cancelled service (#106)', () => {
+  it('renders a cancelled NEXT struck (scheduled clock, no Leave In) and falls the leave-time to the next live hero', () => {
+    // Cancelled 19:42 (07:42) is NEXT; the live 19:54 becomes THEN with the real
+    // Leave In (24 − 5 = 19). The struck scheduled clock fills NEXT's value area.
+    const col = column(busTarget, open(cancelledArrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z')), TZ, NOW);
+    expect(col.next).toEqual({ leaveIn: '', leaveBy: '', arrives: '07:42', deviation: null, cancelled: true });
+    expect(col.then?.leaveIn).toBe('19 MIN');
+    expect(col.then?.cancelled).toBe(false);
+  });
+
+  it('renders a cancelled LATER departure struck (scheduled clock, no Leave In)', () => {
+    // NEXT 19:42, THEN 19:54 live; the LATER departure 20:06 (08:06) is cancelled.
+    const col = column(
+      busTarget,
+      open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T19:54:00Z'), cancelledArrival('2026-05-22T20:06:00Z')),
+      TZ,
+      NOW,
+    );
+    expect(col.later).toEqual([{ leaveIn: '', arrives: '08:06', deviation: null, cancelled: true }]);
+  });
+
+  it('renders a cancelled LAST (just-missed) service struck with no RUN/MISSED tag', () => {
+    // Cancelled 19:34 (07:34): leave_by 19:29 < now, now < 19:34 → just-missed,
+    // but cancelled → struck, no tag (it was never catchable).
+    const col = column(busTarget, open(cancelledArrival('2026-05-22T19:34:00Z')), TZ, NOW);
+    expect(col.last).toEqual({ tag: '', leaveIn: '', arrives: '07:34', deviation: null, cancelled: true });
+  });
+
+  it('serialises a cancelled slot to snake_case (cancelled flag, struck clock in arrives)', () => {
+    const vm = viewModelFromStopStates([busTarget], [open(cancelledArrival('2026-05-22T19:42:00Z'))], TZ, NOW);
+    const json = toJsonView(vm) as { columns: { next: unknown }[] };
+    expect(json.columns[0].next).toEqual({ leave_in: '', leave_by: '', arrives: '07:42', deviation: null, cancelled: true });
+  });
+});
+
+describe('priority_split_v2.column - no-service state (#106)', () => {
+  it('shows NO SERVICE with the next available clock and suppresses THEN/LATER when nothing is within 60 min', () => {
+    // Sole departure 20:45 (08:45) is 75 min away → beyond the horizon.
+    const col = column(busTarget, open(arrival('2026-05-22T20:45:00Z')), TZ, NOW);
+    expect(col.noService).toEqual({ nextDeparture: '08:45' });
+    expect(col.next).toBeNull();
+    expect(col.then).toBeNull();
+    expect(col.later).toEqual([]);
+    expect(col.serviceId).toBe('1'); // still names the route from the next-available departure
+  });
+
+  it('still renders the LAST row in the no-service state', () => {
+    // Just-missed 19:34 (RUN −1) plus a far 20:45 departure beyond the horizon.
+    const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z'), arrival('2026-05-22T20:45:00Z')), TZ, NOW);
+    expect(col.noService).toEqual({ nextDeparture: '08:45' });
+    expect(col.last?.tag).toBe('RUN');
+  });
+
+  it('serialises the no-service state to snake_case', () => {
+    const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T20:45:00Z'))], TZ, NOW);
+    const json = toJsonView(vm) as { columns: { no_service: unknown; next: unknown }[] };
+    expect(json.columns[0].no_service).toEqual({ next_departure: '08:45' });
+    expect(json.columns[0].next).toBeNull();
+  });
+});
+
+describe('priority_split_v2.column - partial horizon (#106)', () => {
+  it('fills only the slots within 60 min — one in-horizon departure renders NEXT alone, no no-service', () => {
+    // NEXT 19:42 (within); the next departure 20:45 is beyond the horizon, so it
+    // does NOT fill THEN — the column renders only what is within 60 min.
+    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z'), arrival('2026-05-22T20:45:00Z')), TZ, NOW);
+    expect(col.next?.leaveIn).toBe('7 MIN');
+    expect(col.then).toBeNull();
+    expect(col.later).toEqual([]);
+    expect(col.noService).toBeNull();
+  });
+
+  it('a cancelled departure within the horizon is a departure — struck NEXT, not a no-service state', () => {
+    const col = column(busTarget, open(cancelledArrival('2026-05-22T19:42:00Z')), TZ, NOW);
+    expect(col.noService).toBeNull();
+    expect(col.next?.cancelled).toBe(true);
   });
 });
 
@@ -406,8 +504,9 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
           service_id: '1',
           trip_headsign: 'Island Bay',
           last: null,
-          next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42', deviation: null },
-          then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54', deviation: null },
+          no_service: null,
+          next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42', deviation: null, cancelled: false },
+          then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54', deviation: null, cancelled: false },
           later: [],
         },
       ],
@@ -429,7 +528,7 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
       NOW,
     );
     const json = toJsonView(vm) as { columns: { later: unknown }[] };
-    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06', deviation: null }]);
+    expect(json.columns[0].later).toEqual([{ leave_in: '31 MIN', arrives: '08:06', deviation: null, cancelled: false }]);
   });
 });
 

@@ -17,17 +17,21 @@ import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import { modeIcon, MODE_GRIDS } from './mode-icon';
 import { serviceName } from './viewmodel';
-import type { DepartureSlot, LastSlot, LaterRow, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
+import type { DepartureSlot, LastSlot, LaterRow, NoServiceSlot, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
 
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 3;
+export const LAYOUT_VERSION = 4;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
 const WHITE = '#fff';
 const DASH = '—';
+
+// A cancelled departure's struck scheduled clock — no `CANCELLED` text label,
+// the strike-through is the signal (glossary cancelled service, #106).
+const STRIKE = { textDecoration: 'line-through' } as const;
 
 const HEADER_H = 44; // ~8% global header
 const RULE_W = 2; // hairline rule between two columns — matches the header border
@@ -50,6 +54,7 @@ type Sizing = {
   last: number; // the compact LAST row ("RUN  −1 MIN · ARR 08:07")
   lastTag: number; // the RUN / MISSED tag within the LAST row
   deviation: number; // the DELAYED / EARLY badge on any slot (#105)
+  noService: number; // the "NO SERVICE" hero value in the no-service state (#106)
   laterCaption: number; // "LATER" caption above the compact list
   laterRow: number; // a compact "n MIN · hh:mm" LATER row
   laterGap: number; // gap between LATER rows
@@ -72,6 +77,7 @@ const FULL: Sizing = {
   last: 24,
   lastTag: 18,
   deviation: 18,
+  noService: 52,
   laterCaption: 22,
   laterRow: 24,
   laterGap: 2,
@@ -89,6 +95,7 @@ const SPLIT: Sizing = {
   last: 20,
   lastTag: 15,
   deviation: 15,
+  noService: 44,
   laterCaption: 20,
   laterRow: 22,
   laterGap: 4,
@@ -136,12 +143,10 @@ function header(col: ServiceColumn, s: Sizing): ReactNode {
   );
 }
 
-// One co-equal hero: the slot caption (NEXT / THEN), the LEAVE IN label, the
-// hero value (or NOW), and the BY · ARR qualifier. An absent slot dashes the
-// value and qualifier so the column keeps a stable two-hero shape rather than
-// collapsing. The flex-grow wrapper makes the two heroes split the column's
-// height evenly — co-equal, not primary/secondary.
-function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode {
+// The flex-grow wrapper that makes the two heroes split the column's height
+// evenly — co-equal, not primary/secondary. The NO SERVICE block reuses it so
+// it occupies the same band a NEXT hero would.
+function heroFrame(children: ReactNode, s: Sizing): ReactNode {
   return (
     <div
       style={{
@@ -153,12 +158,51 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
         gap: s.heroGap,
       }}
     >
+      {children}
+    </div>
+  );
+}
+
+// One co-equal hero: the slot caption (NEXT / THEN), the LEAVE IN label, the
+// hero value (or NOW), and the BY · ARR qualifier. An absent slot dashes the
+// value and qualifier so the column keeps a stable two-hero shape rather than
+// collapsing. A cancelled departure keeps its slot but shows only its struck
+// scheduled clock in the hero value area — the LEAVE IN label and qualifier are
+// suppressed, and the real leave-time number falls to the next live hero below
+// (#106).
+function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode {
+  if (slot?.cancelled) {
+    return heroFrame(
+      <>
+        <div style={{ fontSize: s.caption }}>{caption}</div>
+        <div style={{ fontSize: s.hero, lineHeight: 1, ...STRIKE }}>{slot.arrives}</div>
+      </>,
+      s,
+    );
+  }
+  return heroFrame(
+    <>
       <div style={{ fontSize: s.caption }}>{caption}</div>
       <div style={{ fontSize: s.leaveInLabel }}>LEAVE IN</div>
       <div style={{ fontSize: s.hero, lineHeight: 1 }}>{slot ? slot.leaveIn : DASH}</div>
       <div style={{ fontSize: s.byArr }}>{slot ? `${slot.leaveBy} · ${slot.arrives}` : DASH}</div>
       {slot?.deviation ? badge(slot.deviation, s.deviation) : null}
-    </div>
+    </>,
+    s,
+  );
+}
+
+// The no-service block in the NEXT band: the literal `NO SERVICE` with the next
+// available departure clock below it (or a dash when the feed has none). THEN
+// and LATER are suppressed by the caller, so this block stands alone (#106).
+function noServiceHero(slot: NoServiceSlot, s: Sizing): ReactNode {
+  return heroFrame(
+    <>
+      <div style={{ fontSize: s.caption }}>NEXT</div>
+      <div style={{ fontSize: s.noService, lineHeight: 1 }}>NO SERVICE</div>
+      <div style={{ fontSize: s.byArr }}>{slot.nextDeparture ? `NEXT ${slot.nextDeparture}` : DASH}</div>
+    </>,
+    s,
   );
 }
 
@@ -168,6 +212,15 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
 // the window; the row is omitted (null) once the service reaches the stop, so
 // the column simply opens with NEXT and nothing reserves the space.
 function lastRow(slot: LastSlot, s: Sizing): ReactNode {
+  // A cancelled just-missed service shows only its struck scheduled clock — no
+  // RUN/MISSED tag, it was never catchable (#106).
+  if (slot.cancelled) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', fontSize: s.last }}>
+        <span style={STRIKE}>{slot.arrives}</span>
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -206,8 +259,15 @@ function laterList(rows: LaterRow[], s: Sizing): ReactNode {
       ) : (
         rows.map((row, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, fontSize: s.laterRow }}>
-            <span>{`${row.leaveIn} · ${row.arrives}`}</span>
-            {row.deviation ? badge(row.deviation, s.deviation) : null}
+            {row.cancelled ? (
+              // A cancelled LATER departure shows only its struck scheduled clock (#106).
+              <span style={STRIKE}>{row.arrives}</span>
+            ) : (
+              <>
+                <span>{`${row.leaveIn} · ${row.arrives}`}</span>
+                {row.deviation ? badge(row.deviation, s.deviation) : null}
+              </>
+            )}
           </div>
         ))
       )}
@@ -230,9 +290,16 @@ function column(col: ServiceColumn, key: number, s: Sizing): ReactNode {
     >
       {header(col, s)}
       {col.last ? lastRow(col.last, s) : null}
-      {hero('NEXT', col.next, s)}
-      {hero('THEN', col.then, s)}
-      {laterList(col.later, s)}
+      {col.noService ? (
+        // No-service state: NO SERVICE in the NEXT band, THEN / LATER suppressed (#106).
+        noServiceHero(col.noService, s)
+      ) : (
+        <>
+          {hero('NEXT', col.next, s)}
+          {hero('THEN', col.then, s)}
+          {laterList(col.later, s)}
+        </>
+      )}
     </div>
   );
 }
