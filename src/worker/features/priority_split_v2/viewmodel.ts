@@ -14,6 +14,7 @@ export type DepartureSlot = {
   leaveIn: string; // "7 MIN" | "NOW" (NOW is the zero-state of the NEXT slot only)
   leaveBy: string; // "BY 07:08"
   arrives: string; // "ARR 07:14" — arrival clock, no "ARRIVES IN n MIN"
+  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105)
 };
 
 // One LATER row: a departure after THEN, rendered compactly as `n MIN · hh:mm`
@@ -24,6 +25,7 @@ export type DepartureSlot = {
 export type LaterRow = {
   leaveIn: string; // "29 MIN"
   arrives: string; // "08:37" — arrival clock only, no "ARR " prefix
+  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105)
 };
 
 // The LAST row: the single just-missed service (its Leave By has passed but it
@@ -35,6 +37,7 @@ export type LastSlot = {
   tag: string; // "RUN" | "MISSED" — split at the RUN limit
   leaveIn: string; // "−1 MIN" — negative by design (the leave time has passed)
   arrives: string; // "ARR 08:07" — arrival clock, the still-future stop time
+  deviation: string | null; // "DELAYED +3 MIN" | "EARLY −2 MIN" | null when on time (#105)
 };
 
 // A transit target's column: the header (mode + service name), the just-missed
@@ -68,12 +71,13 @@ function slotJson(slot: DepartureSlot | null): Record<string, unknown> | null {
         leave_in: slot.leaveIn,
         leave_by: slot.leaveBy,
         arrives: slot.arrives,
+        deviation: slot.deviation,
       };
 }
 
 // Serialises one LATER row to its snake_case wire shape.
 function laterJson(row: LaterRow): Record<string, unknown> {
-  return { leave_in: row.leaveIn, arrives: row.arrives };
+  return { leave_in: row.leaveIn, arrives: row.arrives, deviation: row.deviation };
 }
 
 // Serialises the LAST row to its snake_case wire shape, or null when there is
@@ -86,6 +90,7 @@ function lastJson(slot: LastSlot | null): Record<string, unknown> | null {
         tag: slot.tag,
         leave_in: slot.leaveIn,
         arrives: slot.arrives,
+        deviation: slot.deviation,
       };
 }
 
