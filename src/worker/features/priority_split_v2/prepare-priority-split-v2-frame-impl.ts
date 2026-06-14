@@ -6,6 +6,7 @@
 import type { PreparePrioritySplitV2Frame } from './prepare-priority-split-v2-frame';
 import type { StopState } from '../../gateways/metlink/fetch-arrivals';
 import { toAppError } from './errors';
+import { padArrivalsForDev } from '../../debug/dev-pad-arrivals';
 import { viewModelFromStopStates } from './domain-service';
 import { toJsonView } from './viewmodel';
 import { LAYOUT_VERSION, renderBmp, renderSvg } from './view';
@@ -24,7 +25,11 @@ const preparePrioritySplitV2FrameImplementation: PreparePrioritySplitV2Frame = a
     }),
   );
 
-  const vm = viewModelFromStopStates(req.targets, states, req.timezone, req.now, req.runLimitMins);
+  // Dev-only dogfooding aid (#108): pad sparse feeds so THEN/LATER populate.
+  // Never true in production (DEV_PAD_LATER unset), so the live path is unchanged.
+  const projected = req.padLater ? padArrivalsForDev(states, req.now) : states;
+
+  const vm = viewModelFromStopStates(req.targets, projected, req.timezone, req.now, req.runLimitMins);
 
   return {
     view: toJsonView(vm),

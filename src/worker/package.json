@@ -8,6 +8,7 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
+    "render:fit": "node tools/render-fit/run.mjs",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
     "format": "prettier --write .",
