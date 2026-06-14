@@ -97,7 +97,7 @@ NEXT and THEN (co-equal heroes):
 LATER:
 
 - For the **LATER** slot, the Worker **shall** render up to `LATER_COUNT` further departures, each as a single compact line of `LEAVE IN` minutes and **arrival clock** time (`n MIN · hh:mm`).
-- **When** fewer than `LATER_COUNT` departures follow THEN within the 60-minute horizon, the Worker **shall** render only those that exist, and render nothing (or a single `—`) when none follow.
+- **When** fewer than `LATER_COUNT` departures follow THEN within the 120-minute horizon, the Worker **shall** render only those that exist, and render nothing (or a single `—`) when none follow.
 
 LAST (just-missed service):
 
@@ -111,7 +111,7 @@ Exception states:
 - **When** a departure's `delay` rounds to **+1 minute or more late**, the Worker **shall** compute that departure's Leave In / Leave By / arrival against `arrival.expected` and render a `DELAYED +n MIN` badge on that departure's slot — in **any** slot it occupies.
 - **When** a departure's `delay` rounds to **1 minute or more early** (`delay` negative), the Worker **shall** compute that departure's Leave In / Leave By / arrival against `arrival.expected` (earlier than aimed, so **Leave In shrinks** — bad news) and render an `EARLY −n MIN` badge on that departure's slot, in any slot it occupies. *(EARLY is **NEW** — the signed twin of DELAYED.)*
 - **When** the Metlink feed reports a cancellation for a departure, the Worker **shall** render that departure in its chronological slot with **strike-through** on its scheduled clock and **no Leave In**, consuming its slot. In a hero slot (NEXT/THEN), the hero value area **shall** show the struck scheduled clock with the `LEAVE IN` label suppressed; the real leave-time number falls to the next live hero below.
-- **When** no departure falls within the next **60 minutes**, the Worker **shall** render `NO SERVICE` in the NEXT slot with the next available departure clock time below it, and suppress THEN and LATER; the LAST row **may** still render. Otherwise the Worker **shall** fill the slots with whatever departures fall within the 60-minute horizon, rendering fewer slots when fewer exist.
+- **When** no departure falls within the next **120 minutes**, the Worker **shall** render `NO SERVICE` in the NEXT slot with the next available departure clock time below it, and suppress THEN and LATER; the LAST row **may** still render. Otherwise the Worker **shall** fill the slots with whatever departures fall within the 120-minute horizon, rendering fewer slots when fewer exist.
 
 Promotion (removed):
 

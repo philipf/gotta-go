@@ -3,7 +3,7 @@
 // NEXT/THEN slot derivation. From a target's arrivals it builds the
 // chronological list of **upcoming** departures (those whose Leave By has not
 // passed), projects the first two into co-equal hero slots (issue #102) and the
-// rest — within a 60-min horizon — into the compact LATER list (issue #103),
+// rest — within a 120-min horizon — into the compact LATER list (issue #103),
 // plus the single just-missed service on the LAST row (issue #104).
 
 import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
@@ -20,9 +20,9 @@ const MS_PER_MIN = 60_000;
 // breathing room between the slot bands (#108 review).
 const LATER_COUNT = 2;
 
-// LATER only shows departures within the next hour; anything beyond is too far
-// off to plan around (priority_split_v2_delta §4).
-const HORIZON_MINS = 60;
+// LATER only shows departures within the next two hours; anything beyond is too
+// far off to plan around (priority_split_v2_delta §4).
+const HORIZON_MINS = 120;
 
 // The RUN limit (glossary): the largest lateness, in minutes, at which a
 // just-missed service is still sprintable and tagged RUN. Applied here so the
@@ -205,7 +205,7 @@ function buildColumn(target: TransitTarget, state: StopState, tz: string, now: D
   const justMissed = selectJustMissed(arrivals, target, now);
   const last = justMissed ? buildLastSlot(justMissed, target, tz, now, runLimitMins) : null;
 
-  // The 60-min horizon now governs **every** upcoming slot, not just LATER: a
+  // The 120-min horizon now governs **every** upcoming slot, not just LATER: a
   // departure beyond it is too far off to plan around (priority_split_v2_delta
   // §4). NEXT / THEN / LATER are filled from the in-horizon departures only, in
   // chronological order, so the column renders fewer slots when fewer exist.

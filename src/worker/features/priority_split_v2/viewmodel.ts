@@ -60,7 +60,7 @@ export type LastSlot = {
 };
 
 // The no-service state of a column (#106, glossary no-service state): no
-// departure falls within the next 60-minute horizon, so the NEXT slot is
+// departure falls within the next 120-minute horizon, so the NEXT slot is
 // replaced by the literal `NO SERVICE` with the next available departure clock
 // below it, and THEN / LATER are suppressed. `nextDeparture` is the soonest
 // upcoming departure's clock (beyond the horizon), or null when the feed has no
@@ -72,9 +72,9 @@ export type NoServiceSlot = {
 // A transit target's column: the header (mode + service name), the just-missed
 // LAST row, the two hero slots, and the LATER list. `null` for `last` or a hero
 // slot means the live feed carries no departure there — the renderer dashes (or
-// omits) it. `later` is the departures after THEN within the 60-min horizon (up
+// omits) it. `later` is the departures after THEN within the 120-min horizon (up
 // to LATER_COUNT); empty when none follow, in which case the renderer dashes the
-// section. When `noService` is set, no departure falls within the 60-min
+// section. When `noService` is set, no departure falls within the 120-min
 // horizon: the renderer shows `NO SERVICE` in the NEXT position and suppresses
 // THEN / LATER (which are null / empty), while `last` may still render (#106).
 export type ServiceColumn = {
