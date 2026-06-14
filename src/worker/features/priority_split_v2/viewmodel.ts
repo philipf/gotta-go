@@ -16,16 +16,29 @@ export type DepartureSlot = {
   arrives: string; // "ARR 07:14" — arrival clock, no "ARRIVES IN n MIN"
 };
 
-// A transit target's column: the header (mode + service name) and the two
-// hero slots. `null` for a slot means the live feed carries no departure there
-// — the renderer dashes it. (Cancelled / NO SERVICE is a later slice; here a
-// missing slot is just an empty hero.)
+// One LATER row: a departure after THEN, rendered compactly as `n MIN · hh:mm`
+// (Leave In + bare arrival clock) — no `LEAVE IN`/`BY`/`ARR` labels, the row's
+// position under the THEN hero carries the meaning. Always a positive Leave In:
+// every LATER departure follows the two heroes, so it never reaches the NEXT
+// slot's NOW zero-state.
+export type LaterRow = {
+  leaveIn: string; // "29 MIN"
+  arrives: string; // "08:37" — arrival clock only, no "ARR " prefix
+};
+
+// A transit target's column: the header (mode + service name), the two hero
+// slots, and the LATER list. `null` for a hero slot means the live feed carries
+// no departure there — the renderer dashes it. `later` is the departures after
+// THEN within the 60-min horizon (up to LATER_COUNT); empty when none follow, in
+// which case the renderer dashes the section. (Cancelled / NO SERVICE is a later
+// slice; here a missing slot is just an empty hero.)
 export type ServiceColumn = {
   mode: Mode;
   serviceId: string; // NEXT departure's service id, e.g. "1"; falls back to the target's first id when empty
   tripHeadsign: string; // NEXT departure's destination headsign; '' when unknown
   next: DepartureSlot | null; // soonest upcoming departure
   then: DepartureSlot | null; // the departure after NEXT
+  later: LaterRow[]; // departures after THEN, oldest-first; empty when none follow
 };
 
 export type PrioritySplitV2ViewModel = {
@@ -45,6 +58,11 @@ function slotJson(slot: DepartureSlot | null): Record<string, unknown> | null {
       };
 }
 
+// Serialises one LATER row to its snake_case wire shape.
+function laterJson(row: LaterRow): Record<string, unknown> {
+  return { leave_in: row.leaveIn, arrives: row.arrives };
+}
+
 // Serialises the view model for the JSON diagnostics envelope (ADR-0004): maps
 // the renderer's camelCase fields to their snake_case wire names. The values
 // are exactly the strings Satori is fed, so the JSON view is a serialiser of
@@ -59,6 +77,7 @@ export function toJsonView(vm: PrioritySplitV2ViewModel): Record<string, unknown
       trip_headsign: c.tripHeadsign,
       next: slotJson(c.next),
       then: slotJson(c.then),
+      later: c.later.map(laterJson),
     })),
   };
 }
