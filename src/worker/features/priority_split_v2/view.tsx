@@ -2,9 +2,11 @@
 // date) above one or two columns. Each column has a header (mode icon + service
 // name) and two **co-equal heroes** — the NEXT and THEN slots — split evenly
 // down the column: a slot caption, the `LEAVE IN` label, the hero value (or
-// `NOW`), and the qualifying `BY hh:mm · ARR hh:mm` line (issue #102). Below the
-// heroes a compact LATER list shows up to LATER_COUNT further departures as
-// `n MIN · hh:mm` rows, or a dash when none follow (issue #103). Two transit
+// `NOW`), and the qualifying `BY hh:mm · ARR hh:mm` line (issue #102). Above the
+// heroes a compact LAST row echoes the just-missed service with a RUN/MISSED tag
+// (issue #104); below them a compact LATER list shows up to LATER_COUNT further
+// departures as `n MIN · hh:mm` rows, or a dash when none follow (issue #103).
+// Two transit
 // targets render as equal-width columns split by a vertical hairline rule; a
 // single target renders one full-width column with the identical slots.
 // React/JSX → Satori → resvg, exposing the intermediate SVG (ADR-0004) and the
@@ -15,7 +17,7 @@ import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
 import { modeIcon, MODE_GRIDS } from './mode-icon';
 import { serviceName } from './viewmodel';
-import type { DepartureSlot, LaterRow, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
+import type { DepartureSlot, LastSlot, LaterRow, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
 
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
@@ -45,6 +47,8 @@ type Sizing = {
   hero: number; // the LEAVE IN value — the headline
   byArr: number; // "BY hh:mm · ARR hh:mm" qualifier
   heroGap: number; // gap between the lines within one hero
+  last: number; // the compact LAST row ("RUN  −1 MIN · ARR 08:07")
+  lastTag: number; // the RUN / MISSED tag within the LAST row
   laterCaption: number; // "LATER" caption above the compact list
   laterRow: number; // a compact "n MIN · hh:mm" LATER row
   laterGap: number; // gap between LATER rows
@@ -64,6 +68,8 @@ const FULL: Sizing = {
   hero: 68,
   byArr: 26,
   heroGap: 2,
+  last: 24,
+  lastTag: 18,
   laterCaption: 22,
   laterRow: 24,
   laterGap: 2,
@@ -78,6 +84,8 @@ const SPLIT: Sizing = {
   hero: 64,
   byArr: 24,
   heroGap: 6,
+  last: 20,
+  lastTag: 15,
   laterCaption: 20,
   laterRow: 22,
   laterGap: 4,
@@ -142,6 +150,29 @@ function hero(caption: string, slot: DepartureSlot | null, s: Sizing): ReactNode
   );
 }
 
+// The compact LAST row (#104): the RUN/MISSED tag followed by the negative
+// Leave In and the still-future arrival clock, on one line above the NEXT hero
+// — "RUN  −1 MIN · ARR 08:07". Rendered only while a just-missed service is in
+// the window; the row is omitted (null) once the service reaches the stop, so
+// the column simply opens with NEXT and nothing reserves the space.
+function lastRow(slot: LastSlot, s: Sizing): ReactNode {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'center',
+        gap: 10,
+        fontSize: s.last,
+      }}
+    >
+      <span style={{ fontSize: s.lastTag, letterSpacing: 2 }}>{slot.tag}</span>
+      <span>{`${slot.leaveIn} · ${slot.arrives}`}</span>
+    </div>
+  );
+}
+
 // The compact LATER list below the two heroes: a caption over up to LATER_COUNT
 // `n MIN · hh:mm` rows. An empty list dashes the section so the column keeps a
 // stable shape rather than the heroes sliding down to fill the gap.
@@ -180,6 +211,7 @@ function column(col: ServiceColumn, key: number, s: Sizing): ReactNode {
       }}
     >
       {header(col, s)}
+      {col.last ? lastRow(col.last, s) : null}
       {hero('NEXT', col.next, s)}
       {hero('THEN', col.then, s)}
       {laterList(col.later, s)}

@@ -15,6 +15,9 @@ export type PreparePrioritySplitV2FrameRequest = {
   fetchArrivals: ArrivalsSource;
   timezone: string;
   now: Date;
+  // The RUN limit for the LAST row's RUN/MISSED split (#104), from the resolved
+  // profile phase; absent → the domain default of 1 min.
+  runLimitMins?: number;
   // Artefact flags — format negotiation already collapsed by the caller.
   includeBmp: boolean;
   includeSvg: boolean;
