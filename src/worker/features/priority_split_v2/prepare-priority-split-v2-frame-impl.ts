@@ -27,7 +27,7 @@ const preparePrioritySplitV2FrameImplementation: PreparePrioritySplitV2Frame = a
 
   // Dev-only dogfooding aid (#108): pad sparse feeds so THEN/LATER populate.
   // Never true in production (DEV_PAD_LATER unset), so the live path is unchanged.
-  const projected = req.padLater ? padArrivalsForDev(states, req.now) : states;
+  const projected = req.padLater ? padArrivalsForDev(states, req.targets, req.now) : states;
 
   const vm = viewModelFromStopStates(req.targets, projected, req.timezone, req.now, req.runLimitMins);
 

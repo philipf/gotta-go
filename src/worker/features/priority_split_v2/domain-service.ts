@@ -29,10 +29,10 @@ const HORIZON_MINS = 60;
 // phase overrides it via runLimitMins (#104).
 const DEFAULT_RUN_LIMIT_MINS = 1;
 
-// The Unicode minus sign (U+2212), not a hyphen — the LAST row's Leave In is
-// negative by design ("−1 MIN") and U+2212 reads as a proper minus on the
-// 1-bit panel, matching the reference mockup.
-const MINUS = '−';
+// A plain ASCII hyphen-minus for the negative Leave In ("-1 MIN") and the EARLY
+// badge. The wider Unicode minus (U+2212) read as too long on the panel (#108),
+// so the hyphen is used instead.
+const MINUS = '-';
 
 function minutesUntil(target: Date, now: Date): number {
   return (target.getTime() - now.getTime()) / MS_PER_MIN;
@@ -103,7 +103,10 @@ function selectJustMissed(arrivals: Arrival[], target: TransitTarget, now: Date)
 // Projects the just-missed service into the LAST row. minutes_late = −leave_in
 // and is always ≥ 1 here (leave_by has passed). RUN while it is small enough to
 // sprint (`minutes_late ≤ runLimit`), MISSED above. The Leave In renders
-// negative ("−1 MIN") by design — the leave time is behind the rider.
+// negative ("-1 MIN") by design — the leave time is behind the rider. The LAST
+// row carries no deviation badge (#108): it is the most compact row and the
+// badge overran the split column, and a just-missed service's deviation is moot
+// — you have already missed it, so why does not change the next action.
 function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, runLimitMins: number): LastSlot {
   // A cancelled just-missed service renders struck with no RUN/MISSED tag — it
   // was never catchable, so the tag would be meaningless (#106).
@@ -122,7 +125,7 @@ function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date,
     tag: minutesLate <= runLimitMins ? 'RUN' : 'MISSED',
     leaveIn: `${MINUS}${minutesLate} MIN`,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
-    deviation: deviationBadge(a),
+    deviation: null, // omitted on the LAST row (#108) — see the note above
     cancelled: false,
     routePrefix: rowRoutePrefix(a, target),
   };
