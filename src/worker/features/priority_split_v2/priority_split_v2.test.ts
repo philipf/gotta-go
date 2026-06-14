@@ -192,6 +192,60 @@ describe('priority_split_v2.column - upcoming selection', () => {
   });
 });
 
+describe('priority_split_v2.column - LAST row (just-missed service, #104)', () => {
+  // The LAST window for busTarget (time_to_stop 5) at now 19:30Z is arrivals in
+  // (19:30, 19:35): leave_by = arrival − 5 has passed, but now < arrival.
+
+  it('tags RUN at minutes_late ≤ runLimit (default 1): −1 MIN renders RUN with the arrival clock', () => {
+    // arrival 19:34Z (07:34): leave_by 19:29 < now, now < 19:34 → missed.
+    // leave_in = (4 − 5) = −1 → minutes_late 1 ≤ 1 → RUN.
+    const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z')), TZ, NOW);
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34' });
+  });
+
+  it('tags MISSED above the runLimit: −2 MIN renders MISSED', () => {
+    // arrival 19:33Z: leave_in = (3 − 5) = −2 → minutes_late 2 > 1 → MISSED.
+    const col = column(busTarget, open(arrival('2026-05-22T19:33:00Z')), TZ, NOW);
+    expect(col.last).toEqual({ tag: 'MISSED', leaveIn: '−2 MIN', arrives: 'ARR 07:33' });
+  });
+
+  it('honours a per-phase runLimitMins override: −2 MIN is RUN when runLimit is 2', () => {
+    const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:33:00Z'))], TZ, NOW, 2);
+    expect(vm.columns[0].last).toEqual({ tag: 'RUN', leaveIn: '−2 MIN', arrives: 'ARR 07:33' });
+  });
+
+  it('omits the LAST row at the floor — now ≥ arrival_time hides it', () => {
+    // arrival exactly at now (19:30Z): the service has reached the stop → omit.
+    const col = column(busTarget, open(arrival('2026-05-22T19:30:00Z')), TZ, NOW);
+    expect(col.last).toBeNull();
+  });
+
+  it('shows only the single most-recently-departed service when several have been missed', () => {
+    // Both 19:31Z (late 4, MISSED) and 19:34Z (late 1, RUN) qualify; only the
+    // most recent — 19:34Z — renders, so the row is RUN −1, not the older one.
+    const col = column(busTarget, open(arrival('2026-05-22T19:31:00Z'), arrival('2026-05-22T19:34:00Z')), TZ, NOW);
+    expect(col.last).toEqual({ tag: 'RUN', leaveIn: '−1 MIN', arrives: 'ARR 07:34' });
+  });
+
+  it('renders the LAST row independently of NEXT — a just-missed echo above the next catchable hero', () => {
+    // 19:34Z missed (RUN −1); 19:48Z upcoming (leave_in 13).
+    const col = column(busTarget, open(arrival('2026-05-22T19:34:00Z'), arrival('2026-05-22T19:48:00Z')), TZ, NOW);
+    expect(col.last?.tag).toBe('RUN');
+    expect(col.next?.leaveIn).toBe('13 MIN');
+  });
+
+  it('is null when no departure is in the just-missed window', () => {
+    const col = column(busTarget, open(arrival('2026-05-22T19:42:00Z')), TZ, NOW);
+    expect(col.last).toBeNull();
+  });
+
+  it('serialises the LAST row to snake_case (tag, leave_in, arrives — no leave_by)', () => {
+    const vm = viewModelFromStopStates([busTarget], [open(arrival('2026-05-22T19:34:00Z'))], TZ, NOW);
+    const json = toJsonView(vm) as { columns: { last: unknown }[] };
+    expect(json.columns[0].last).toEqual({ tag: 'RUN', leave_in: '−1 MIN', arrives: 'ARR 07:34' });
+  });
+});
+
 describe('priority_split_v2.column - closed stop', () => {
   it('dashes both slots (no upcoming) and keeps the configured route id in the header', () => {
     const col = column(busTarget, { kind: 'closed' }, TZ, NOW);
@@ -252,6 +306,7 @@ describe('priority_split_v2.toJsonView - serialisation', () => {
           mode: 'bus',
           service_id: '1',
           trip_headsign: 'Island Bay',
+          last: null,
           next: { leave_in: '7 MIN', leave_by: 'BY 07:37', arrives: 'ARR 07:42' },
           then: { leave_in: '19 MIN', leave_by: 'BY 07:49', arrives: 'ARR 07:54' },
           later: [],

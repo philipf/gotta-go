@@ -60,6 +60,11 @@ export type ProfilePhase = {
   days?: Weekday[];
   // Present for priority_split phases; absent for minimal_clock.
   transitTargets?: TransitTarget[];
+  // priority_split_v2 only — the RUN limit (glossary): the largest lateness
+  // (in minutes) at which the LAST row's just-missed service is still
+  // sprintable and tagged `RUN` rather than `MISSED`. Absent → the domain
+  // default of 1 min. The old `priority_split` (v1) ignores it (#104).
+  runLimitMins?: number;
 };
 
 // Lowercase three-letter weekday tokens — the vocabulary of a phase's active
