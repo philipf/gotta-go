@@ -2,15 +2,25 @@
 // model — the domain-granularity test seam between the gateway fetch and the
 // NEXT/THEN slot derivation. From a target's arrivals it builds the
 // chronological list of **upcoming** departures (those whose Leave By has not
-// passed) and projects the first two into co-equal hero slots (issue #102).
+// passed), projects the first two into co-equal hero slots (issue #102) and the
+// rest — within a 60-min horizon — into the compact LATER list (issue #103).
 
 import type { Arrival, StopState } from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/config-types';
 import { hhmm } from '../../shared/hhmm';
 import { shortDate } from '../../shared/shortDate';
-import type { DepartureSlot, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
+import type { DepartureSlot, LaterRow, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
 
 const MS_PER_MIN = 60_000;
+
+// LATER renders up to this many departures below THEN — a fixed render constant
+// (pixel fit, nothing about a phase changes it), not a per-phase setting
+// (priority_split_v2_delta §6).
+const LATER_COUNT = 3;
+
+// LATER only shows departures within the next hour; anything beyond is too far
+// off to plan around (priority_split_v2_delta §4).
+const HORIZON_MINS = 60;
 
 function minutesUntil(target: Date, now: Date): number {
   return (target.getTime() - now.getTime()) / MS_PER_MIN;
@@ -48,12 +58,32 @@ function buildSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, isN
   };
 }
 
+// Projects one upcoming departure into a compact LATER row: Leave In minutes
+// and the bare arrival clock. Always positive minutes — a LATER departure
+// follows both heroes, so it never reaches the NEXT slot's NOW zero-state.
+function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date): LaterRow {
+  const leaveInMins = Math.max(0, Math.round(minutesUntil(a.predicted, now) - target.timeToStopMins));
+  return {
+    leaveIn: `${leaveInMins} MIN`,
+    arrives: hhmm(a.predicted, tz),
+  };
+}
+
 function buildColumn(target: TransitTarget, state: StopState, tz: string, now: Date): ServiceColumn {
   // A closed stop is a successful (empty) fetch — no upcoming departures, both
   // slots dash. A gateway *error* never reaches here: prepare throws it (#59).
   const upcoming = state.kind === 'closed' ? [] : selectUpcoming(state.arrivals, target, now);
   const next = upcoming[0];
   const then = upcoming[1];
+
+  // LATER is the departures after THEN, keeping only those arriving within the
+  // 60-min horizon and capped at LATER_COUNT. Fewer rows render when fewer
+  // follow; an empty list dashes the section.
+  const later = upcoming
+    .slice(2)
+    .filter((a) => minutesUntil(a.predicted, now) <= HORIZON_MINS)
+    .slice(0, LATER_COUNT)
+    .map((a) => buildLaterRow(a, target, tz, now));
 
   return {
     mode: target.mode,
@@ -64,6 +94,7 @@ function buildColumn(target: TransitTarget, state: StopState, tz: string, now: D
     tripHeadsign: next ? next.tripHeadsign : '',
     next: next ? buildSlot(next, target, tz, now, true) : null,
     then: then ? buildSlot(then, target, tz, now, false) : null,
+    later,
   };
 }
 
