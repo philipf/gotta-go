@@ -38,6 +38,22 @@ function minutesUntil(target: Date, now: Date): number {
   return (target.getTime() - now.getTime()) / MS_PER_MIN;
 }
 
+// The schedule-deviation badge for a departure — the explicit label naming how
+// far its predicted arrival has drifted from the timetable (#105, glossary
+// delayed/early service). `delaySeconds` is the signed drift: positive late,
+// negative early. Rounded to whole minutes, `DELAYED +n MIN` at +1 min or later
+// (good news — grows Leave In), `EARLY −n MIN` at 1 min or more early (bad news —
+// shrinks Leave In, leave sooner), and null when it rounds to zero (on time — no
+// badge). Leave In / Leave By / arrival are already computed against `predicted`
+// (= arrival.expected), so the badge only *names* the deviation those figures
+// already reflect; it does not recompute them.
+function deviationBadge(a: Arrival): string | null {
+  const deltaMins = Math.round(a.delaySeconds / 60);
+  if (deltaMins >= 1) return `DELAYED +${deltaMins} MIN`;
+  if (deltaMins <= -1) return `EARLY ${MINUS}${-deltaMins} MIN`;
+  return null;
+}
+
 // leave_by_time = arrival_time − time_to_stop_mins (glossary §3).
 function leaveByTime(a: Arrival, target: TransitTarget): Date {
   return new Date(a.predicted.getTime() - target.timeToStopMins * MS_PER_MIN);
@@ -79,6 +95,7 @@ function buildLastSlot(a: Arrival, target: TransitTarget, tz: string, now: Date,
     tag: minutesLate <= runLimitMins ? 'RUN' : 'MISSED',
     leaveIn: `${MINUS}${minutesLate} MIN`,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
+    deviation: deviationBadge(a),
   };
 }
 
@@ -96,6 +113,7 @@ function buildSlot(a: Arrival, target: TransitTarget, tz: string, now: Date, isN
     leaveIn: leaveInMins === 0 && isNext ? 'NOW' : `${leaveInMins} MIN`,
     leaveBy: `BY ${hhmm(leaveByTime(a, target), tz)}`,
     arrives: `ARR ${hhmm(a.predicted, tz)}`,
+    deviation: deviationBadge(a),
   };
 }
 
@@ -107,6 +125,7 @@ function buildLaterRow(a: Arrival, target: TransitTarget, tz: string, now: Date)
   return {
     leaveIn: `${leaveInMins} MIN`,
     arrives: hhmm(a.predicted, tz),
+    deviation: deviationBadge(a),
   };
 }
 
