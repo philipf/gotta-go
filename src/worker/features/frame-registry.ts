@@ -111,6 +111,7 @@ function bindPrioritySplitV2(deps: FrameDeps) {
       }),
     timezone: deps.timezone,
     now: deps.now,
+    runLimitMins: deps.phase.runLimitMins,
     ...renderFlagsFrom(deps),
   });
 }
