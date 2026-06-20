@@ -229,14 +229,17 @@ void setup() {
 
     announceWake();
 
+    // Panel bring-up first. Every sleep path now drops the panel rail via
+    // epd_poweroff_all() in sleepFor() (GH #80) — including the alloc-failure
+    // exit below — so the driver must be initialized before any sleepFor() call.
+    epd_init();
+
     // No recovery if scratch can't be allocated — sleep on the firmware
     // fallback and try again next wake.
     if (!allocateScratchBuffers()) {
         Serial.println("PSRAM alloc failed — sleeping on firmware fallback");
         sleepFor(CycleResult::HttpError, {false, 0}, millis() - wakeStart, wakeCount);
     }
-
-    epd_init();
 
     // Sample the battery every wake, strictly before Wi-Fi: GPIO 14 is ADC2,
     // which the radio owns once up (GH #79). ~10 ms of already-awake CPU.
