@@ -28,7 +28,7 @@ function frameReq(extra: Record<string, string> = {}): Request {
   return new Request('http://localhost/v1/frame', {
     headers: {
       'X-Radiator-Slug': 'bedroom-daughter',
-      'X-Radiator-Token': TOKEN,
+      Authorization: `Bearer ${TOKEN}`,
       Accept: 'application/json',
       ...extra,
     },
@@ -168,7 +168,7 @@ describe('renderFrame observability - battery telemetry', () => {
   it('carries batteryMv on the failure-path events too (frame.unauthorized)', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const res = await route(frameReq({ 'X-Radiator-Token': 'wrong-token', 'X-Radiator-Battery-Mv': '3310' }), env, NOW);
+    const res = await route(frameReq({ Authorization: 'Bearer wrong-token', 'X-Radiator-Battery-Mv': '3310' }), env, NOW);
 
     expect(res.status).toBe(401);
     expect(loggedEvent(warnSpy, 'frame.unauthorized').batteryMv).toBe(3310);

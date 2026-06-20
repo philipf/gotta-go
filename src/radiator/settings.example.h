@@ -37,7 +37,8 @@
 
 // Shared token (RADIATOR_SHARED_TOKEN) — must match the Worker's
 // configured value, otherwise the Worker returns 401 + X-Sleep-Seconds: 3600
-// and the panel is not updated (per ADR-0003).
+// and the panel is not updated (per ADR-0003). Sent as `Authorization: Bearer
+// <token>` so Cloudflare redacts it from Workers Logs (GH #121).
 #define RADIATOR_TOKEN "test-token-123"
 
 // This radiator's slug. Must resolve to a known entry in the Worker's

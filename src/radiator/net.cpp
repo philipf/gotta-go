@@ -175,8 +175,12 @@ HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char
 
     // ADR-0003 / AC-F1: every wake sends the slug, the shared token, gzip
     // acceptance, and (where supported) the ESP32-S3 MAC as the hardware id.
+    // The token rides in Authorization so Cloudflare auto-redacts it to
+    // ******** in Workers Logs — the legacy X-Radiator-Token was captured in
+    // cleartext (GH #121). The X-Radiator-* telemetry headers are kept (CF logs
+    // them in cleartext, which is fine — they carry no secret).
     https.addHeader("X-Radiator-Slug", RADIATOR_SLUG);
-    https.addHeader("X-Radiator-Token", RADIATOR_TOKEN);
+    https.addHeader("Authorization", String("Bearer ") + RADIATOR_TOKEN);
     https.addHeader("Accept-Encoding", "gzip");
     const String mac = WiFi.macAddress();
     if (mac.length() > 0) {

@@ -70,7 +70,7 @@ unknown radiator. The complementary [`X-Debug-Now`](#dev-time-override) header
 takes the other half: it drives _real_ phase selection at a chosen time.
 
 ```bash
-curl -H "X-Radiator-Token: test-token-123" -H "X-Radiator-Slug: test-daytime_calendar" \
+curl -H "Authorization: Bearer test-token-123" -H "X-Radiator-Slug: test-daytime_calendar" \
      -H "Accept: image/svg+xml" --compressed http://localhost:8787/v1/frame -o frame.svg
 ```
 

@@ -64,7 +64,7 @@ Revisit if we add a recorded-fixture playback mode for Metlink. Until then, test
 
 ### Why no new auth, no new secret
 
-The diagnostic surface is gated by the same `X-Radiator-Token` already required for the BMP. Anyone with the token already receives the rendered BMP; the JSON view is a strict subset of what they could derive by parsing the BMP themselves (with more effort). No new attack surface, no new secret to rotate.
+The diagnostic surface is gated by the same shared token (the `Authorization: Bearer` credential) already required for the BMP. Anyone with the token already receives the rendered BMP; the JSON view is a strict subset of what they could derive by parsing the BMP themselves (with more effort). No new attack surface, no new secret to rotate.
 
 **This preserves "Dumb Radiator, Smart Edge."** The radiator never sends `Accept: application/json` or `image/svg+xml` — its firmware path is untouched. The diagnostic surface is server-side serialisation of the same view-model type already fed to Satori; no new firmware code, no parallel source of truth.
 
@@ -75,7 +75,7 @@ The diagnostic surface is gated by the same `X-Radiator-Token` already required 
 - **Tests can assert semantically.** "At time T, slug X, the active phase is `morning_commute` and `columns[0].catchable_service.leave_in_mins == 7`" — meaningful failure messages, root-cause-friendly.
 - **Visual debugging without firmware.** Open the SVG in a browser; no LilyGO panel, no flashing.
 - **Future-proof for different panel sizes.** The upstream pipeline stays single-source.
-- **No new auth surface.** Same `X-Radiator-Token`, same request path, same observability headers.
+- **No new auth surface.** Same shared token (`Authorization: Bearer`), same request path, same observability headers.
 - **Standards-compliant.** Anyone familiar with HTTP can predict the behaviour without reading our docs.
 
 ### Negative / follow-ups

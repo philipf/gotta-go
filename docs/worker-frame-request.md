@@ -84,8 +84,9 @@ sequenceDiagram
 
 ### Gatekeeping
 
-- **`api/auth.ts` (`auth`)** — Compares `X-Radiator-Token` against
-  `env.RADIATOR_SHARED_TOKEN`. Returns a deliberately opaque
+- **`api/auth.ts` (`auth`)** — Compares the `Authorization: Bearer <token>`
+  credential (legacy `X-Radiator-Token` still accepted during rollout, GH #121)
+  against `env.RADIATOR_SHARED_TOKEN`. Returns a deliberately opaque
   `{ ok: true } | { ok: false }` — missing-token and wrong-token are
   indistinguishable at the type level, per the OpenAPI contract.
 - **`config/lookup.ts` (`lookupRadiator`)** — Resolves a slug to a fully

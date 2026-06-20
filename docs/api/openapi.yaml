@@ -96,8 +96,8 @@ paths:
       description: |
         Called by the radiator on every wake cycle. The Worker:
 
-        1. Authenticates the request via `X-Radiator-Token` (see
-           `radiatorSharedToken`).
+        1. Authenticates the request via the `Authorization: Bearer <token>`
+           credential (see `radiatorSharedToken`).
         2. Resolves the **radiator slug** (`X-Radiator-Slug`) against the
            `radiators:` block in `config.yaml`.
         3. Resolves the active **profile phase** for the server's current
@@ -212,19 +212,23 @@ components:
 
   securitySchemes:
     radiatorSharedToken:
-      type: apiKey
-      in: header
-      name: X-Radiator-Token
+      type: http
+      scheme: bearer
       description: |
         The **shared token** — a single opaque value (≥ 32 chars,
-        CSPRNG-generated) sent by every radiator. Stored on the Worker as
-        the `RADIATOR_SHARED_TOKEN` secret. Treat as a bearer credential.
+        CSPRNG-generated) sent by every radiator as `Authorization: Bearer
+        <token>`. Stored on the Worker as the `RADIATOR_SHARED_TOKEN` secret.
+
+        Carried in `Authorization` (not a custom `X-Radiator-*` header) so that
+        Cloudflare auto-redacts it to `********` in Workers Logs — a custom
+        header is captured in cleartext (GH #121, ADR-0003). The Worker still
+        accepts the legacy `X-Radiator-Token` during rollout; it is deprecated
+        and will be removed once all radiators send `Authorization`.
 
         **Failure modes are deliberately indistinguishable** — a missing
-        `X-Radiator-Token` and an invalid `X-Radiator-Token` both produce a
-        `401 Unauthorized` with the same body. This removes a
-        token-vs-no-token oracle and collapses two rejection paths into one
-        on the Worker.
+        credential and an invalid credential both produce a `401 Unauthorized`
+        with the same body. This removes a token-vs-no-token oracle and
+        collapses two rejection paths into one on the Worker.
 
   # -----------------------------------------------------------------------
   # Request parameters (headers only — GET, no body, no query string)
@@ -446,9 +450,10 @@ components:
 
     Unauthorized:
       description: |
-        **Problem type `unauthorized`** (Fatal). `X-Radiator-Token` was missing
-        or did not match the configured `RADIATOR_SHARED_TOKEN`. The two cases
-        are indistinguishable by design. Logged at `warn`; sleep `3600`.
+        **Problem type `unauthorized`** (Fatal). The `Authorization: Bearer
+        <token>` credential was missing or did not match the configured
+        `RADIATOR_SHARED_TOKEN`. The two cases are indistinguishable by design.
+        Logged at `warn`; sleep `3600`.
       headers:
         Content-Type:
           $ref: '#/components/headers/ContentTypeProblemJson'
@@ -462,7 +467,7 @@ components:
             type: https://github.com/philipf/gotta-go/blob/main/docs/api/errors.md#unauthorized
             title: Radiator not authorised
             status: 401
-            detail: The X-Radiator-Token header was missing or did not match the configured shared token.
+            detail: The Authorization bearer token was missing or did not match the configured shared token.
             instance: urn:gotta-go:request:01HFV0Q3K8N2W7E6R5T4Y3U2I1
 
     NotFound:

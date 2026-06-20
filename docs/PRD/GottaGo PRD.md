@@ -150,7 +150,7 @@ A two-month wall calendar shown during the long daytime windows between commutes
 * **When** the Metlink feed reports a cancellation for a transit target's catchable service, the Worker **shall** render the cancelled service's scheduled time with strike-through directly above the **replacement service** in the same column.
 * **When** the Metlink feed reports a delay on a transit target's catchable service, the Worker **shall** render a bordered `DELAYED +n MIN` banner above Tier 2 and **shall** recompute **Leave In** and **Leave By** against the delayed timing.
 * **When** zero **catchable services** exist within 60 minutes for a transit target, the Worker **shall** render `NO SERVICE` in Tier 1 with the next available departure clock time below it.
-* **When** a radiator boots or wakes from deep sleep, the radiator **shall** send its **radiator slug** via `X-Radiator-Slug` and the **shared token** via `X-Radiator-Token`. The Worker **shall** reject requests with a missing or invalid `X-Radiator-Token`.
+* **When** a radiator boots or wakes from deep sleep, the radiator **shall** send its **radiator slug** via `X-Radiator-Slug` and the **shared token** via `Authorization: Bearer <token>` (so Cloudflare redacts it from Workers Logs — GH #121). The Worker **shall** reject requests with a missing or invalid token.
 * **When** the Worker processes a valid request, it **shall** use server-side time (converted to `global.timezone`) to determine the active **profile phase** — no client-side time synchronisation is required.
 * **When** the Worker returns a rendered **frame**, it **shall** include an `X-Sleep-Seconds` response header. The radiator **shall** enter deep sleep for exactly this **sleep duration** without any local schedule evaluation.
 
@@ -187,7 +187,7 @@ The system follows a **"Dumb Radiator, Smart Edge"** architectural pattern. The 
 
 The authoritative wire contract — paths, headers, status codes, response shapes, value ranges — is the OpenAPI 3.1 specification at [`docs/api/openapi.yaml`](../api/openapi.yaml). The rationale behind every choice (path versioning, indistinguishable auth failures, the reserved `X-Radiator-*` namespace, idle-profile fall-through, etc.) is captured in [ADR-0003](../adr/0003-radiator-worker-contract.md). This section gives the PRD-level surface only — there are no field-level details here that are not in the OpenAPI.
 
-**Endpoint shape.** A single call: `GET /v1/frame`. The radiator identifies itself via `X-Radiator-Slug` and authenticates with the shared `X-Radiator-Token`; the Worker returns a gzipped 1-bit 960×540 BMP **frame** and the next **sleep duration** in `X-Sleep-Seconds`. All future radiator-side telemetry (battery, firmware version, Wi-Fi RSSI) reserves the `X-Radiator-*` header prefix, so firmware can add it later without a Worker change or a contract version bump.
+**Endpoint shape.** A single call: `GET /v1/frame`. The radiator identifies itself via `X-Radiator-Slug` and authenticates with the shared token in `Authorization: Bearer <token>`; the Worker returns a gzipped 1-bit 960×540 BMP **frame** and the next **sleep duration** in `X-Sleep-Seconds`. All future radiator-side telemetry (battery, firmware version, Wi-Fi RSSI) reserves the `X-Radiator-*` header prefix, so firmware can add it later without a Worker change or a contract version bump.
 
 **Conditional requests.** The Worker returns an `ETag` over the rendered frame; on the next wake a radiator may send `If-None-Match` and receive `304 Not Modified` with no body when the frame is unchanged, skipping both the BMP transfer and the panel flash ([ADR-0013](../adr/0013-conditional-frame-requests.md)). `X-Sleep-Seconds` still drives the next sleep on a `304`.
 
@@ -196,7 +196,7 @@ The authoritative wire contract — paths, headers, status codes, response shape
 **Error model.** The Worker never errors on "no active profile phase" — server time outside every configured window falls through to the **idle profile** and returns `200`. Because there is **no caching layer** ([ADR-0010](../adr/0010-no-metlink-cache-layer.md)), a Metlink outage has no stale data to fall back on; the Worker returns an RFC 9457 `problem+json` error (typically `502`) and the radiator shows its standard error screen, per [ADR-0011](../adr/0011-error-contract-problem-details.md). The radiator's response to every status code is the same shape: flush the frame if `200`, ignore the body otherwise, and sleep for `X-Sleep-Seconds` (or the firmware's 300-s fallback when no response arrived).
 
 ### Profile-phase resolution flow (Worker)
-1. Validate `X-Radiator-Token`.
+1. Validate the `Authorization: Bearer <token>` credential.
 2. Look up the `X-Radiator-Slug` value in the `radiators:` config → resolve to a **profile**.
 3. Convert server UTC time to `global.timezone`.
 4. Match current time against the profile's phase `start_time` / `end_time` ranges → determine the active **profile phase**.

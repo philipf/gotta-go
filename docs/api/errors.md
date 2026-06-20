@@ -110,8 +110,8 @@ a **profile phase** was resolved there is no sleep duration to inherit, so no
 - **Status:** `401` · **Class:** Fatal · **Sleep:** `3600` · **Log:** `warn`
 - **Title:** Radiator not authorised
 
-The `X-Radiator-Token` header was missing or did not match the configured
-`RADIATOR_SHARED_TOKEN`. The missing-token and wrong-token cases are
+The `Authorization: Bearer <token>` credential was missing or did not match the
+configured `RADIATOR_SHARED_TOKEN`. The missing-token and wrong-token cases are
 **indistinguishable by design** (no oracle) — see ADR-0003.
 
 **What to do:** re-flash the radiator with the correct **shared token**, or

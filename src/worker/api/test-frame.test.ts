@@ -23,7 +23,7 @@ function frameReq(slug: string): Request {
   return new Request('http://localhost/v1/frame', {
     headers: {
       'X-Radiator-Slug': slug,
-      'X-Radiator-Token': TOKEN,
+      Authorization: `Bearer ${TOKEN}`,
       Accept: 'application/json',
     },
   });

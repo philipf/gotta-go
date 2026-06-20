@@ -19,7 +19,7 @@ describe('api.router', () => {
   it('returns a 404 unknown-radiator problem document when slug does not resolve', async () => {
     const req = buildReq({
       'X-Radiator-Slug': 'ghost',
-      'X-Radiator-Token': TOKEN,
+      Authorization: `Bearer ${TOKEN}`,
     });
 
     const res = await route(req, env, new Date('2026-05-23T06:48:00Z'));
@@ -51,7 +51,7 @@ describe('api.router', () => {
     const wrongToken = await route(
       buildReq({
         'X-Radiator-Slug': 'bedroom-philip-tania',
-        'X-Radiator-Token': 'wrong',
+        Authorization: 'Bearer wrong',
       }),
       env,
       now,
@@ -88,7 +88,7 @@ describe('api.router - JSON view-model variant', () => {
     const now = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_calendar
     const req = buildReq({
       'X-Radiator-Slug': 'bedroom-philip-tania',
-      'X-Radiator-Token': TOKEN,
+      Authorization: `Bearer ${TOKEN}`,
       Accept: 'application/json',
     });
 
@@ -109,7 +109,7 @@ describe('api.router - JSON view-model variant', () => {
     const now = new Date('2026-05-23T00:00:00Z'); // 12:00 NZST → daytime_calendar
     const req = buildReq({
       'X-Radiator-Slug': 'bedroom-philip-tania',
-      'X-Radiator-Token': TOKEN,
+      Authorization: `Bearer ${TOKEN}`,
       Accept: 'application/json',
     });
 
@@ -133,7 +133,7 @@ describe('api.router - JSON view-model variant', () => {
     const now = new Date('2026-05-21T19:30:00Z');
     const req = buildReq({
       'X-Radiator-Slug': 'bedroom-daughter',
-      'X-Radiator-Token': TOKEN,
+      Authorization: `Bearer ${TOKEN}`,
       Accept: 'application/json',
     });
 

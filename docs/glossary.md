@@ -261,8 +261,8 @@ The radiator's unique short identifier (e.g. `bedroom-philip-tania`). Hardcoded 
 
 ### Shared token
 The static secret token every radiator sends to authenticate with the Worker.
-- **Appears as:** HTTP request header `X-Radiator-Token`, Worker secret `RADIATOR_SHARED_TOKEN`.
-- **Not to be confused with:** ~~X-Device-Token~~, ~~DEVICE_SHARED_TOKEN~~ — legacy.
+- **Appears as:** HTTP request header `Authorization: Bearer <token>` (Cloudflare auto-redacts it to `********` in Workers Logs — GH #121), Worker secret `RADIATOR_SHARED_TOKEN`.
+- **Not to be confused with:** ~~X-Device-Token~~, ~~DEVICE_SHARED_TOKEN~~ — legacy. `X-Radiator-Token` is the deprecated transport: the Worker still accepts it during rollout, but it is captured in Workers Logs in cleartext, so radiators must send `Authorization` instead.
 
 ### Hardware id
 Stable per-board identifier (typically the ESP32-S3 MAC address) — survives **radiator slug** reassignment, so it can track which physical board carries which slug across re-flashes.
