@@ -191,7 +191,7 @@ One wire quirk from #73: the Workers runtime appends an incidental `Content-Enco
 
 | AC                                                                                                                                       | Where in the sketch                                                         |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **F1** — Sends `X-Radiator-Token`, `X-Radiator-Slug`, `Accept-Encoding: gzip` every wake; `X-Radiator-Hardware-Id` (MAC) where supported | `net::fetchFrame()` — `https.addHeader()` block                             |
+| **F1** — Sends `Authorization: Bearer <token>` (GH #121), `X-Radiator-Slug`, `Accept-Encoding: gzip` every wake; `X-Radiator-Hardware-Id` (MAC) where supported | `net::fetchFrame()` — `https.addHeader()` block                             |
 | **F2** — Wi-Fi → headers → flush BMP to panel without artefacts → deep sleep for exactly `X-Sleep-Seconds`                               | Full `setup()` flow, gated on `CycleResult::Ok`                             |
 | **F3** — One full wake cycle against the deployed Worker; panel shows correct local time within 1 minute of wake                         | Verified manually against a cloudflared quick tunnel, per the runbook above |
 

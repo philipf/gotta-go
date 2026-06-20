@@ -53,7 +53,7 @@ src/worker/
 ├── api/                    # HTTP edge: routing, negotiation, auth, response shaping
 │   ├── router.ts
 │   ├── <endpoint>.ts       # one self-contained handler per route (e.g. frame.ts)
-│   ├── auth.ts             # shared-token (X-Radiator-Token) validation
+│   ├── auth.ts             # shared-token (Authorization: Bearer) validation
 │   ├── format.ts           # Accept header → response format
 │   ├── response.ts         # response/header builders per ADR-0003
 │   ├── etag.ts             # conditional-request (ETag / 304) handling per ADR-0013

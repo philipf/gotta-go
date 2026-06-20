@@ -119,7 +119,7 @@ export function unauthorizedError(): FatalError {
     slug: 'unauthorized',
     title: 'Radiator not authorised',
     status: 401,
-    detail: 'The X-Radiator-Token header was missing or did not match the configured shared token.',
+    detail: 'The Authorization bearer token was missing or did not match the configured shared token.',
     logLevel: 'warn',
   });
 }
