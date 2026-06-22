@@ -152,10 +152,7 @@ const anyOfMixed = vm([
     last: last('RUN', '−1 MIN', 'ARR 08:07', { routePrefix: '120' }),
     next: slot('7 MIN', 'BY 08:11', 'ARR 08:18', { routePrefix: '110' }),
     then: slot('14 MIN', 'BY 08:18', 'ARR 08:24', { routePrefix: '130', deviation: 'DELAYED +2 MIN' }),
-    later: [
-      later('22 MIN', '08:32', { routePrefix: '110' }),
-      later('29 MIN', '08:39', { routePrefix: '120' }),
-    ],
+    later: [later('22 MIN', '08:32', { routePrefix: '110' }), later('29 MIN', '08:39', { routePrefix: '120' })],
   }),
   col({
     mode: 'bus',
@@ -164,10 +161,7 @@ const anyOfMixed = vm([
     last: last('MISSED', '−2 MIN', 'ARR 08:09', { routePrefix: '635' }),
     next: slot('11 MIN', 'BY 08:15', 'ARR 08:22', { routePrefix: '635' }),
     then: slot('21 MIN', 'BY 08:25', 'ARR 08:32', { routePrefix: '650' }),
-    later: [
-      later('33 MIN', '08:44', { routePrefix: '635' }),
-      later('44 MIN', '08:55', { routePrefix: '650' }),
-    ],
+    later: [later('33 MIN', '08:44', { routePrefix: '635' }), later('44 MIN', '08:55', { routePrefix: '650' })],
   }),
 ]);
 

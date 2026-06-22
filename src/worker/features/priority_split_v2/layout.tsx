@@ -297,7 +297,15 @@ function hero(slot: DepartureSlot | null, s: Sizing): ReactNode {
       // rather than hanging off a baseline that doesn't match its box (#108 review).
       <div
         key="qual"
-        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: BADGE_GAP, fontSize: s.byArr, lineHeight: 1 }}
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: BADGE_GAP,
+          fontSize: s.byArr,
+          lineHeight: 1,
+        }}
       >
         <span>{slot ? `${slot.leaveBy} · ${slot.arrives}` : DASH}</span>
         {slot?.deviation ? badge(slot.deviation, s) : null}
@@ -487,7 +495,14 @@ function hRule(key: string, s: Sizing): ReactNode {
   return (
     <div
       key={key}
-      style={{ height: RULE_W, backgroundColor: BLACK, marginLeft: s.ruleInset, marginRight: s.ruleInset, marginTop: BAND_GAP, marginBottom: BAND_GAP }}
+      style={{
+        height: RULE_W,
+        backgroundColor: BLACK,
+        marginLeft: s.ruleInset,
+        marginRight: s.ruleInset,
+        marginTop: BAND_GAP,
+        marginBottom: BAND_GAP,
+      }}
     />
   );
 }
