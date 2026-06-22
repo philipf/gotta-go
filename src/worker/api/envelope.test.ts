@@ -3,7 +3,7 @@ import { buildFrameEnvelope } from './envelope';
 
 const baseInit = {
   profilePhase: 'morning_school_run',
-  layout: 'priority_split',
+  layout: 'priority_split_v2',
   serverTime: new Date('2026-05-23T06:48:12Z'),
   viewModel: { wall_clock: '07:30', columns: [{ mode: 'bus' }] },
 };
@@ -14,7 +14,7 @@ describe('api.envelope.buildFrameEnvelope', () => {
 
     expect(envelope).toEqual({
       profile_phase: 'morning_school_run',
-      layout: 'priority_split',
+      layout: 'priority_split_v2',
       server_time: '2026-05-23T06:48:12.000Z',
       wall_clock: '07:30',
       columns: [{ mode: 'bus' }],

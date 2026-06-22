@@ -18,7 +18,7 @@ const env = {
   PUBLIC_HOLIDAYS: { get: async () => [] } as unknown as KVNamespace,
 } as Env;
 
-// Friday 07:30 NZST → bedroom-daughter's morning_school_run priority_split
+// Friday 07:30 NZST → bedroom-daughter's morning_school_run priority_split_v2
 // phase (mon–fri per #92; refreshIntervalMinutes 2 → 120s active phase sleep).
 // 2026-05-22 is a Friday in NZ.
 const NOW = new Date('2026-05-21T19:30:00Z');
@@ -251,7 +251,7 @@ describe('renderFrame conditional requests - ETag / If-None-Match (#73)', () => 
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubFetch(503, 'upstream connect error');
 
-    // bedroom-daughter at NOW → morning_school_run priority_split; the
+    // bedroom-daughter at NOW → morning_school_run priority_split_v2; the
     // Metlink failure throws inside buildViewModel, before the conditional
     // check is ever reached.
     const res = await route(frameReq({ Accept: 'image/bmp', 'If-None-Match': 'W/"feedfacecafebeef"' }), env, NOW);

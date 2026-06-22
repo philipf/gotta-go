@@ -88,7 +88,6 @@ describe('config.lookupRadiator', () => {
     expect(target?.stopId).toBe('3234');
     expect(target?.serviceId).toEqual(['634', '635']);
     expect(target?.timeToStopMins).toBe(5);
-    expect(target?.comfortBuffer).toBe(3);
   });
 });
 

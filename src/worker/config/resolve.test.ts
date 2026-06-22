@@ -28,7 +28,7 @@ const multiPhaseRadiator: Radiator = {
         key: 'morning_school_run',
         startTime: '07:15',
         endTime: '08:30',
-        layout: 'priority_split',
+        layout: 'priority_split_v2',
         refreshIntervalMinutes: 2,
         transitTargets: [],
       },
@@ -54,7 +54,7 @@ const activeDaysRadiator: Radiator = {
         key: 'weekday_commute',
         startTime: '06:00',
         endTime: '09:00',
-        layout: 'priority_split',
+        layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: ['mon', 'tue', 'wed', 'thu', 'fri'],
         transitTargets: [],
@@ -84,7 +84,7 @@ describe('config.resolveProfilePhase', () => {
     // 2026-05-22T19:30:00Z = 07:30 NZST (UTC+12) — inside morning_school_run
     const morning = resolveProfilePhase(multiPhaseRadiator, new Date('2026-05-22T19:30:00Z'));
     expect(morning.profilePhase).toBe('morning_school_run');
-    expect(morning.layout).toBe('priority_split');
+    expect(morning.layout).toBe('priority_split_v2');
 
     // 2026-05-22T21:00:00Z = 09:00 NZST — inside afternoon_idle
     const afternoon = resolveProfilePhase(multiPhaseRadiator, new Date('2026-05-22T21:00:00Z'));
@@ -271,7 +271,7 @@ describe('config.resolveProfilePhase', () => {
     // is in days → the commute phase is active.
     const on = resolveProfilePhase(activeDaysRadiator, new Date('2026-06-07T19:00:00Z'));
     expect(on.profilePhase).toBe('weekday_commute');
-    expect(on.layout).toBe('priority_split');
+    expect(on.layout).toBe('priority_split_v2');
   });
 
   it("honours a profile's own idle override over the system default", () => {

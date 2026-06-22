@@ -2,7 +2,7 @@
 // the full route through handleTestFrame. End-to-end requests negotiate JSON
 // (Accept: application/json) so they exercise routing + phase resolution without
 // the Satori → resvg BMP pipeline, which the workers-pool sandbox blocks
-// (ADR-0005, mirrored by api.test.ts). priority_split scenarios hit Metlink, so
+// (ADR-0005, mirrored by api.test.ts). priority_split_v2 scenarios hit Metlink, so
 // fetch is stubbed with a closed-stop fixture for determinism.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
