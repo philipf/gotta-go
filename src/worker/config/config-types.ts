@@ -3,14 +3,15 @@
 // phase layout values are constrained to what's actually implemented.
 
 import type { LayoutKey } from '../features/frame-registry';
-import type { Mode } from '../features/priority_split/mode-icon';
+import type { Mode } from '../features/priority_split_v2/mode-icon';
 
 export type { LayoutKey };
 
 // One configured stop/station a radiator watches inside a profile phase
 // (glossary §7 "transit target"). `serviceId` accepts a single route or an
-// any-of array (Metlink reference); `time_to_stop_mins` and `comfort_buffer` size
-// the marker window (glossary §5/§6). `destinationStopId` narrows a route that
+// any-of array (Metlink reference); `time_to_stop_mins` is the walk/transfer
+// margin subtracted from each arrival to derive its Leave By time (glossary §3).
+// `destinationStopId` narrows a route that
 // branches to several termini at a shared stop down to the wanted terminus —
 // when set, only departures bound for a matching `destination.stop_id` survive
 // (#68). Mirrors `serviceId`: a single id or an any-of array; absent means no
@@ -27,7 +28,6 @@ export type TransitTarget = {
   destinationStopId?: string | string[];
   destinationNameIncludes?: string | string[];
   timeToStopMins: number;
-  comfortBuffer: number;
 };
 
 // Mirrors PRD §9 `global:` — household-level settings shared by every
@@ -58,12 +58,12 @@ export type ProfilePhase = {
   // keep weekday commute phases from firing on weekends (#92 / ADR-0015). A
   // config.test.ts invariant forbids an empty array (a silent dead phase).
   days?: Weekday[];
-  // Present for priority_split phases; absent for minimal_clock.
+  // Present for priority_split_v2 phases; absent for minimal_clock.
   transitTargets?: TransitTarget[];
   // priority_split_v2 only — the RUN limit (glossary): the largest lateness
   // (in minutes) at which the LAST row's just-missed service is still
   // sprintable and tagged `RUN` rather than `MISSED`. Absent → the domain
-  // default of 1 min. The old `priority_split` (v1) ignores it (#104).
+  // default of 1 min (#104).
   runLimitMins?: number;
 };
 

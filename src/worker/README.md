@@ -57,12 +57,12 @@ decoupled from the clock and never breaks when schedule windows are re-tuned.
 auto-extends: every phase anyone adds is instantly testable as `test-<itsKey>`,
 nothing to register. With today's seed data:
 
-| Slug                      | Renders                                            | Network      |
-| ------------------------- | -------------------------------------------------- | ------------ |
-| `test-morning_commute`    | philip's two-target (bus + train) `priority_split` | live Metlink |
-| `test-morning_school_run` | daughter's one-target `priority_split`             | live Metlink |
-| `test-daytime_calendar`   | `dual_month_calendar`                              | offline      |
-| `test-afternoon_idle`     | the idle `minimal_clock` phase                     | offline      |
+| Slug                      | Renders                                               | Network      |
+| ------------------------- | ----------------------------------------------------- | ------------ |
+| `test-morning_commute`    | philip's two-target (bus + train) `priority_split_v2` | live Metlink |
+| `test-morning_school_run` | daughter's one-target `priority_split_v2`             | live Metlink |
+| `test-daytime_calendar`   | `dual_month_calendar`                                 | offline      |
+| `test-afternoon_idle`     | the idle `minimal_clock` phase                        | offline      |
 
 These resolve in **every environment** by design — there is no env gate, and no
 security concern in serving them. An unknown phase key 404s, fail-closed like an

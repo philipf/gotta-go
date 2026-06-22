@@ -48,7 +48,6 @@ const CITY_TO_HOME_TARGETS: TransitTarget[] = [
     serviceId: '1',
     destinationStopId: '3281',
     timeToStopMins: 10,
-    comfortBuffer: 1.5,
   },
   {
     mode: 'train',
@@ -56,7 +55,6 @@ const CITY_TO_HOME_TARGETS: TransitTarget[] = [
     serviceId: 'KPL',
     destinationNameIncludes: 'All stops',
     timeToStopMins: 10,
-    comfortBuffer: 1.5,
   },
 ];
 
@@ -88,14 +86,12 @@ export const PROFILES: Record<string, Profile> = {
             stopId: '3234',
             serviceId: '1',
             timeToStopMins: 4,
-            comfortBuffer: 1.5,
           },
           {
             mode: 'train',
             stopId: 'TAKA1',
             serviceId: 'KPL',
             timeToStopMins: 8,
-            comfortBuffer: 1.5,
           },
         ],
       },
@@ -193,7 +189,6 @@ export const PROFILES: Record<string, Profile> = {
             stopId: '3234',
             serviceId: ['634', '635'],
             timeToStopMins: 5,
-            comfortBuffer: 3,
           },
         ],
       },

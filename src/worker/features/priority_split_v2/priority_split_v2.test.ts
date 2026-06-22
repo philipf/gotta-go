@@ -29,7 +29,6 @@ const busTarget: TransitTarget = {
   stopId: '3234',
   serviceId: '1',
   timeToStopMins: 5,
-  comfortBuffer: 1.5,
 };
 
 const trainTarget: TransitTarget = {
@@ -37,7 +36,6 @@ const trainTarget: TransitTarget = {
   stopId: 'TAKA1',
   serviceId: 'KPL',
   timeToStopMins: 15,
-  comfortBuffer: 1.5,
 };
 
 // `predicted` is the expected arrival the slots compute against; `delaySeconds`
@@ -762,13 +760,7 @@ describe('priority_split_v2.layout - hero line boxes are tight for even vertical
   // axes distinguish the two heroes from it.
   const isHeroFrame = (el: { props: { style?: Record<string, unknown> } }): boolean => {
     const st = el.props.style;
-    return (
-      !!st &&
-      st.flexBasis === 0 &&
-      st.flexDirection === 'column' &&
-      st.alignItems === 'center' &&
-      st.justifyContent === 'center'
-    );
+    return !!st && st.flexBasis === 0 && st.flexDirection === 'column' && st.alignItems === 'center' && st.justifyContent === 'center';
   };
 
   const heroGroups = [...elements(layout(vm))].filter(isHeroFrame);
