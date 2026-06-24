@@ -80,20 +80,47 @@ if [[ ! -f "$VARIANT" ]]; then
   exit 1
 fi
 
-# --- Apply the variant + summarise -----------------------------------------
+# --- Apply the variant + resolve secrets from pass --------------------------
+# The variant file holds @pass:<path>@ placeholders instead of plaintext
+# secrets; the real values live only in the `pass` store. We copy the variant
+# onto settings.h, then swap each placeholder for `pass show <path>`. settings.h
+# is generated and gitignored — but it would still hold plaintext at rest after
+# the flash, so the trap below restores the placeholder-only variant on exit
+# (normal exit OR Ctrl-C during the button dance), keeping the plaintext on
+# disk only for the duration of the run.
 cp "$VARIANT" settings.h
+trap 'cp "$VARIANT" settings.h 2>/dev/null || true' EXIT
 
-# Pull FRAME_URL, RADIATOR_SLUG and WIFI_SSID out of the variant for an
-# eyeball check (no prod confirm prompt — this summary is the sanity check).
-# The slug is the value that distinguishes two deployed-Worker variants whose
-# URL and token are identical, so it is the line that catches flashing the
+resolve_pass_placeholders() {
+  local file="$1" path secret esc
+  # Each unique @pass:<path>@ token referenced on a #define line. Restricting to
+  # #define lines means a placeholder mentioned in a comment is not resolved.
+  for path in $(grep '^[[:space:]]*#define' "$file" | grep -o '@pass:[^@]*@' | sed 's/^@pass://; s/@$//' | sort -u || true); do
+    if ! secret="$(pass show "$path" 2>/dev/null)"; then
+      echo "Error: pass entry '$path' not found (referenced in $VARIANT)." >&2
+      echo "       Add it with: pass insert '$path'" >&2
+      exit 1
+    fi
+    secret="${secret%%$'\n'*}"                                # first line only
+    esc="$(printf '%s' "$secret" | sed -e 's/[\/&|]/\\&/g')"  # escape for sed RHS
+    sed -i "s|@pass:${path}@|${esc}|g" "$file"
+  done
+}
+resolve_pass_placeholders settings.h
+
+# --- Summarise --------------------------------------------------------------
+# Pull FRAME_URL, RADIATOR_SLUG and WIFI_SSID out of the *resolved* settings.h
+# for an eyeball check (no prod confirm prompt — this summary is the sanity
+# check). The slug is the value that distinguishes two deployed-Worker variants
+# whose URL and token are identical, so it is the line that catches flashing the
 # wrong device personality; the SSID distinguishes same-device variants that
 # differ only by network (e.g. f5 vs f5-tui). The WiFi password and token are
-# intentionally NOT printed; for the token we only confirm one is set.
-FRAME_URL="$(sed -n 's/^#define FRAME_URL[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
-SLUG="$(sed -n 's/^#define RADIATOR_SLUG[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
-WIFI_SSID="$(sed -n 's/^#define WIFI_SSID[[:space:]]*"\(.*\)".*/\1/p' "$VARIANT")"
-if grep -q '^#define RADIATOR_TOKEN[[:space:]]*"..*"' "$VARIANT"; then
+# intentionally NOT printed; for the token we only confirm it resolved — which
+# also catches a typo'd pass path before the button dance.
+FRAME_URL="$(sed -n 's/^#define FRAME_URL[[:space:]]*"\(.*\)".*/\1/p' settings.h)"
+SLUG="$(sed -n 's/^#define RADIATOR_SLUG[[:space:]]*"\(.*\)".*/\1/p' settings.h)"
+WIFI_SSID="$(sed -n 's/^#define WIFI_SSID[[:space:]]*"\(.*\)".*/\1/p' settings.h)"
+if grep -q '^#define RADIATOR_TOKEN[[:space:]]*"..*"' settings.h; then
   TOKEN_STATE="set"
 else
   TOKEN_STATE="MISSING"
