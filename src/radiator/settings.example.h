@@ -22,23 +22,26 @@
 // tracked). The sketch #includes settings.h, so it will not compile until
 // `./flash.sh <variant>` has generated it (or you cp one by hand).
 //
-// The WIFI_SSID and WIFI_PASSWORD here are the same ones used by the
-// wake-cycle PoC; if poc/lilygo/wake-cycle-32/secrets.h already exists on
-// this machine, copy those two lines straight from it.
+// Secrets: write a pass-path placeholder of the form @pass:PATH@ (PATH is the
+// `pass` entry name) instead of a literal value, and
+// flash.sh resolves it from the `pass` store at flash time (into the generated
+// settings.h), so the plaintext lives only in the password store — never in a
+// settings file. A literal value still works if you prefer; the placeholder is
+// only substituted when it's present. Any line can use it (WIFI_*, the token, …).
 
-#define WIFI_SSID "your-ssid"
-#define WIFI_PASSWORD "your-password"
+#define WIFI_SSID "@pass:work/<radiator>/wifi/ssid@"
+#define WIFI_PASSWORD "@pass:work/<radiator>/wifi/password@"
 
 // The Worker's /v1/frame endpoint. For local development, this is the
 // cloudflared quick tunnel URL printed by `cloudflared tunnel --url
 // http://localhost:8787` (see README §"Reach the Worker"). The path must
 // include /v1/frame; the tunnel URL is the scheme + host.
-#define FRAME_URL "https://your-quick-tunnel.trycloudflare.com/v1/frame"
+#define FRAME_URL "https://gotta-go.notnot.uk/v1/frame"
 
 // Shared token (RADIATOR_SHARED_TOKEN) — must match the Worker's
 // configured value, otherwise the Worker returns 401 + X-Sleep-Seconds: 3600
 // and the panel is not updated (per ADR-0003).
-#define RADIATOR_TOKEN "test-token-123"
+#define RADIATOR_TOKEN "@pass:gotta-go/prod/worker-api-token@"
 
 // This radiator's slug. Must resolve to a known entry in the Worker's
 // radiators: config, otherwise the Worker returns 404 + X-Sleep-Seconds: 3600.
