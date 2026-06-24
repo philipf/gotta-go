@@ -25,9 +25,9 @@ This README assumes the toolchain bring-up from [ADR-0006](../../docs/adr/0006-r
 | `sleep.h`           | `SleepHeader` + pure `parseSleepSecondsValue()` (ADR-0003); host-tested. Seed of the #5 sleep module. |
 | `battery.{h,cpp}`   | Battery-voltage sample (GH #79): `sampleBatteryMv()` — pre-Wi-Fi ADC2 power pulse, avg of 8 reads → `X-Radiator-Battery-Mv`. Device-only. |
 | `test/`             | Host-native unit tests (CMake + doctest) for the pure logic — see [`test/README.md`](test/README.md) and [ADR-0012](../../docs/adr/0012-radiator-host-native-tests.md). |
-| `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug. Copy to `settings.<variant>.h` (gitignored). |
+| `settings.example.h` | Template for Wi-Fi creds + Worker URL + token + slug — secrets are `@pass:<path>@` placeholders, not literals (see _Secrets via `pass`_). Copy to `settings.<variant>.h` (gitignored). |
 | `settings.<variant>.h` | Per-deployment settings (e.g. `settings.dev.h`, `settings.f5.h`). `./flash.sh <variant>` copies the chosen one onto the generated `settings.h`. |
-| `flash.sh`          | `./flash.sh <variant>` — apply the settings variant, compile, upload, then watch the serial monitor. Variants are discovered from the `settings.<variant>.h` files present; no arg lists them. |
+| `flash.sh`          | `./flash.sh <variant>` — apply the settings variant, **resolve its `@pass:…@` secrets from the `pass` store**, compile, upload, then watch the serial monitor. Variants are discovered from the `settings.<variant>.h` files present; no arg lists them. |
 | `sketch.yaml`       | FQBN + serial port (same shape as the PoCs).                                            |
 | `mise.toml`         | Tool pin (python for esptool).                                                          |
 | `gen_compile_commands.py` | Regenerates `compile_commands.json` with real source paths so `clangd` can navigate the firmware in an editor. See _Editor / LSP_. |
@@ -56,6 +56,30 @@ If you already filled in `poc/lilygo/wake-cycle-32/secrets.h` for PoC #32, the `
 - `RADIATOR_SLUG` must resolve to an entry in the Worker's `radiators:` config (otherwise `404`).
 - `RADIATOR_VERBOSE` (default `0`) gates the verbose error screen — set to `1` to render the raw `upstream_detail` snippet beneath the error body (see _Error screen_ below).
 
+### Secrets via `pass`
+
+Secrets are **not** stored in the settings files. Wherever a value is sensitive — `WIFI_SSID`, `WIFI_PASSWORD`, `RADIATOR_TOKEN` — the variant carries a `@pass:<path>@` placeholder instead of the literal, where `<path>` is an entry in the [`pass`](https://www.passwordstore.org/) password store:
+
+```c
+#define WIFI_SSID      "@pass:work/f5/guest-wifi/ssid@"
+#define WIFI_PASSWORD  "@pass:work/f5/guest-wifi/password@"
+#define RADIATOR_TOKEN "@pass:gotta-go/prod/worker-api-token@"
+```
+
+`./flash.sh <variant>` resolves every `@pass:…@` token on a `#define` line via `pass show <path>` while generating `settings.h`, then an `EXIT` trap restores the placeholder-only variant — so the plaintext exists on disk only for the duration of the build/upload, never at rest in a tracked *or* gitignored file. A missing entry fails the flash early (before the upload) with a `pass insert` hint. Literal values still work if you prefer; the substitution only fires when a placeholder is present. Only `#define` lines are scanned, so a placeholder mentioned in a comment is ignored.
+
+The entries this repo's variants reference:
+
+| pass path                              | used by                                              |
+| -------------------------------------- | ---------------------------------------------------- |
+| `work/f5/guest-wifi/{ssid,password}`   | `settings.f5.h`                                      |
+| `home/wifi/{ssid_2g,password}`         | `settings.dev.h`, `settings.home.h`, `settings.f5-tui.h` |
+| `philipf/phone-wifi/{ssid,password}`   | `settings.demo.h`                                    |
+| `gotta-go/dev/worker-api-token`        | `settings.dev.h`                                     |
+| `gotta-go/prod/worker-api-token`       | the deployed-Worker variants                         |
+
+> The build cache still bakes the resolved secrets into the compiled firmware (and onto the device) — unavoidable when flashing creds into a binary. The `pass` indirection only keeps plaintext out of the *source tree*.
+
 ## Install libraries
 
 The toolchain ADR-0006 already pulls `LilyGo-EPD47`, `SensorLib`, and `Button2`. Add the gzip inflater per ADR-0008 and the JSON parser the error screen uses per [ADR-0011](../../docs/adr/0011-error-contract-problem-details.md):
@@ -83,7 +107,7 @@ Same toolchain as `poc/lilygo/wake-cycle-32` (arduino-cli + esp32 core 2.0.15 + 
 ./flash.sh          # list the available variants
 ```
 
-`flash.sh` compiles _before_ prompting for the button dance, so a bad arg or a broken build fails before you touch the board. It prints the target `FRAME_URL`, `RADIATOR_SLUG`, and `WIFI_SSID` for an eyeball check; the Wi-Fi password and token are never printed.
+`flash.sh` first resolves the variant's `@pass:…@` secrets from the `pass` store (see _Secrets via `pass`_; a missing entry aborts here), then compiles _before_ prompting for the button dance, so a bad arg, a missing secret, or a broken build fails before you touch the board. It prints the target `FRAME_URL`, `RADIATOR_SLUG`, and `WIFI_SSID` for an eyeball check; the Wi-Fi password and token are never printed (only that the token resolved).
 
 Or run the steps by hand (with `sketch.yaml` present, after `cp settings.dev.h settings.h`):
 
@@ -229,7 +253,7 @@ The matching Neovim config lives outside this repo (`~/.config/nvim/...`); it ro
 ## What this firmware does NOT do
 
 - **TLS certificate pinning.** `client.setInsecure()` — same as PoC #32. Production radiator would pin or bundle the CA for the Worker's host.
-- **Wi-Fi provisioning UI.** Credentials are hardcoded in `settings.h`; no captive portal.
+- **Wi-Fi provisioning UI.** Credentials are compiled in from `settings.h` (resolved from `pass` at flash time — see _Secrets via `pass`_); no captive portal.
 - **OTA updates.** Re-flash over USB only.
 - **Telemetry beyond `X-Radiator-Hardware-Id` and `X-Radiator-Battery-Mv`.** ADR-0003 reserves the `X-Radiator-*` namespace for further fields (RSSI, firmware version); none of those are set yet. Battery telemetry (GH #79) sends raw mV only — interpretation (discharge curve, wall-power detection) is the Worker's job.
 - **Partial / region refreshes on the panel.** Full-frame flush only — same shape as #31. Faster refresh is a follow-up if battery accounting demands it.
