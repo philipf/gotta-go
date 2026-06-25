@@ -49,6 +49,7 @@
 #endif
 
 #include <Arduino.h>
+#include <esp_system.h>  // esp_reset_reason() — tell brownout/watchdog/panic apart from a real power-on (GH #128)
 
 #include "epd_driver.h"  // epd_init() — panel bring-up
 #include "battery.h"     // sampleBatteryMv — must run before connectWiFi (ADC2)
@@ -103,6 +104,39 @@ static const char* wakeReasonStr(esp_sleep_wakeup_cause_t cause) {
             return "power-on / hard reset (cold boot)";
         default:
             return "other";
+    }
+}
+
+// The deep-sleep wake *cause* above collapses every non-timer wake into one
+// "cold boot" bucket. The reset *reason* disambiguates it: a genuine power-on
+// vs a BROWNOUT (supply sag on the wake inrush), a watchdog hang, or a panic
+// crash. We are chasing spontaneous in-situ cold boots — they wipe RTC memory
+// (wakeCount + storedEtag), so the next request sends no If-None-Match, which
+// is exactly the unexplained no-IFM pattern in the Cloudflare logs (GH #128).
+static const char* resetReasonStr(esp_reset_reason_t reason) {
+    switch (reason) {
+        case ESP_RST_POWERON:
+            return "power-on (genuine cold boot)";
+        case ESP_RST_EXT:
+            return "external RST pin";
+        case ESP_RST_SW:
+            return "software restart";
+        case ESP_RST_PANIC:
+            return "PANIC / exception (firmware crash)";
+        case ESP_RST_INT_WDT:
+            return "interrupt watchdog";
+        case ESP_RST_TASK_WDT:
+            return "task watchdog";
+        case ESP_RST_WDT:
+            return "other watchdog";
+        case ESP_RST_DEEPSLEEP:
+            return "deep-sleep timer wake";
+        case ESP_RST_BROWNOUT:
+            return "BROWNOUT (supply sag)";
+        case ESP_RST_SDIO:
+            return "SDIO";
+        default:
+            return "unknown";
     }
 }
 
@@ -212,6 +246,10 @@ static void announceWake() {
     Serial.println();
     Serial.printf("=== GottaGo wake cycle #%lu — wake reason: %s ===\n", (unsigned long)wakeCount,
                   wakeReasonStr(esp_sleep_get_wakeup_cause()));
+    // Always log the reset reason: on a timer wake it reads "deep-sleep timer
+    // wake", but on a surprise cold boot it names the real culprit (BROWNOUT /
+    // watchdog / panic / power-on) — the whole point of the GH #128 capture.
+    Serial.printf("reset reason: %s\n", resetReasonStr(esp_reset_reason()));
 }
 
 // Allocate the per-cycle PSRAM scratch. False on exhaustion — the caller then
