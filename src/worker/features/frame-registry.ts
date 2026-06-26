@@ -11,6 +11,7 @@ import { fetchArrivals } from '../gateways/metlink/fetch-arrivals';
 import { prepareDualMonthCalendarFrame } from './dual_month_calendar/prepare-dual-month-calendar-frame';
 import { fetchHolidays } from '../gateways/public_holidays/fetch-holidays';
 import { prepareMinimalClockFrame } from './minimal_clock/prepare-minimal-clock-frame';
+import { deriveBatteryIndicator } from '../shared/battery/derive';
 
 // The per-request dependency bundle every binder receives. It is the union of
 // every feature's needs — acceptable here and only here (architecture guide): the
@@ -30,6 +31,10 @@ export type FrameDeps = {
   // `format: 'json'` only when `?include_bmp=1` was requested. Lets the JSON
   // path skip the Satori/resvg pipeline entirely for the common case.
   includeBmp: boolean;
+  // Raw per-wake battery telemetry (X-Radiator-Battery-Mv), or undefined when
+  // the radiator did not send a reading. Derived to indicator state by
+  // batteryFrom() at bind time; features receive the derived value, never the mV.
+  batteryMv: number | undefined;
   // The full Env is ambient authority — every binding reachable by every
   // feature. Features narrow it where they bind (Pick<Env, …>).
   env: Env;
@@ -64,11 +69,19 @@ function renderFlagsFrom(deps: Pick<FrameDeps, 'format' | 'includeBmp'>) {
   };
 }
 
+// Derives the shared battery-indicator state from the raw mV once at the
+// composition root (mirrors renderFlagsFrom), so every feature receives the same
+// plain derived value and no feature ever sees the curve or the threshold.
+function batteryFrom(deps: Pick<FrameDeps, 'batteryMv'>) {
+  return { battery: deriveBatteryIndicator(deps.batteryMv) };
+}
+
 function bindMinimalClock(deps: FrameDeps) {
   return prepareMinimalClockFrame({
     slug: deps.radiator.slug,
     timezone: deps.timezone,
     now: deps.now,
+    ...batteryFrom(deps),
     ...renderFlagsFrom(deps),
   });
 }

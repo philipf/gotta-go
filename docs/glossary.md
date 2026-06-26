@@ -270,9 +270,22 @@ Stable per-board identifier (typically the ESP32-S3 MAC address) — survives **
 - **Not to be confused with:** **radiator slug** (the logical identifier, hardcoded at flash time).
 
 ### Battery level
-The radiator's raw battery voltage in **millivolts**, sampled once per **wake cycle** (before Wi-Fi starts — the ADC and the radio share hardware) and sent to the Worker, which logs it as telemetry. Deliberately raw and uninterpreted: the discharge curve, any percentage mapping, and charging detection are server-side concerns, deferred to the fast follow (GH #80).
+The radiator's raw battery voltage in **millivolts**, sampled once per **wake cycle** (before Wi-Fi starts — the ADC and the radio share hardware) and sent to the Worker. The radiator stays dumb: it ships the raw mV, and every interpretation (the **discharge curve**, the **battery indicator**, **charging** detection) is server-side, so it stays tweakable without reflashing.
 - **Appears as:** HTTP request header `X-Radiator-Battery-Mv` (optional; omitted on a failed read), log field `batteryMv`, code symbol `readBatteryMv`.
-- **Not to be confused with:** a battery *percentage* (no discharge curve exists yet — the PoC's linear 3.30 V → 4.20 V map was display-only, not a contract).
+- **Not to be confused with:** a battery *percentage* (the level is mV; the percentage is derived by the **discharge curve**).
+
+### Discharge curve
+The server-side map from **battery level** (mV) to a percentage, as a piecewise LiPo open-circuit-voltage breakpoint table interpolated linearly and clamped at both ends. Display-only — it drives the **battery indicator**'s fill, never a contract — and tunable on the panel per ADR-0009. Supersedes the PoC's linear 3.30 V → 4.20 V map, which over-reported a flat pack.
+- **Appears as:** code symbol `percentFromMv` in `shared/battery/`.
+
+### Battery indicator
+The on-frame battery glyph: a phone-style outline with a 5-segment fill bar (the **discharge curve** percentage quantised to 0–5 cells) and a lightning bolt when **charging**. A **shared component** that self-positions in the frame's top-right corner; hidden entirely when the reading is absent (absent ≠ empty). The quantised `{ segments, charging }` enters each layout's **view model**, so it folds into the **frame ETag** and the indicator redraws only when a cell or the bolt visibly changes — not on every mV drift.
+- **Appears as:** code symbols `batteryIndicator`, `deriveBatteryIndicator`, `BatteryIndicatorState` in `shared/battery/`.
+- **Not to be confused with:** the **marker widget** (the transit catch-window track + marker — an unrelated glyph).
+
+### Charging
+Whether the radiator reads as on wall power, shown by a lightning bolt on the **battery indicator**. Detected statelessly: a **battery level** at or above a high threshold (~4250 mV) rests too high for an unplugged pack. Blind spot: a full battery floating on a standby charger also sits ~4.2 V and reads as not-charging — closing that needs a rose-since-last-wake trend, which needs per-radiator state the Worker does not keep yet (GH #133).
+- **Appears as:** the `charging` field of `BatteryIndicatorState`.
 
 ### Sleep duration
 The number of seconds the radiator should deep-sleep before its next **wake cycle**. Set by the Worker on every response (including errors). Inside an active **profile phase** it is the phase's `refresh_interval_minutes` truncated at the next phase boundary (the earliest other phase start, or the active phase's own end), so a long-interval phase never oversleeps the next phase or the **idle profile** handoff. Allowed range `30 ≤ n ≤ 14400`.

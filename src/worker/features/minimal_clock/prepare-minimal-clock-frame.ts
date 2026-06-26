@@ -1,5 +1,7 @@
 // Public contract for minimal_clock: prepare the clock frame with rendering deferred.
 
+import type { BatteryIndicatorState } from '../../shared/battery/derive';
+
 export type PrepareMinimalClockFrame = (req: PrepareMinimalClockFrameRequest) => Promise<PrepareMinimalClockFrameResponse>;
 
 export type PrepareMinimalClockFrameRequest = {
@@ -7,6 +9,9 @@ export type PrepareMinimalClockFrameRequest = {
   slug: string;
   timezone: string;
   now: Date;
+  // The derived battery indicator state, or null when the reading is absent —
+  // already mapped from mV by the composition root. null hides the indicator.
+  battery: BatteryIndicatorState | null;
   // Artefact flags — format negotiation already collapsed by the caller.
   includeBmp: boolean;
   includeSvg: boolean;
