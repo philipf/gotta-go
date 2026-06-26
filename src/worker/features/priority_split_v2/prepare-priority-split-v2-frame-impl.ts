@@ -29,7 +29,9 @@ const preparePrioritySplitV2FrameImplementation: PreparePrioritySplitV2Frame = a
   // Never true in production (DEV_PAD_LATER unset), so the live path is unchanged.
   const projected = req.padLater ? padArrivalsForDev(states, req.targets, req.now) : states;
 
-  const vm = viewModelFromStopStates(req.targets, projected, req.timezone, req.now, req.runLimitMins);
+  // The domain seam stays battery-agnostic (it speaks only transit); the
+  // composition-root-derived battery is layered on here, the one place that sees it.
+  const vm = { ...viewModelFromStopStates(req.targets, projected, req.timezone, req.now, req.runLimitMins), battery: req.battery };
 
   return {
     view: toJsonView(vm),

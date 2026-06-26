@@ -13,6 +13,7 @@ const prepareJokeFrameImplementation: PrepareJokeFrame = async (req) => {
   const vm: ViewModel = {
     text: result.data.text,
     id: result.data.id,
+    battery: req.battery,
   };
 
   return {

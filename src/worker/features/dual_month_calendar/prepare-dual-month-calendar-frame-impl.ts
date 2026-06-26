@@ -19,7 +19,9 @@ async function loadHolidays(source: HolidaySource): Promise<Set<string>> {
 
 const prepareDualMonthCalendarFrameImplementation: PrepareDualMonthCalendarFrame = async (req) => {
   const holidays = await loadHolidays(req.fetchHolidays);
-  const vm = buildCalendarViewModel(req.now, req.timezone, req.slug, holidays);
+  // The domain seam stays battery-agnostic (it speaks only calendar); the
+  // composition-root-derived battery is layered on here, the one place that sees it.
+  const vm = { ...buildCalendarViewModel(req.now, req.timezone, req.slug, holidays), battery: req.battery };
 
   return {
     view: toJsonView(vm),

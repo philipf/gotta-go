@@ -666,12 +666,16 @@ describe('priority_split_v2.preparePrioritySplitV2Frame - gateway failure -> thr
     (data: StopState): ArrivalsSource =>
     async () => ({ ok: true, data });
 
-  function requestWith(fetchArrivals: ArrivalsSource): PreparePrioritySplitV2FrameRequest {
+  function requestWith(
+    fetchArrivals: ArrivalsSource,
+    battery: PreparePrioritySplitV2FrameRequest['battery'] = null,
+  ): PreparePrioritySplitV2FrameRequest {
     return {
       targets: [busTarget],
       fetchArrivals,
       timezone: TZ,
       now: NOW,
+      battery,
       includeBmp: false,
       includeSvg: false,
     };
@@ -702,6 +706,16 @@ describe('priority_split_v2.preparePrioritySplitV2Frame - gateway failure -> thr
   it('still builds a normal view model for a legitimate closed/empty-feed stop (no throw)', async () => {
     const prepared = await preparePrioritySplitV2Frame(requestWith(succeedingSource({ kind: 'closed' })));
     expect((prepared.view as { columns: unknown[] }).columns).toHaveLength(1);
+  });
+
+  it('carries the derived battery state into the view (ETag input) when present', async () => {
+    const prepared = await preparePrioritySplitV2Frame(requestWith(succeedingSource({ kind: 'closed' }), { segments: 3, charging: true }));
+    expect((prepared.view as { battery: unknown }).battery).toEqual({ segments: 3, charging: true });
+  });
+
+  it('carries a null battery into the view when the reading is absent', async () => {
+    const prepared = await preparePrioritySplitV2Frame(requestWith(succeedingSource({ kind: 'closed' }), null));
+    expect((prepared.view as { battery: unknown }).battery).toBeNull();
   });
 });
 

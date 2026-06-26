@@ -22,6 +22,7 @@
 
 import type { ReactNode } from 'react';
 import { WIDTH, HEIGHT } from '../../shared/bmp';
+import { batteryIndicator } from '../../shared/battery/indicator';
 import { modeIcon, MODE_GRIDS } from './mode-icon';
 import { serviceName } from './viewmodel';
 import type { DepartureSlot, LastSlot, LaterRow, NoServiceSlot, PrioritySplitV2ViewModel, ServiceColumn } from './viewmodel';
@@ -534,6 +535,10 @@ export function layout(vm: PrioritySplitV2ViewModel): ReactNode {
         fontWeight: 700,
       }}
     >
+      {/* Self-positioning top-right; null when the reading is absent. The global
+          header's content is centred, so the top-right corner is clear (#132);
+          verified live per ADR-0009. */}
+      {vm.battery ? batteryIndicator(vm.battery) : null}
       {/* Global header — wall-clock + date across the full width. The date
           confirms the frame refreshed rather than holding a stale overnight
           frame (#46); it sits to the right so the time keeps its centre. */}

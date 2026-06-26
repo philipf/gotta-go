@@ -153,12 +153,16 @@ describe('dual_month_calendar.prepareDualMonthCalendarFrame', () => {
     (error: HolidaysGatewayError): HolidaySource =>
     async () => ({ ok: false, error });
 
-  function requestWith(fetchHolidays: HolidaySource): PrepareDualMonthCalendarFrameRequest {
+  function requestWith(
+    fetchHolidays: HolidaySource,
+    battery: PrepareDualMonthCalendarFrameRequest['battery'] = null,
+  ): PrepareDualMonthCalendarFrameRequest {
     return {
       fetchHolidays,
       slug: 'office-philip',
       timezone: 'Pacific/Auckland',
       now: new Date('2026-06-07T00:00:00Z'),
+      battery,
       includeBmp: false,
       includeSvg: false,
     };
@@ -191,5 +195,15 @@ describe('dual_month_calendar.prepareDualMonthCalendarFrame', () => {
 
     expect(prepared.version).toBe(LAYOUT_VERSION);
     await expect(prepared.render()).resolves.toEqual({ frame: null, svg: null });
+  });
+
+  it('carries the derived battery state into the view (ETag input) when present', async () => {
+    const prepared = await prepareDualMonthCalendarFrame(requestWith(succeedingSource(new Set()), { segments: 2, charging: false }));
+    expect((prepared.view as { battery: unknown }).battery).toEqual({ segments: 2, charging: false });
+  });
+
+  it('carries a null battery into the view when the reading is absent', async () => {
+    const prepared = await prepareDualMonthCalendarFrame(requestWith(succeedingSource(new Set()), null));
+    expect((prepared.view as { battery: unknown }).battery).toBeNull();
   });
 });
