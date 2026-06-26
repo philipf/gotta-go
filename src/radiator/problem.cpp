@@ -9,8 +9,19 @@
 // Error-screen layout (FiraSans advance_y = 50 px; panel is 960x540).
 static const int32_t ERR_MARGIN_X    = 40;
 static const int32_t ERR_MARGIN_TOP  = 70;
-static const int32_t ERR_LINE_GAP    = 16;  // extra px between title and body
+static const int32_t ERR_LINE_GAP    = 16;  // extra px between blocks
 static const int32_t ERR_WRAP_MAX_PX = EPD_WIDTH - 2 * ERR_MARGIN_X;  // 880
+
+// Cosmetic furniture (ADR-0014), both drawn with the bundled FiraSans — no new
+// font needed. ERR_GLYPH is U+2757 (heavy exclamation, in the font's dingbat
+// interval 0x2700–0x27BF); ERR_SEPARATOR is a run of U+2500 (box-drawing, in
+// 0x2500–0x259F) long enough to span the text column — the panel clips the
+// overflow. Typography (bold/smaller) is a separate font-bundling slice.
+static const char* ERR_GLYPH     = "❗";
+static const char* ERR_SEPARATOR = "──────────"
+                                   "──────────"
+                                   "──────────"
+                                   "──────────";
 
 // ---------- Problem document parse ----------
 
@@ -55,7 +66,79 @@ ErrorScreen resolveErrorScreen(const ProblemDoc& doc, bool verbose) {
     return es;
 }
 
-// ---------- Error screen renderer (ADR-0011; reused by #66/#129) ----------
+// ---------- Diagnostics footer (pure, ADR-0014; reused by #66/#129) ----------
+
+// Slice an ISO-8601 UTC instant down to glanceable minute precision and stamp it
+// UTC — no on-device timezone DB (ADR-0014). "2026-05-23T06:48:12.000Z" becomes
+// "2026-05-23 06:48 UTC". Anything not at least "YYYY-MM-DDThh:mm" with a 'T' at
+// index 10 (an absent or ill-formed header) yields "".
+void formatServerTime(const char* iso, char* out, size_t cap) {
+    if (cap == 0)
+        return;
+    out[0] = '\0';
+    if (iso == nullptr || strlen(iso) < 16 || iso[10] != 'T')
+        return;
+    char trimmed[17];
+    memcpy(trimmed, iso, 16);
+    trimmed[16] = '\0';
+    trimmed[10] = ' ';  // 'T' → space, so "<date> <time>"
+    snprintf(out, cap, "%s UTC", trimmed);
+}
+
+// "~5 min" (rounded to the nearest minute) at or above a minute, else "45 s".
+// Mirrors the next-wake wording the transport arm uses (ADR-0003 fallback).
+void formatNextCheck(uint32_t seconds, char* out, size_t cap) {
+    if (cap == 0)
+        return;
+    if (seconds >= 60)
+        snprintf(out, cap, "~%lu min", (unsigned long)((seconds + 30) / 60));
+    else
+        snprintf(out, cap, "%lu s", (unsigned long)seconds);
+}
+
+// Append `s` to NUL-terminated `out`, prefixed by `sep` unless `out` is still
+// empty (so the separator never leads). Silently no-ops once `out` is full.
+static void footerAppend(char* out, size_t cap, const char* sep, const char* s) {
+    const size_t len = strlen(out);
+    if (len >= cap - 1)
+        return;
+    if (len == 0)
+        snprintf(out, cap, "%s", s);
+    else
+        snprintf(out + len, cap - len, "%s%s", sep, s);
+}
+
+// Assemble the footer as a single " | "-joined line: slug | version | ssid |
+// [error time |] next-check. Empty source fields drop their field; an empty
+// serverTimeIso (transport/Wi-Fi failure) drops the time but keeps the
+// next-check. One line saves vertical space (GH #61 follow-up); the renderer's
+// wrapText still folds it to the panel width, and the spaced pipes let it break
+// between fields rather than clip a too-long run. Pure.
+void buildDiagFooter(const ErrorDiag& diag, char* out, size_t cap) {
+    if (cap == 0)
+        return;
+    out[0] = '\0';
+
+    if (diag.slug && diag.slug[0])
+        footerAppend(out, cap, " | ", diag.slug);
+    if (diag.firmwareVersion && diag.firmwareVersion[0])
+        footerAppend(out, cap, " | ", diag.firmwareVersion);
+    if (diag.ssid && diag.ssid[0])
+        footerAppend(out, cap, " | ", diag.ssid);
+
+    char when[DIAG_TIME_CAP];
+    formatServerTime(diag.serverTimeIso ? diag.serverTimeIso : "", when, sizeof(when));
+    if (when[0])
+        footerAppend(out, cap, " | ", when);
+
+    char next[DIAG_NEXT_CAP];
+    formatNextCheck(diag.nextCheckSeconds, next, sizeof(next));
+    char refresh[DIAG_NEXT_CAP + 8];
+    snprintf(refresh, sizeof(refresh), "next %s", next);
+    footerAppend(out, cap, " | ", refresh);
+}
+
+// ---------- Error screen renderer (ADR-0011/0014; reused by #66/#129) ----------
 
 // Width in px of `s` when drawn in `font`, via the library's own measurement.
 static int32_t textWidthPx(const GFXfont* font, const char* s) {
@@ -140,8 +223,10 @@ static void wrapText(const GFXfont* font, const char* in, char* out, size_t outC
 
 // Draws directly to the panel with a NULL framebuffer (the hello-world idiom,
 // Decision 4); write_string resets x and advances y per wrapped line, so
-// cursor_y already sits below each block on return.
-void renderErrorScreen(const char* title, const char* detail, const char* upstreamOrNull) {
+// cursor_y already sits below each block on return. Layout top-to-bottom:
+// glyph+title, separator, detail, [upstream], separator, diagnostics footer.
+void renderErrorScreen(const char* title, const char* detail, const char* upstreamOrNull,
+                       const ErrorDiag& diag) {
     Serial.printf("error-screen: render title='%s' upstream=%s\n", title,
                   upstreamOrNull ? "shown" : "hidden");
 
@@ -154,9 +239,16 @@ void renderErrorScreen(const char* title, const char* detail, const char* upstre
     int32_t cursor_x = ERR_MARGIN_X;
     int32_t cursor_y = ERR_MARGIN_TOP;
 
-    wrapText(font, title, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
+    // Heading: warning glyph + title, then a separator rule.
+    char heading[PROBLEM_TITLE_CAP + 8];
+    snprintf(heading, sizeof(heading), "%s %s", ERR_GLYPH, title);
+    wrapText(font, heading, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
     write_string(font, wrapped, &cursor_x, &cursor_y, NULL);
 
+    cursor_x = ERR_MARGIN_X;
+    write_string(font, ERR_SEPARATOR, &cursor_x, &cursor_y, NULL);
+
+    // Body.
     cursor_x = ERR_MARGIN_X;
     cursor_y += ERR_LINE_GAP;
     wrapText(font, detail, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
@@ -169,13 +261,27 @@ void renderErrorScreen(const char* title, const char* detail, const char* upstre
         write_string(font, wrapped, &cursor_x, &cursor_y, NULL);
     }
 
+    // Diagnostics footer (ADR-0014), under its own separator. Empty only if every
+    // diag field is empty — never the case in practice (slug + version always set).
+    char footer[DIAG_FOOTER_CAP];
+    buildDiagFooter(diag, footer, sizeof(footer));
+    if (footer[0] != '\0') {
+        cursor_x = ERR_MARGIN_X;
+        cursor_y += ERR_LINE_GAP;
+        write_string(font, ERR_SEPARATOR, &cursor_x, &cursor_y, NULL);
+        cursor_x = ERR_MARGIN_X;
+        wrapText(font, footer, wrapped, sizeof(wrapped), ERR_WRAP_MAX_PX);
+        write_string(font, wrapped, &cursor_x, &cursor_y, NULL);
+    }
+
     epd_poweroff();
     Serial.println("error-screen: latched");
 }
 
 // ---------- Composed common-path entry (ADR-0011) ----------
 
-void renderProblemScreen(const char* json, size_t len, int httpStatus, bool verbose) {
+void renderProblemScreen(const char* json, size_t len, int httpStatus, bool verbose,
+                         const ErrorDiag& diag) {
     ProblemDoc doc = {};
     doc.httpStatus = httpStatus;
     parseProblem(json, len, &doc);
@@ -183,5 +289,5 @@ void renderProblemScreen(const char* json, size_t len, int httpStatus, bool verb
                   (unsigned)strlen(doc.detail), doc.hasUpstream ? "yes" : "no");
 
     const ErrorScreen es = resolveErrorScreen(doc, verbose);
-    renderErrorScreen(es.title, es.detail, es.upstream);
+    renderErrorScreen(es.title, es.detail, es.upstream, diag);
 }

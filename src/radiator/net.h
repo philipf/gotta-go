@@ -36,13 +36,20 @@ static const size_t UZLIB_DICT_BYTES = 32768;
 // headroom and the panel clips any overflow.
 static const size_t TRANSPORT_REASON_CAP = 48;
 
+// X-Server-Time capacity, NUL included. The Worker sends an ISO-8601 UTC instant
+// ("2026-05-23T06:48:12.000Z" — 24 chars); the error screen slices it to minute
+// precision for its diagnostics footer (GH #61). Empty when the header is absent
+// (e.g. a transport failure returns no response at all).
+static const size_t SERVER_TIME_CAP = 32;
+
 // The raw outcome of one wake request. status <= 0 is a transport failure / no
 // response (the error-screen arm, GH #129); otherwise it is the HTTP status.
 // body* and gzipped describe the drained body in the caller's buffer; sleep is
 // the parsed X-Sleep-Seconds directive (honoured even on a non-2xx); etag is the
 // response's ETag header verbatim ("" when absent or over ETAG_CAP — see etag.h).
 // reason is the human-readable transport cause, set only when status <= 0 (else
-// ""), so the orchestrator can name it on the local error screen.
+// ""), so the orchestrator can name it on the local error screen. serverTime is
+// the X-Server-Time header verbatim ("" when absent) for the error-screen footer.
 struct HttpResponse {
     int status;
     size_t bodyLen;
@@ -51,6 +58,7 @@ struct HttpResponse {
     SleepHeader sleep;
     char etag[ETAG_CAP];
     char reason[TRANSPORT_REASON_CAP];
+    char serverTime[SERVER_TIME_CAP];
 };
 
 // The response arm a fetched HttpResponse routes to — the ADR-0003/0011/0013

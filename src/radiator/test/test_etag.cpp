@@ -12,7 +12,7 @@
 // An HttpResponse with the fields the classifier reads; sleep/etag stay zeroed.
 static HttpResponse makeResponse(int status, bool truncated = false, bool gzipped = false,
                                  size_t bodyLen = 0) {
-    HttpResponse r = {status, bodyLen, truncated, gzipped, {false, 0}, "", ""};
+    HttpResponse r = {status, bodyLen, truncated, gzipped, {false, 0}, "", "", ""};
     return r;
 }
 
