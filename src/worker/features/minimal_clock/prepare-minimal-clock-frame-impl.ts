@@ -12,6 +12,7 @@ const prepareMinimalClockFrameImplementation: PrepareMinimalClockFrame = async (
     slug: req.slug,
     time: hhmm(req.now, req.timezone),
     date: shortDate(req.now, req.timezone),
+    battery: req.battery,
   };
 
   return {

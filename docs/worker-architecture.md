@@ -357,6 +357,57 @@ semantics, so generation can never drift from validation.
 
 ---
 
+## Pattern: Shared component
+
+A **shared component** is a piece of view that more than one feature draws — a
+glyph, a badge, a logo. It lives in `shared/`, takes a derived view-state and
+returns a `ReactNode`, and carries no feature knowledge. It is the one kind of
+`shared/` view code that is legitimate, because it has real cross-feature reach —
+but only once that reach is real.
+
+**Reference implementation:** `shared/battery/` (the battery indicator).
+
+The rules that keep it from becoming speculative drift:
+
+- **Earned by a second consumer, like any `shared/` lift.** A component used by
+  one feature lives _in that feature_. It moves to `shared/` when a second
+  feature actually draws it — and "all features draw it in this same change"
+  counts: four real consumers at landing is not speculative. One is.
+  (`mode-icon.tsx` is the counter-example — it was lifted to `shared/` on a
+  single consumer and had to come back.)
+- **Self-positioning is the component's call, not the feature's** — when every
+  feature wants it in the same place. The battery indicator positions itself
+  `absolute` top-right; a feature just drops it into its layout root. Verify the
+  corner against each layout live (ADR-0009): a self-positioned overlay can
+  collide with a feature's own header.
+- **Pure and stateless.** It returns a `ReactNode` from its props and reads no
+  binding, clock, or `Env`. The null guard lives at the call site
+  (`{state ? component(state) : null}`), so "hide when absent" is the feature's
+  one line, not a third render branch inside the component.
+- **Derive once, at the composition root.** The raw input (e.g. `batteryMv`)
+  rides `FrameDeps`; a small helper beside `renderFlagsFrom`
+  (`batteryFrom(deps)`) maps it to the component's view-state once, and every
+  binder spreads the result into its feature request. Features receive the
+  derived value in their own vocabulary and never see the raw input or the
+  derivation.
+- **In the view model, so it's in the ETag.** The derived state belongs in each
+  feature's `view` projection, so it folds into the weak ETag. Quantise anything
+  that drifts continuously (the battery level → 5 coarse segments) so the
+  component redraws only when it _visibly_ changes — otherwise a per-wake value
+  busts every ETag and defeats the 304 skip it was meant to ride.
+
+### Why this shape
+
+- **The "second consumer" bar is the same one the Feature pillar sets** — this
+  pattern is not an exception to the anti-speculation rule, it is that rule
+  applied to view code. The only thing it adds is naming the legitimate case so a
+  genuinely-shared glyph doesn't get scattered into every feature folder.
+- **Deriving at the root, not in each feature**, keeps the curve/threshold in one
+  place and the features ignorant of it — the same DI-at-the-edge posture the
+  gateways use, applied to a shared view-state.
+
+---
+
 ## Conventions
 
 The reasoning is the load-bearing part — judge edge cases against the reason, not

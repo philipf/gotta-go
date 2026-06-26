@@ -6,10 +6,15 @@ import { LAYOUT_VERSION } from './view';
 // Drives the public capability — no external fetch, so the request is pure
 // inputs. The render() path (Satori → resvg → BMP) is wasm-blocked in the
 // workers-pool sandbox per ADR-0005 and is exercised via `pnpm dev` + curl.
-const requestAt = (iso: string, tz = 'Pacific/Auckland'): PrepareMinimalClockFrameRequest => ({
+const requestAt = (
+  iso: string,
+  battery: PrepareMinimalClockFrameRequest['battery'] = null,
+  tz = 'Pacific/Auckland',
+): PrepareMinimalClockFrameRequest => ({
   slug: 'bedroom-philip-tania',
   timezone: tz,
   now: new Date(iso),
+  battery,
   includeBmp: false,
   includeSvg: false,
 });
@@ -23,6 +28,20 @@ describe('minimal_clock.prepareMinimalClockFrame', () => {
     expect(view.slug).toBe('bedroom-philip-tania');
     expect(view.time).toMatch(/^\d{2}:\d{2}$/);
     expect(view.date).toMatch(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/);
+  });
+
+  it('carries the derived battery state into the view (ETag input) when present', async () => {
+    const prepared = await prepareMinimalClockFrame(requestAt('2026-05-23T06:48:00Z', { segments: 4, charging: false }));
+    const view = prepared.view as unknown as ViewModel;
+
+    expect(view.battery).toEqual({ segments: 4, charging: false });
+  });
+
+  it('carries a null battery into the view when the reading is absent', async () => {
+    const prepared = await prepareMinimalClockFrame(requestAt('2026-05-23T06:48:00Z', null));
+    const view = prepared.view as unknown as ViewModel;
+
+    expect(view.battery).toBeNull();
   });
 
   it('defers rendering - render() with both artefact flags false yields neither artefact', async () => {

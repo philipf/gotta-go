@@ -67,6 +67,7 @@ export async function renderFrame(request: Request, env: Env, now: Date, resolve
       now,
       format: req.format,
       includeBmp: req.includeBmp,
+      batteryMv: req.batteryMv,
       env,
       // Bind to globalThis: workerd's `fetch` throws "Illegal invocation" if
       // invoked with a `this` other than the global scope, which happens once

@@ -5,12 +5,14 @@
 import type { ReactNode } from 'react';
 import { jsxToSvg, svgToRgba } from '../../shared/satori';
 import { rgbaTo1BitBmp, WIDTH, HEIGHT } from '../../shared/bmp';
+import { batteryIndicator } from '../../shared/battery/indicator';
 import type { ViewModel } from './viewmodel';
 
 // Folded into the weak ETag (ADR-0013). Bump whenever this file changes the
 // rendered appearance without changing the view model — sizing, spacing,
 // styling — so radiators holding a matching ETag redraw on their next wake.
-export const LAYOUT_VERSION = 1;
+// v2: added the top-right battery indicator (#131).
+export const LAYOUT_VERSION = 2;
 
 const FAMILY = 'DejaVu Sans';
 const BLACK = '#000';
@@ -38,6 +40,8 @@ function layout(vm: ViewModel): ReactNode {
         fontWeight: 700,
       }}
     >
+      {/* Self-positioning top-right; null when the reading is absent. */}
+      {vm.battery ? batteryIndicator(vm.battery) : null}
       <div style={{ fontSize: TIME_SIZE, lineHeight: 1 }}>{vm.time}</div>
       <div style={{ fontSize: DATE_SIZE, lineHeight: 1, marginTop: 48 }}>{vm.date}</div>
     </div>
