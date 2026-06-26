@@ -120,3 +120,58 @@ TEST_CASE("an empty body resolves to the generic error screen") {
     CHECK(std::strcmp(es.detail, "The display service returned an error (HTTP 401).") == 0);
     CHECK(es.upstream == nullptr);
 }
+
+// ---------- formatServerTime (pure, ADR-0014) ----------
+
+TEST_CASE("formatServerTime slices an ISO-8601 UTC instant to minute precision") {
+    char out[DIAG_TIME_CAP];
+    formatServerTime("2026-05-23T06:48:12.000Z", out, sizeof(out));
+    CHECK(std::strcmp(out, "2026-05-23 06:48 UTC") == 0);
+}
+
+TEST_CASE("formatServerTime yields empty for absent or ill-formed input") {
+    char out[DIAG_TIME_CAP];
+    formatServerTime("", out, sizeof(out));  // absent header
+    CHECK(out[0] == '\0');
+    formatServerTime("nonsense", out, sizeof(out));  // too short
+    CHECK(out[0] == '\0');
+    formatServerTime("2026-05-23 06:48:12Z", out, sizeof(out));  // no 'T' at index 10
+    CHECK(out[0] == '\0');
+}
+
+// ---------- formatNextCheck (pure, ADR-0014) ----------
+
+TEST_CASE("formatNextCheck rounds to minutes at or above a minute, seconds below") {
+    char out[DIAG_NEXT_CAP];
+    formatNextCheck(300, out, sizeof(out));
+    CHECK(std::strcmp(out, "~5 min") == 0);
+    formatNextCheck(90, out, sizeof(out));  // (90 + 30) / 60 = 2
+    CHECK(std::strcmp(out, "~2 min") == 0);
+    formatNextCheck(45, out, sizeof(out));
+    CHECK(std::strcmp(out, "45 s") == 0);
+}
+
+// ---------- buildDiagFooter (pure, ADR-0014) ----------
+
+TEST_CASE("buildDiagFooter joins slug, version, ssid, time, next-check on one piped line") {
+    ErrorDiag diag{"bedroom-philip-tania", "MyWiFi", "0.1.0", "2026-05-23T06:48:12.000Z", 300};
+    char out[DIAG_FOOTER_CAP];
+    buildDiagFooter(diag, out, sizeof(out));
+    CHECK(std::strcmp(
+              out, "bedroom-philip-tania | 0.1.0 | MyWiFi | 2026-05-23 06:48 UTC | next ~5 min") ==
+          0);
+}
+
+TEST_CASE("buildDiagFooter omits the time field on a no-server-time arm (#66/#129)") {
+    ErrorDiag diag{"bedroom-philip-tania", "MyWiFi", "0.1.0", "", 300};
+    char out[DIAG_FOOTER_CAP];
+    buildDiagFooter(diag, out, sizeof(out));
+    CHECK(std::strcmp(out, "bedroom-philip-tania | 0.1.0 | MyWiFi | next ~5 min") == 0);
+}
+
+TEST_CASE("buildDiagFooter drops empty slug and ssid fields") {
+    ErrorDiag diag{"", "", "0.1.0", "", 45};
+    char out[DIAG_FOOTER_CAP];
+    buildDiagFooter(diag, out, sizeof(out));
+    CHECK(std::strcmp(out, "0.1.0 | next 45 s") == 0);
+}

@@ -147,7 +147,7 @@ BodyText decodeBodyText(const HttpResponse& r, const uint8_t* body, uint8_t* scr
 // ---------- HTTP fetch ----------
 
 HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char* ifNoneMatch) {
-    HttpResponse r = {0, 0, false, false, {false, 0}, "", ""};
+    HttpResponse r = {0, 0, false, false, {false, 0}, "", "", ""};
 
     // The TLS client and HTTP session live only for this request — constructed
     // here, torn down on return (https.end() below; client frees its TLS buffers
@@ -162,7 +162,12 @@ HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char
 
     Serial.printf("HTTPS: GET %s\n", FRAME_URL);
     if (!https.begin(client, FRAME_URL)) {
-        Serial.println("HTTPS: begin() failed (bad URL?)");
+        // begin() fails before any request (a malformed FRAME_URL, TLS client
+        // setup). There is no HTTPClient status to errorToString() yet, so name
+        // the cause ourselves — otherwise the transport error screen falls back
+        // to a bland "No response." and hides the actual fault (GH #61).
+        strlcpy(r.reason, "Bad URL (HTTPS begin failed)", sizeof(r.reason));
+        Serial.printf("HTTPS: %s\n", r.reason);
         return r;  // status 0 → transport failure
     }
 
@@ -221,6 +226,9 @@ HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char
     const uint32_t reqMs = millis() - t0;
     r.status             = status;
     r.sleep              = parseSleepSecondsValue(https.header("X-Sleep-Seconds").c_str());
+    // X-Server-Time for the error-screen diagnostics footer (GH #61). Captured
+    // verbatim (empty when absent); the error path slices it to minute precision.
+    strlcpy(r.serverTime, https.header("X-Server-Time").c_str(), sizeof(r.serverTime));
 
     if (status <= 0) {
         // Capture the transport cause for the on-panel error screen (GH #129):

@@ -60,7 +60,8 @@
 #include "problem.h"   // parseProblem, resolveErrorScreen, renderErrorScreen
 #include "etag.h"      // ETAG_CAP, PanelState, EtagAction, panelStateAfter, chooseEtagAction
 #include "sleep.h"     // CycleResult, SleepHeader, sleepFor
-#include "settings.h"  // RADIATOR_VERBOSE (creds/URL are net.cpp's)
+#include "settings.h"  // RADIATOR_VERBOSE, RADIATOR_SLUG, WIFI_SSID (creds/URL are net.cpp's)
+#include "version.h"   // FIRMWARE_VERSION — error-screen footer + wake banner (GH #61)
 
 // Verbose: gate rendering of upstream_detail on the error screen. Default off;
 // override in settings.h. Namespaced like RADIATOR_TOKEN / RADIATOR_SLUG. The
@@ -162,6 +163,16 @@ static CycleResult handleFrameResponse(const HttpResponse& r) {
     return flushToPanel(inflatedBuf, (size_t)produced) ? CycleResult::Ok : CycleResult::BmpInvalid;
 }
 
+// Build the diagnostics-footer context every error screen carries (GH #61):
+// this radiator's slug + firmware version, the AP, the error time (X-Server-Time,
+// empty on a transport/Wi-Fi failure — the renderer then omits the time clause),
+// and the resolved next-wake delay (through the same chooseSleep() the sleep
+// policy uses, so the panel's "next check" can never drift from the real sleep).
+static ErrorDiag makeErrorDiag(const char* ssid, const char* serverTimeIso, SleepHeader sleep) {
+    return ErrorDiag{RADIATOR_SLUG, ssid, FIRMWARE_VERSION, serverTimeIso,
+                     chooseSleep(sleep).seconds};
+}
+
 // Reachable non-2xx: decode the body (inflating iff the edge gzipped it in
 // transit, Decision 2) via net and render the error screen. An empty or
 // unparseable body leaves the doc empty, which resolveErrorScreen() turns into
@@ -170,7 +181,8 @@ static void renderWorkerError(const HttpResponse& r) {
     Serial.printf("worker-error: reachable status=%d — rendering error screen\n", r.status);
     const BodyText body = decodeBodyText(r, compressedBuf, inflatedBuf, EXPECTED_BMP_BYTES,
                                          uzlibDict, UZLIB_DICT_BYTES);
-    renderProblemScreen(body.ptr, body.len, r.status, RADIATOR_VERBOSE);
+    renderProblemScreen(body.ptr, body.len, r.status, RADIATOR_VERBOSE,
+                        makeErrorDiag(WIFI_SSID, r.serverTime, r.sleep));
 }
 
 // Wi-Fi never associated: render a local error screen naming the AP and the
@@ -182,7 +194,10 @@ static void renderWifiErrorScreen(const WifiResult& wifi) {
     Serial.printf("wifi-error: \"%s\" — %s\n", wifi.ssid, wifi.reason);
     char detail[PROBLEM_DETAIL_CAP];
     snprintf(detail, sizeof(detail), "Could not connect to \"%s\".\n%s", wifi.ssid, wifi.reason);
-    renderErrorScreen("No Wi-Fi connection", detail, nullptr);
+    // No response means no X-Server-Time and no X-Sleep-Seconds: the footer omits
+    // the error time and the next-check resolves to the firmware fallback (#66).
+    renderErrorScreen("No Wi-Fi connection", detail, nullptr,
+                      makeErrorDiag(wifi.ssid, "", {false, 0}));
 }
 
 // Wi-Fi associated but the HTTPS request itself never returned a response
@@ -195,23 +210,23 @@ static void renderWifiErrorScreen(const WifiResult& wifi) {
 // frame — ADR-0013 rule 3 via panelStateAfter) change. r.reason is net's
 // HTTPClient error string ("" only if the status was a bare 0 with no detail).
 static void renderTransportErrorScreen(const HttpResponse& r) {
-    // Resolve the next-wake interval through the same chooseSleep() the sleep
-    // path uses so the panel's "retrying in" can never drift from the actual
-    // sleep. A transport failure carries no X-Sleep-Seconds, so this is the
-    // firmware fallback (~5 min) in practice, but we don't hardcode that here.
-    const SleepDecision next = chooseSleep(r.sleep);
-    char retry[24];
-    if (next.seconds >= 60)
-        snprintf(retry, sizeof(retry), "~%lu min", (unsigned long)((next.seconds + 30) / 60));
-    else
-        snprintf(retry, sizeof(retry), "%lu s", (unsigned long)next.seconds);
-
+    // The next-wake interval is resolved (through the same chooseSleep() the sleep
+    // path uses) for the serial log only; the panel's "next check" now rides on
+    // the diagnostics footer, so the detail no longer repeats it. A transport
+    // failure carries no X-Sleep-Seconds, so this is the firmware fallback (~5 min)
+    // in practice, but we don't hardcode that here.
+    char retry[DIAG_NEXT_CAP];
+    formatNextCheck(chooseSleep(r.sleep).seconds, retry, sizeof(retry));
     Serial.printf("transport-error: status=%d — %s — rendering error screen (retry in %s)\n",
                   r.status, r.reason[0] ? r.reason : "no response", retry);
+
     char detail[PROBLEM_DETAIL_CAP];
-    snprintf(detail, sizeof(detail), "Could not reach the server.\n%s\nRetrying in %s.",
-             r.reason[0] ? r.reason : "No response.", retry);
-    renderErrorScreen("No server connection", detail, nullptr);
+    snprintf(detail, sizeof(detail), "Could not reach the server.\n%s",
+             r.reason[0] ? r.reason : "No response.");
+    // A transport failure returns no response → no X-Server-Time; the footer omits
+    // the error time but still shows the next-check (#129).
+    renderErrorScreen("No server connection", detail, nullptr,
+                      makeErrorDiag(WIFI_SSID, r.serverTime, r.sleep));
 }
 
 // Map a fetched response onto the ADR-0003 / ADR-0011 / ADR-0013 outcome table:
@@ -276,8 +291,8 @@ static void announceWake() {
 
     wakeCount++;
     Serial.println();
-    Serial.printf("=== GottaGo wake cycle #%lu — wake reason: %s ===\n", (unsigned long)wakeCount,
-                  wakeReasonStr(esp_sleep_get_wakeup_cause()));
+    Serial.printf("=== GottaGo fw %s — wake cycle #%lu — wake reason: %s ===\n", FIRMWARE_VERSION,
+                  (unsigned long)wakeCount, wakeReasonStr(esp_sleep_get_wakeup_cause()));
     // Always log the reset reason: on a timer wake it reads "deep-sleep timer
     // wake", but on a surprise cold boot it names the real culprit (BROWNOUT /
     // watchdog / panic / power-on) — the whole point of the GH #128 capture.
