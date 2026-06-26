@@ -4,6 +4,7 @@
 
 import type { FetchArrivalsResponse } from '../../gateways/metlink/fetch-arrivals';
 import type { TransitTarget } from '../../config/config-types';
+import type { BatteryIndicatorState } from '../../shared/battery/derive';
 
 export type PreparePrioritySplitV2Frame = (req: PreparePrioritySplitV2FrameRequest) => Promise<PreparePrioritySplitV2FrameResponse>;
 
@@ -22,6 +23,9 @@ export type PreparePrioritySplitV2FrameRequest = {
   // future departures so THEN/LATER populate. Set from DEV_PAD_LATER; never true
   // in production. See debug/dev-pad-arrivals.ts.
   padLater?: boolean;
+  // The derived battery indicator state, or null when the reading is absent —
+  // already mapped from mV by the composition root. null hides the indicator.
+  battery: BatteryIndicatorState | null;
   // Artefact flags — format negotiation already collapsed by the caller.
   includeBmp: boolean;
   includeSvg: boolean;

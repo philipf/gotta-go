@@ -1,6 +1,7 @@
 // Public contract for dual_month_calendar: prepare the calendar frame with rendering deferred.
 
 import type { FetchHolidaysResponse } from '../../gateways/public_holidays/fetch-holidays';
+import type { BatteryIndicatorState } from '../../shared/battery/derive';
 
 export type PrepareDualMonthCalendarFrame = (req: PrepareDualMonthCalendarFrameRequest) => Promise<PrepareDualMonthCalendarFrameResponse>;
 
@@ -13,6 +14,9 @@ export type PrepareDualMonthCalendarFrameRequest = {
   slug: string;
   timezone: string;
   now: Date;
+  // The derived battery indicator state, or null when the reading is absent —
+  // already mapped from mV by the composition root. null hides the indicator.
+  battery: BatteryIndicatorState | null;
   // Artefact flags — format negotiation already collapsed by the caller.
   includeBmp: boolean;
   includeSvg: boolean;

@@ -105,6 +105,7 @@ function bindPrioritySplitV2(deps: FrameDeps) {
     // Dev-only (#108): pads sparse feeds so THEN/LATER populate. Gated by
     // DEV_PAD_LATER in .dev.vars; never set in production.
     padLater: deps.env.DEV_PAD_LATER === 'true',
+    ...batteryFrom(deps),
     ...renderFlagsFrom(deps),
   });
 }
@@ -112,6 +113,7 @@ function bindPrioritySplitV2(deps: FrameDeps) {
 function bindIdleJokes(deps: FrameDeps) {
   return prepareJokeFrame({
     fetchJoke: () => fetchJoke({ fetch: deps.fetchFn }),
+    ...batteryFrom(deps),
     ...renderFlagsFrom(deps),
   });
 }
@@ -122,6 +124,7 @@ function bindDualMonthCalendar(deps: FrameDeps) {
     slug: deps.radiator.slug,
     timezone: deps.timezone,
     now: deps.now,
+    ...batteryFrom(deps),
     ...renderFlagsFrom(deps),
   });
 }

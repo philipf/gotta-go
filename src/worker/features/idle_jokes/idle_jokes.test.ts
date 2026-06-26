@@ -17,8 +17,9 @@ const failingSource =
   (error: JokeGatewayError): JokeSource =>
   async () => ({ ok: false, error });
 
-const requestWith = (fetchJoke: JokeSource): PrepareJokeFrameRequest => ({
+const requestWith = (fetchJoke: JokeSource, battery: PrepareJokeFrameRequest['battery'] = null): PrepareJokeFrameRequest => ({
   fetchJoke,
+  battery,
   includeBmp: false,
   includeSvg: false,
 });
@@ -33,13 +34,26 @@ async function prepareError(fetchJoke: JokeSource): Promise<AppError> {
 }
 
 describe('idle_jokes.prepareJokeFrame', () => {
-  it('carries the joke text + id into the view as { joke, jokeId } only', async () => {
+  it('carries the joke text + id into the view as { joke, jokeId, battery }', async () => {
     const prepared = await prepareJokeFrame(requestWith(jokeSource('abc123', 'Why did the scarecrow win an award?')));
 
     expect(prepared.view).toEqual({
       joke: 'Why did the scarecrow win an award?',
       jokeId: 'abc123',
+      battery: null,
     });
+  });
+
+  it('carries the derived battery state into the view (ETag input) when present', async () => {
+    const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.'), { segments: 4, charging: false }));
+
+    expect((prepared.view as { battery: unknown }).battery).toEqual({ segments: 4, charging: false });
+  });
+
+  it('carries a null battery into the view when the reading is absent', async () => {
+    const prepared = await prepareJokeFrame(requestWith(jokeSource('abc', 'A wee joke.'), null));
+
+    expect((prepared.view as { battery: unknown }).battery).toBeNull();
   });
 
   it('reports the view LAYOUT_VERSION as the appearance version', async () => {

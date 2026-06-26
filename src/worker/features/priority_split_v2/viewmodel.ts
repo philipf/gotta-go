@@ -5,6 +5,7 @@
 // THEN/LATER slot model).
 
 import type { Mode } from './mode-icon';
+import type { BatteryIndicatorState } from '../../shared/battery/derive';
 
 // One co-equal hero: a single upcoming departure. `LEAVE IN` is the headline
 // (the value the rider acts on); `BY hh:mm` and the arrival clock `ARR hh:mm`
@@ -92,6 +93,12 @@ export type PrioritySplitV2ViewModel = {
   wallClock: string; // global header — "07:30"
   date: string; // global header — "Sat 31 May" (confirms the frame is fresh, #46)
   columns: ServiceColumn[]; // one per transit target; single → full width
+  // Coarse-bucketed battery state (or null when absent). Optional because the
+  // domain seam (viewModelFromStopStates) does not produce it — the prepare impl
+  // layers on the composition-root-derived value, so it is always set on the
+  // rendered VM. In the view projection it folds into the ETag input, so the
+  // indicator redraws only when a segment changes or charging toggles (#132).
+  battery?: BatteryIndicatorState | null;
 };
 
 // Serialises a slot to its snake_case wire shape, or null when absent.
@@ -143,6 +150,10 @@ export function toJsonView(vm: PrioritySplitV2ViewModel): Record<string, unknown
   return {
     wall_clock: vm.wallClock,
     date: vm.date,
+    // Always set on the rendered VM (the prepare impl layers it on); the domain
+    // seam used by unit tests leaves it undefined, which the diagnostics envelope
+    // omits. ETag input, so the frame redraws on a visible battery change (#132).
+    battery: vm.battery,
     columns: vm.columns.map((c) => ({
       mode: c.mode,
       service_id: c.serviceId,
