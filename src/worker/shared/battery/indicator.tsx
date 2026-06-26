@@ -16,14 +16,24 @@ import { SEGMENT_COUNT } from './derive';
 const BLACK = '#000';
 const WHITE = '#fff';
 
-// Top-right inset and glyph sizing.
-const INSET = 16;
+// Glyph sizing.
 const BODY_W = 60;
 const BODY_H = 28;
 const BORDER = 3;
 const CELL_GAP = 2;
 const CAP_W = 4; // the positive-terminal nub
 const CAP_H = 12;
+
+// Top-right placement. The horizontal inset holds the glyph off the right edge;
+// the vertical inset centres the BODY_H-tall glyph within the global header band
+// the header-owning layouts draw (HEADER_BAND_H), so the white space above and
+// below the indicator matches the timer/date text it sits beside, rather than
+// the glyph sinking onto the header's bottom divider (#135). Layouts with no
+// header band (minimal_clock, idle_jokes) have no divider to clear, so the same
+// inset just seats it in the corner.
+const RIGHT_INSET = 16;
+const HEADER_BAND_H = 44; // priority_split_v2 / dual_month_calendar global header
+const TOP_INSET = Math.round((HEADER_BAND_H - BODY_H) / 2); // 8
 
 // Lightning bolt as an inline SVG data-uri: black fill for the body, a white
 // stroke for the halo so it survives on top of solid-black filled cells.
@@ -39,8 +49,8 @@ export function batteryIndicator(state: BatteryIndicatorState): ReactNode {
     <div
       style={{
         position: 'absolute',
-        top: INSET,
-        right: INSET,
+        top: TOP_INSET,
+        right: RIGHT_INSET,
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
