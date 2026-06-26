@@ -13,8 +13,10 @@ describe('deriveBatteryIndicator', () => {
   });
 
   it('flags charging at/above the wall-power threshold, not below', () => {
-    expect(deriveBatteryIndicator(4250)?.charging).toBe(true);
+    expect(deriveBatteryIndicator(4200)?.charging).toBe(true); // boundary (>= 4200)
+    expect(deriveBatteryIndicator(4229)?.charging).toBe(true); // live USB-C read (#131 fast-follow)
     expect(deriveBatteryIndicator(4300)?.charging).toBe(true);
+    expect(deriveBatteryIndicator(4199)?.charging).toBe(false); // just below
     expect(deriveBatteryIndicator(4100)?.charging).toBe(false);
     expect(deriveBatteryIndicator(3700)?.charging).toBe(false);
   });

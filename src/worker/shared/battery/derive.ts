@@ -48,12 +48,15 @@ export function percentFromMv(mv: number): number {
 // from flapping the bucket (and the ETag) near a threshold.
 export const SEGMENT_COUNT = 5;
 
-// Stateless wall-power detection (PoC finding): a reading at or above this rests
-// too high for an unplugged pack, so we read it as charging. Blind spot: a full
-// battery floating on a standby charger also sits ~4.2 V and reads as
-// not-charging — closing that needs a rose-since-last-wake trend (GH #133),
-// which needs the previous reading we deliberately do not keep here.
-const CHARGING_MV = 4250;
+// Stateless wall-power detection: a reading at or above this rests too high for
+// an unplugged pack, so we read it as charging. Tuned down from 4250 → 4200
+// after a live LilyGO read 4229 mV on USB-C (#131 fast-follow): the charger on
+// this board barely lifts a near-full pack above its resting voltage, so 4250
+// never tripped. Blind spot is now the inverse: a freshly-unplugged full battery
+// can briefly settle ~4.2 V and read as charging until it sags. Closing both
+// ends needs a rose-since-last-wake trend (GH #133), which needs the previous
+// reading we deliberately do not keep here.
+const CHARGING_MV = 4200;
 
 // An absent reading (failed ADC read, or firmware that does not send the header)
 // is not an empty battery, so the indicator is hidden rather than shown empty.
