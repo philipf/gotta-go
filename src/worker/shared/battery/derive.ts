@@ -50,12 +50,11 @@ export const SEGMENT_COUNT = 5;
 
 // Stateless wall-power detection: a reading at or above this rests too high for
 // an unplugged pack, so we read it as charging. Tuned down from 4250 → 4200
-// after a live LilyGO read 4229 mV on USB-C (#131 fast-follow): the charger on
-// this board barely lifts a near-full pack above its resting voltage, so 4250
-// never tripped. Blind spot is now the inverse: a freshly-unplugged full battery
-// can briefly settle ~4.2 V and read as charging until it sags. Closing both
-// ends needs a rose-since-last-wake trend (GH #133), which needs the previous
-// reading we deliberately do not keep here.
+// after a live LilyGO read 4229 mV on USB-C: the charger on this board barely
+// lifts a near-full pack above its resting voltage, so 4250 never tripped. This
+// is the final, deliberately stateless design — we keep no previous reading, so
+// the accepted blind spot is the inverse: a freshly-unplugged full battery can
+// briefly settle ~4.2 V and read as charging until it sags.
 const CHARGING_MV = 4200;
 
 // An absent reading (failed ADC read, or firmware that does not send the header)

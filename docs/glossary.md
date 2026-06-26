@@ -284,7 +284,7 @@ The on-frame battery glyph: a phone-style outline with a 5-segment fill bar (the
 - **Not to be confused with:** the **marker widget** (the transit catch-window track + marker — an unrelated glyph).
 
 ### Charging
-Whether the radiator reads as on wall power, shown by a lightning bolt on the **battery indicator**. Detected statelessly: a **battery level** at or above a high threshold (~4250 mV) rests too high for an unplugged pack. Blind spot: a full battery floating on a standby charger also sits ~4.2 V and reads as not-charging — closing that needs a rose-since-last-wake trend, which needs per-radiator state the Worker does not keep yet (GH #133).
+Whether the radiator reads as on wall power, shown by a lightning bolt on the **battery indicator**. Detected statelessly: a **battery level** at or above a high threshold (4200 mV) rests too high for an unplugged pack. This is the final, deliberately stateless design — the Worker keeps no previous reading — so the accepted blind spot is the inverse: a freshly-unplugged full battery can briefly settle ~4.2 V and read as charging until it sags.
 - **Appears as:** the `charging` field of `BatteryIndicatorState`.
 
 ### Sleep duration
