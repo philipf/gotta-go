@@ -27,9 +27,11 @@
  * RFC 9457 application/problem+json body — renders a generic on-panel error
  * screen (its title as heading, detail as body) instead of silently holding the
  * last frame, so a bad token or a Metlink outage is visible (CycleResult::
- * WorkerError). A transport failure / no response (Wi-Fi/DNS/TCP/TLS dead)
- * still leaves the panel untouched (CycleResult::HttpError, #47's arm), as do
- * 200-OK inflate/parse failures. A 304 Not Modified (ADR-0013, GH #74) is the
+ * WorkerError). A transport failure / no response (Wi-Fi up but DNS/TCP/TLS
+ * dead, dropped connection, read timeout) likewise renders a local error screen
+ * naming the transport cause (CycleResult::HttpError, GH #129 — formerly the
+ * untouched #47 arm); 200-OK inflate/parse failures still leave the panel
+ * untouched. A 304 Not Modified (ADR-0013, GH #74) is the
  * unchanged-frame skip: the stored ETag (RTC-backed, echoed as If-None-Match
  * each wake) matched, so the panel keeps its frame — no flush, no eye-pull
  * (CycleResult::NotModified; bookkeeping rules in etag.h). X-Sleep-Seconds
@@ -183,6 +185,35 @@ static void renderWifiErrorScreen(const WifiResult& wifi) {
     renderErrorScreen("No Wi-Fi connection", detail, nullptr);
 }
 
+// Wi-Fi associated but the HTTPS request itself never returned a response
+// (DNS/TCP/TLS failure, dropped connection, read timeout — status <= 0): render
+// a local error screen naming the transport cause, the same renderErrorScreen()
+// reuse the Wi-Fi arm (#66) makes, so an unreachable/offline Worker is visible
+// instead of the panel silently holding (GH #129 — formerly #47's untouched
+// arm). The outcome stays HttpError so the sleep/retry policy is unchanged; only
+// the panel and the stored ETag (cleared, since an error screen replaced the
+// frame — ADR-0013 rule 3 via panelStateAfter) change. r.reason is net's
+// HTTPClient error string ("" only if the status was a bare 0 with no detail).
+static void renderTransportErrorScreen(const HttpResponse& r) {
+    // Resolve the next-wake interval through the same chooseSleep() the sleep
+    // path uses so the panel's "retrying in" can never drift from the actual
+    // sleep. A transport failure carries no X-Sleep-Seconds, so this is the
+    // firmware fallback (~5 min) in practice, but we don't hardcode that here.
+    const SleepDecision next = chooseSleep(r.sleep);
+    char retry[24];
+    if (next.seconds >= 60)
+        snprintf(retry, sizeof(retry), "~%lu min", (unsigned long)((next.seconds + 30) / 60));
+    else
+        snprintf(retry, sizeof(retry), "%lu s", (unsigned long)next.seconds);
+
+    Serial.printf("transport-error: status=%d — %s — rendering error screen (retry in %s)\n",
+                  r.status, r.reason[0] ? r.reason : "no response", retry);
+    char detail[PROBLEM_DETAIL_CAP];
+    snprintf(detail, sizeof(detail), "Could not reach the server.\n%s\nRetrying in %s.",
+             r.reason[0] ? r.reason : "No response.", retry);
+    renderErrorScreen("No server connection", detail, nullptr);
+}
+
 // Map a fetched response onto the ADR-0003 / ADR-0011 / ADR-0013 outcome table:
 // render the error screen or flush the frame as a side effect, and return the
 // outcome that drives the sleep policy. The arm decision itself is net.h's pure
@@ -190,7 +221,8 @@ static void renderWifiErrorScreen(const WifiResult& wifi) {
 static CycleResult dispatchResponse(const HttpResponse& r) {
     switch (classifyResponse(r)) {
         case ResponseArm::Transport:
-            return CycleResult::HttpError;  // transport failure — panel untouched (#47)
+            renderTransportErrorScreen(r);  // no response — local error screen (#129)
+            return CycleResult::HttpError;
         case ResponseArm::NotModified:
             Serial.println("frame: 304 unchanged — skipping panel flush (ADR-0013)");
             return CycleResult::NotModified;  // unchanged-frame skip — panel keeps its frame

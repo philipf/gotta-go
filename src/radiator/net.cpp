@@ -147,7 +147,7 @@ BodyText decodeBodyText(const HttpResponse& r, const uint8_t* body, uint8_t* scr
 // ---------- HTTP fetch ----------
 
 HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char* ifNoneMatch) {
-    HttpResponse r = {0, 0, false, false, {false, 0}, ""};
+    HttpResponse r = {0, 0, false, false, {false, 0}, "", ""};
 
     // The TLS client and HTTP session live only for this request — constructed
     // here, torn down on return (https.end() below; client frees its TLS buffers
@@ -223,8 +223,12 @@ HttpResponse fetchFrame(uint8_t* buf, size_t cap, uint32_t batteryMv, const char
     r.sleep              = parseSleepSecondsValue(https.header("X-Sleep-Seconds").c_str());
 
     if (status <= 0) {
-        Serial.printf("HTTPS: request failed: %s (%lu ms)\n",
-                      HTTPClient::errorToString(status).c_str(), (unsigned long)reqMs);
+        // Capture the transport cause for the on-panel error screen (GH #129):
+        // the orchestrator never sees the HTTPClient, so the reason string is
+        // resolved here, where errorToString() lives, and carried on the result.
+        const String err = HTTPClient::errorToString(status);
+        strlcpy(r.reason, err.c_str(), sizeof(r.reason));
+        Serial.printf("HTTPS: request failed: %s (%lu ms)\n", err.c_str(), (unsigned long)reqMs);
         https.end();
         return r;
     }

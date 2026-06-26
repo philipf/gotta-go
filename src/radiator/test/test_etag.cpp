@@ -12,7 +12,7 @@
 // An HttpResponse with the fields the classifier reads; sleep/etag stay zeroed.
 static HttpResponse makeResponse(int status, bool truncated = false, bool gzipped = false,
                                  size_t bodyLen = 0) {
-    HttpResponse r = {status, bodyLen, truncated, gzipped, {false, 0}, ""};
+    HttpResponse r = {status, bodyLen, truncated, gzipped, {false, 0}, "", ""};
     return r;
 }
 
@@ -67,13 +67,15 @@ TEST_CASE("panelStateAfter: only Ok flushed a frame") {
     CHECK(panelStateAfter(CycleResult::Ok) == PanelState::FrameFlushed);
 }
 
-TEST_CASE("panelStateAfter: WorkerError drew the error screen") {
+TEST_CASE("panelStateAfter: both error-screen outcomes drew the error screen") {
+    // A reachable non-2xx (ADR-0011) and a transport failure (#129) both overdraw
+    // the panel with a local error screen, so each clears the stored ETag below.
     CHECK(panelStateAfter(CycleResult::WorkerError) == PanelState::ErrorScreen);
+    CHECK(panelStateAfter(CycleResult::HttpError) == PanelState::ErrorScreen);
 }
 
 TEST_CASE("panelStateAfter: every panel-untouched outcome maps to Unchanged") {
     CHECK(panelStateAfter(CycleResult::NotModified) == PanelState::Unchanged);
-    CHECK(panelStateAfter(CycleResult::HttpError) == PanelState::Unchanged);
     CHECK(panelStateAfter(CycleResult::BodyTooLarge) == PanelState::Unchanged);
     CHECK(panelStateAfter(CycleResult::InflateFailed) == PanelState::Unchanged);
     CHECK(panelStateAfter(CycleResult::BmpInvalid) == PanelState::Unchanged);
@@ -90,9 +92,10 @@ TEST_CASE("chooseEtagAction: a flushed 200 without an ETag clears (Worker predat
 }
 
 TEST_CASE("chooseEtagAction: an untouched panel keeps the stored ETag") {
-    // Covers the 304 skip (the stored ETag is still the truth), transport
-    // failures, and a 200 whose body failed inflate/parse — the panel still
-    // shows the old frame, so the old validator still names it (rule 2).
+    // Covers the 304 skip (the stored ETag is still the truth) and a 200 whose
+    // body failed inflate/parse — the panel still shows the old frame, so the
+    // old validator still names it (rule 2). (A transport failure now overdraws
+    // an error screen, so it clears instead — see the ErrorScreen case below.)
     CHECK(chooseEtagAction(PanelState::Unchanged, false) == EtagAction::Keep);
     CHECK(chooseEtagAction(PanelState::Unchanged, true) ==
           EtagAction::Keep);  // 304 repeats the ETag — still keep

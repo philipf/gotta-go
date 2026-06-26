@@ -5,8 +5,8 @@
  * it (plus the verbose flag) into a drawable ErrorScreen via the ADR-0011
  * fallback rules, and renders that to the panel. renderErrorScreen() is a
  * neutral drawing primitive — plain strings in, no problem-doc / HTTP type —
- * so #47 can reuse it for the worker-unreachable case with locally-sourced
- * strings.
+ * so the Wi-Fi-down (#66) and transport-failure (#129) arms reuse it for the
+ * worker-unreachable cases with locally-sourced strings.
  *
  * Extracted from radiator.ino per GH #63 (first translation-unit split). The
  * ArduinoJson parser and the bundled FiraSans font are implementation details
@@ -59,8 +59,8 @@ ErrorScreen resolveErrorScreen(const ProblemDoc& doc, bool verbose);
 
 // Render a generic error screen: title as the heading, detail as the body, and
 // (when non-null) upstreamOrNull underneath. Neutral content in, panel out
-// (Decision 10) — #47 reuses this with locally-sourced strings for the
-// worker-unreachable case.
+// (Decision 10) — the Wi-Fi-down (#66) and transport-failure (#129) arms reuse
+// this with locally-sourced strings for the worker-unreachable cases.
 void renderErrorScreen(const char* title, const char* detail, const char* upstreamOrNull);
 
 // Common-path entry for a Worker error response: parse a problem+json body
@@ -69,5 +69,5 @@ void renderErrorScreen(const char* title, const char* detail, const char* upstre
 // resolveErrorScreen → renderErrorScreen trilogy. The ProblemDoc/ErrorScreen
 // pair (and its aliasing lifetime, see ErrorScreen above) stays contained here.
 // An empty/unparseable body resolves to the generic screen (Decision 8). The
-// lower-level seams remain public for #47 reuse and host tests.
+// lower-level seams remain public for the #66/#129 reuse and host tests.
 void renderProblemScreen(const char* json, size_t len, int httpStatus, bool verbose);

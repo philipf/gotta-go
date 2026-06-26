@@ -55,7 +55,7 @@ ErrorScreen resolveErrorScreen(const ProblemDoc& doc, bool verbose) {
     return es;
 }
 
-// ---------- Error screen renderer (ADR-0011; reusable by #47) ----------
+// ---------- Error screen renderer (ADR-0011; reused by #66/#129) ----------
 
 // Width in px of `s` when drawn in `font`, via the library's own measurement.
 static int32_t textWidthPx(const GFXfont* font, const char* s) {

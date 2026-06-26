@@ -30,11 +30,19 @@ static const size_t MAX_COMPRESSED_BYTES = 8192;
 // uzlib needs a small dictionary for sliding-window matches.
 static const size_t UZLIB_DICT_BYTES = 32768;
 
+// Transport-failure reason capacity, NUL included. Holds the HTTPClient error
+// string (e.g. "connection refused", "read Timeout") for the on-panel error
+// screen — see HttpResponse::reason. The strings are short literals; 48 has
+// headroom and the panel clips any overflow.
+static const size_t TRANSPORT_REASON_CAP = 48;
+
 // The raw outcome of one wake request. status <= 0 is a transport failure / no
-// response (the panel-untouched arm); otherwise it is the HTTP status. body* and
-// gzipped describe the drained body in the caller's buffer; sleep is the parsed
-// X-Sleep-Seconds directive (honoured even on a non-2xx); etag is the response's
-// ETag header verbatim ("" when absent or over ETAG_CAP — see etag.h).
+// response (the error-screen arm, GH #129); otherwise it is the HTTP status.
+// body* and gzipped describe the drained body in the caller's buffer; sleep is
+// the parsed X-Sleep-Seconds directive (honoured even on a non-2xx); etag is the
+// response's ETag header verbatim ("" when absent or over ETAG_CAP — see etag.h).
+// reason is the human-readable transport cause, set only when status <= 0 (else
+// ""), so the orchestrator can name it on the local error screen.
 struct HttpResponse {
     int status;
     size_t bodyLen;
@@ -42,6 +50,7 @@ struct HttpResponse {
     bool gzipped;    // Content-Encoding: gzip
     SleepHeader sleep;
     char etag[ETAG_CAP];
+    char reason[TRANSPORT_REASON_CAP];
 };
 
 // The response arm a fetched HttpResponse routes to — the ADR-0003/0011/0013
@@ -50,7 +59,7 @@ struct HttpResponse {
 // Content-Encoding: gzip the Workers runtime appends to the bodiless 304 (#73,
 // ADR-0013 §What a 304 carries) can never route it through the inflate path.
 enum class ResponseArm {
-    Transport,     // status <= 0 — no response. panel untouched.
+    Transport,     // status <= 0 — no response. local error screen (GH #129).
     NotModified,   // 304 — unchanged-frame skip (ADR-0013). no body, by status.
     WorkerError,   // reachable non-2xx — problem+json → error screen (ADR-0011).
     BodyTooLarge,  // 2xx but the body overran the caller's buffer.

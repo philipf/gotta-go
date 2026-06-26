@@ -44,10 +44,10 @@ inline PanelState panelStateAfter(CycleResult outcome) {
     switch (outcome) {
         case CycleResult::Ok:
             return PanelState::FrameFlushed;
-        case CycleResult::WorkerError:
+        case CycleResult::WorkerError:    // reachable non-2xx — error screen drawn
+        case CycleResult::HttpError:      // transport failure — error screen drawn (#129)
             return PanelState::ErrorScreen;
         case CycleResult::NotModified:    // 304 skip — the panel keeps its frame
-        case CycleResult::HttpError:      // transport failure — untouched (#47's arm)
         case CycleResult::BodyTooLarge:   // drain/inflate/decode failures all bail
         case CycleResult::InflateFailed:  //   before any panel write, so the old
         case CycleResult::BmpInvalid:     //   frame (and its ETag) remain the truth
@@ -70,11 +70,13 @@ enum class EtagAction {
 //                  200 without one (a Worker predating #73) clears instead.
 //   Unchanged    → Keep. The old frame is still up, so the old validator is
 //                  still the truth — covers the 304 skip (rule on the ADR's
-//                  304 row), transport failures, and 200s whose body failed
-//                  inflate/parse (rule 2's "do not update" half).
+//                  304 row) and 200s whose body failed inflate/parse (rule 2's
+//                  "do not update" half).
 //   ErrorScreen  → Clear (rule 3). A stale validator after an error screen
 //                  would let a later 304 strand that screen on the panel
-//                  forever; clearing forces a 200 redraw next wake.
+//                  forever; clearing forces a 200 redraw next wake. Covers the
+//                  reachable non-2xx (ADR-0011) and transport-failure (#129)
+//                  screens alike.
 //
 // Pure — host-testable.
 inline EtagAction chooseEtagAction(PanelState panel, bool responseHadEtag) {

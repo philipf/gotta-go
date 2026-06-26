@@ -59,7 +59,7 @@ static const uint32_t FIRMWARE_FALLBACK_SLEEP_S = 300;
 enum class CycleResult {
     Ok,             // 200 + valid BMP. flushed to panel. sleep = X-Sleep-Seconds.
     NotModified,    // 304 — unchanged-frame skip (ADR-0013). panel untouched, stored ETag kept.
-    HttpError,      // transport failure / no response. panel untouched. (#47's arm)
+    HttpError,      // transport failure / no response. error screen rendered. (#129)
     WorkerError,    // reachable Worker returned a non-2xx problem doc. error screen rendered.
     BodyTooLarge,   // body exceeded MAX_COMPRESSED_BYTES. panel untouched.
     InflateFailed,  // gzip inflate produced wrong size or returned an error.
