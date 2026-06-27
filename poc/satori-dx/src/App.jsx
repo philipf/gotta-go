@@ -65,13 +65,14 @@ export default function App() {
 
   // Recompile when Template.jsx is hot-updated.
   useEffect(() => {
-    if (!import.meta.hot) return;
+    const hot = import.meta.hot;
+    if (!hot) return;
     const handler = (payload) => {
       const touched = payload?.updates?.some((u) => u.path.includes('/Template.'));
       if (touched) generateRef.current?.();
     };
-    import.meta.hot.on('vite:afterUpdate', handler);
-    return () => import.meta.hot.off?.('vite:afterUpdate', handler);
+    hot.on('vite:afterUpdate', handler);
+    return () => hot.off?.('vite:afterUpdate', handler);
   }, []);
 
   const downloadSvg = () => {
