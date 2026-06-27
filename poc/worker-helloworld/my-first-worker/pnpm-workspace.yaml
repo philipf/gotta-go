@@ -1,0 +1,6 @@
+# pnpm settings. Deps whose postinstall build scripts are approved to run;
+# without approval, pnpm hard-fails installs with ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
