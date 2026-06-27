@@ -85,3 +85,9 @@ The panel renders at native **960×540, 1-bit monochrome**, landscape. No backli
 ## Built with an AI-assisted workflow
 
 This project is developed using an AI-assisted engineering workflow powered by [Claude Code](https://claude.ai/code). Design decisions are captured as ADRs, the domain language is formalised in a living glossary, and the implementation is driven by vertical slices from the PRD — all in close collaboration with an AI agent.
+
+---
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). You're free to use, modify, and distribute this — including commercially — provided you retain the copyright and license notices. The software is provided "as is", without warranty of any kind.
