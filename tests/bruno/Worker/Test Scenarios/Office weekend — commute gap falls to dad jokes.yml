@@ -1,0 +1,40 @@
+info:
+  name: Office weekend — commute gap falls to dad jokes
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{base-uri}}/v1/frame"
+  headers:
+    - name: X-Radiator-Slug
+      value: office-f5
+    - name: X-Debug-Now
+      value: 2026-06-13T16:00:00+12:00
+    - name: Accept
+      value: application/json
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  Office radiator, Saturday afternoon (the #92 payoff).
+
+  X-Debug-Now pins server time to **Sat 2026-06-13 16:00 NZ**. 16:00 is inside
+  the `office_afternoon_commute` window (15:00–19:30), but that phase is
+  `days: [mon..fri]` — so on a Saturday it does NOT run. No phase covers
+  15:00–19:30 on a weekend, so the resolver falls through to the idle profile
+  (ADR-0003): the unattended desk shows dad jokes (`idle_jokes`) instead of
+  burning a 1-minute Metlink refresh for nobody.
+
+  Contrast with the weekday control (Office weekday — commute runs), where the
+  same 16:00 resolves to the commute.
+
+  Expected (asserts in the original root collection):
+    res.status                  eq 200
+    res.headers[x-profile-phase] eq idle_profile
+    res.body.layout             eq idle_jokes
