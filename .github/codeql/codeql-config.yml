@@ -1,0 +1,7 @@
+name: "CodeQL config"
+
+# Exclude vendored, test-only third-party headers from analysis.
+# e.g. src/radiator/test/vendor/doctest.h — single-header test framework,
+# not part of any shipped code path; produces known false positives.
+paths-ignore:
+  - "**/test/vendor/**"
