@@ -1,0 +1,5 @@
+# pnpm settings. Deps whose postinstall build scripts are approved to run;
+# without approval, pnpm hard-fails installs/exec with ERR_PNPM_IGNORED_BUILDS.
+# esbuild arrives via tsx, which both tool scripts run under.
+allowBuilds:
+  esbuild: true

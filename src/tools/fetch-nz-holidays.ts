@@ -1,18 +1,6 @@
-const NAGER_BASE = "https://date.nager.at/api/v3/PublicHolidays";
+import { fetchRelevantHolidays, KV_KEY } from "./nz-holidays.ts";
+
 const CF_BASE = "https://api.cloudflare.com/client/v4";
-const KV_KEY = "public-holidays:NZ:current";
-
-type NagerHoliday = {
-	date: string;
-	name: string;
-	global: boolean;
-	counties: string[] | null;
-};
-
-type Holiday = {
-	date: string;
-	name: string;
-};
 
 function requireEnv(name: string): string {
 	const v = process.env[name];
@@ -21,16 +9,6 @@ function requireEnv(name: string): string {
 		process.exit(1);
 	}
 	return v;
-}
-
-async function fetchHolidays(year: number): Promise<NagerHoliday[]> {
-	const res = await fetch(`${NAGER_BASE}/${year}/NZ`);
-	if (!res.ok) throw new Error(`Nager.Date API ${year}: HTTP ${res.status}`);
-	return res.json() as Promise<NagerHoliday[]>;
-}
-
-function isRelevant(h: NagerHoliday): boolean {
-	return h.global || (h.counties?.includes("NZ-WGN") ?? false);
 }
 
 async function writeToKV(
@@ -57,17 +35,7 @@ async function main() {
 	const namespaceId = requireEnv("KV_NAMESPACE_ID");
 
 	const currentYear = new Date().getFullYear();
-	const nextYear = currentYear + 1;
-
-	const [current, next] = await Promise.all([
-		fetchHolidays(currentYear),
-		fetchHolidays(nextYear),
-	]);
-
-	const holidays: Holiday[] = [...current, ...next]
-		.filter(isRelevant)
-		.map(({ date, name }) => ({ date, name }))
-		.sort((a, b) => a.date.localeCompare(b.date));
+	const holidays = await fetchRelevantHolidays(currentYear);
 
 	const json = JSON.stringify(holidays, null, 2);
 	await writeToKV(accountId, namespaceId, token, json);

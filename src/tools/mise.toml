@@ -4,3 +4,7 @@ node = "lts"
 [tasks.fetch-holidays]
 description = "Fetch NZ public holidays (national + Wellington) and store to Cloudflare KV"
 run = "pnpm exec tsx fetch-nz-holidays.ts"
+
+[tasks.seed-local-holidays]
+description = "Seed the local dev KV with NZ public holidays so the calendar shades them under `wrangler dev` (no Cloudflare creds needed)"
+run = "pnpm exec tsx seed-local-holidays.ts"
