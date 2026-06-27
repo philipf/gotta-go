@@ -3,3 +3,8 @@
 # esbuild arrives via tsx, which both tool scripts run under.
 allowBuilds:
   esbuild: true
+
+# tsx pins esbuild 0.28.0, one patch behind the Dependabot-flagged fix.
+# Dev-only (tsx is a runner, never bundled), but pin the patched release.
+overrides:
+  esbuild@<0.28.1: ^0.28.1
