@@ -10,17 +10,29 @@ Standard transit apps tell you when the bus *arrives*. That forces you to subtra
 
 ## What it looks like
 
-### Normal morning — bus and train, side by side
+*The screenshots below are live frames rendered straight off the Worker — real Metlink data, real battery telemetry, no mock-ups.*
 
-![Main screen — dual commute, bus and train](docs/UI/GottaGo_Main.jpeg)
+### The morning commute — bus and train, side by side
 
-The left column tracks the bus. The right tracks the train. The hero number is **LEAVE IN** — not arrival time. The diamond marker shows exactly how much runway you have: hard right means leave now.
+![Commute screen — dual countdown, bus and train](docs/UI/GottaGo_Commute.png)
 
-### When things go sideways
+The left column tracks the bus. The right tracks the train. The hero number is **LEAVE IN** — not arrival time — so there's no maths to do at 7am.
 
-![Cancelled and delayed service states](docs/UI/GottaGo_CancelAndDelayed.jpeg)
+This frame also shows what happens when things go sideways, because reality rarely cooperates. The train's next departure is **cancelled**, struck through in place so the change is explained rather than silently dropped. Delayed and early departures wear `DELAYED` / `EARLY` chips, and the `RUN`/`MISSED` tags on the top row tell you whether the imminent service is still catchable. The unaffected column stays untouched, so the contrast itself tells you which side has the problem.
 
-A cancellation strikes through the dead service in place so the change is explained, not silently replaced. A delay shifts the marker left and updates the countdown to reflect the new timing — the display tracks reality, not a plan. The unaffected column stays untouched, so the contrast itself tells you which side has the problem.
+### Off-peak — a glanceable two-month calendar
+
+![Calendar screen — current and next month, side by side](docs/UI/GottaGo_Calendar.png)
+
+Outside commute hours the radiator stops being a transit board and becomes ambient furniture. The dual-month calendar highlights today and shades weekends and New Zealand public holidays — here, King's Birthday (Mon 1 Jun) and Matariki (Fri 10 Jul) — a quiet, useful default for the hours when no bus matters.
+
+### Idle — a dad joke to fill the gap
+
+![Idle screen — a dad joke](docs/UI/GottaGo_IdleJoke.png)
+
+When there's genuinely nothing to show, the panel rotates through dad jokes rather than sitting blank. It's e-ink, so a joke costs zero power to keep on the wall.
+
+The small battery indicator in the corner of every frame is rendered server-side from the voltage each radiator reports, so you can read the charge from across the room too.
 
 ---
 
