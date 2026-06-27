@@ -40,6 +40,8 @@ The small battery indicator in the corner of every frame is rendered server-side
 
 The architecture follows a single principle: **Dumb Radiator, Smart Edge**.
 
+![GottaGo solution architecture — radiator, Cloudflare Worker, KV, Metlink and public holidays](docs/architecture/gotta-go-solution-architecture.png)
+
 Each radiator — a 4.7" e-ink panel running on a LiPo battery, flush-mounted on a fridge or bedside surface — does exactly one thing: wake up, fetch a frame from the cloud, flush the raw pixels to the screen, and go back to sleep for 2–3 minutes.
 
 All the work happens at the edge:
