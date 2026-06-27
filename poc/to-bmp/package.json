@@ -8,7 +8,7 @@
 		"@resvg/resvg-wasm": "^2.6.2"
 	},
 	"devDependencies": {
-		"@types/node": "^22.0.0",
-		"tsx": "^4.22.1"
+		"@types/node": "^22.20.0",
+		"tsx": "^4.22.4"
 	}
 }
