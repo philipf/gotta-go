@@ -92,3 +92,41 @@ pnpm wrangler kv key get "public-holidays:NZ:current" --namespace-id e6f049c0ba6
 
 **From the Cloudflare dashboard** — Workers & Pages → KV → `PUBLIC_HOLIDAYS` →
 View → search for `public-holidays:NZ:current`.
+
+---
+
+## seed-local-holidays
+
+Same data as `fetch-nz-holidays`, but written to the **local** wrangler/miniflare
+KV store that `wrangler dev` reads — so the `dual_month_calendar` feature shades
+public holidays in local development. Without it, `wrangler dev` starts with an
+empty local KV and the worker soft-misses to an unshaded calendar (holidays are
+decoration, never an error), so it's easy to think holidays are "broken" when the
+local store simply hasn't been seeded.
+
+**No Cloudflare credentials needed** — it writes through `wrangler kv ... --local`,
+not the REST API. It fetches from the same Nager.Date source and applies the same
+national + Wellington filter as `fetch-nz-holidays` (the shared logic lives in
+`nz-holidays.ts`).
+
+### Run
+
+```bash
+cd src/tools
+mise trust          # first time only
+pnpm install        # first time only, or after a node version change
+mise run seed-local-holidays
+```
+
+The key is written to the local store under `src/worker/.wrangler/state`. Re-run it
+any time you blow away that state, or once a year alongside `fetch-holidays`.
+
+### Verify it worked
+
+```bash
+cd src/worker
+pnpm wrangler kv key get "public-holidays:NZ:current" --binding PUBLIC_HOLIDAYS --local
+```
+
+Or just start `wrangler dev` and render the calendar — June's King's Birthday and
+July's Matariki (for 2026) should be shaded.
