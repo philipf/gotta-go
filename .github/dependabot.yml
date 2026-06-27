@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Only watch shippable code under src/. The poc/ experiments are throwaway
+  # spikes (hello-world demos, satori/kv-cache trials) and their dev/runtime
+  # dependencies never deploy, so we deliberately do not track them here.
+  - package-ecosystem: npm
+    directories:
+      - /src/worker
+      - /src/tools
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
