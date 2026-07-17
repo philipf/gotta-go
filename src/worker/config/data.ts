@@ -67,12 +67,10 @@ export const PROFILES: Record<string, Profile> = {
   philip_and_tania: {
     name: 'philip_and_tania',
     phases: [
-      // Morning commute (PRD §9): a two-target priority_split_v2 phase
-      // rendering the bus stop and train station side by side. Stop 3234 +
-      // route 1 and station TAKA1 + line KPL are the live-validated IDs from the
-      // Metlink spike (the PRD's 7104/WELL/5112 are placeholders the spike
-      // replaced). Listed first so its window wins over the all-day fallback
-      // during 06:30–09:00. runLimitMins left default (1) — see glossary.
+      // Morning commute (PRD §9): stop 3234 + route 1 and station TAKA1 + line
+      // KPL are the live-validated IDs from the Metlink spike (the PRD's
+      // 7104/WELL/5112 were placeholders the spike replaced). Listed first so
+      // it wins over the daytime_calendar fallback while its window is open.
       {
         key: 'morning_commute',
         startTime: '05:45',
@@ -95,12 +93,10 @@ export const PROFILES: Record<string, Profile> = {
           },
         ],
       },
-      // Afternoon commute home from the city (the reverse of morning).
-      // priority_split_v2 over the shared city→home pair (CITY_TO_HOME_TARGETS
-      // above — stop/service rationale lives on the constant). Listed before
-      // daytime_calendar so its 16:00–18:30 window wins over the calendar
-      // during the evening commute (resolver picks the first matching phase —
-      // see resolve.ts). runLimitMins left default (1) — see glossary.
+      // Afternoon commute home — the reverse of morning, over the shared
+      // city→home targets (stop/service rationale lives on CITY_TO_HOME_TARGETS).
+      // Listed before daytime_calendar so it wins while its window overlaps the
+      // calendar's (resolver picks the first matching phase — see resolve.ts).
       {
         key: 'afternoon_commute',
         startTime: '16:00',
@@ -110,18 +106,14 @@ export const PROFILES: Record<string, Profile> = {
         days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
       },
-      // Daytime two-month calendar between the morning and afternoon commute
-      // windows (GH #76, replacing the daytime clock). Starts at 08:45 to meet
-      // morning_commute's end (no idle gap), and afternoon_commute precedes it
-      // in the array, so 16:00–18:30 resolves to the commute; the calendar wins
-      // 08:45–16:00 and 18:30–21:00. Bounded at 21:00 (not all-day) so the
-      // 21:00–05:45 overnight gap still falls through to the idle profile →
-      // idle_jokes (#17). The office radiator (philip_office below, #86) now
-      // carries #76's full-day calendar; this bedroom window stays alongside
-      // it. The calendar barely changes within a day, so a 3h refresh suffices
-      // — resolveProfilePhase truncates the sleep at the next phase boundary,
-      // so the 16:00 afternoon_commute pickup is never delayed, and the
-      // unchanged-frame skip (#73/#74) keeps each wake flash-free.
+      // Daytime two-month calendar filling the gap between the commutes (#76,
+      // replacing the daytime clock). Starts at morning_commute's end so no
+      // idle gap opens at the handoff. Not all-day, so the uncovered overnight
+      // hours fall through to the idle profile → idle_jokes (#17). The calendar
+      // barely changes within a day, so a long refresh suffices —
+      // resolveProfilePhase truncates the sleep at the next phase boundary, so
+      // the afternoon pickup is never delayed, and the unchanged-frame skip
+      // (#73/#74) keeps each wake flash-free.
       {
         key: 'daytime_calendar',
         startTime: '08:45',
@@ -132,15 +124,14 @@ export const PROFILES: Record<string, Profile> = {
     ],
   },
   // Philip's F5 office-desk profile (#86): the city→home afternoon commute
-  // bracketed by the two-month calendar. On weekdays the three phases cover the
-  // full day (00:00–24:00) and the idle profile never engages; on weekends the
-  // mon–fri commute (#92) drops out, so its 15:30–18:35 slot falls through to
-  // idle_jokes — the unattended desk no longer burns those wakes/weekend-day.
-  // Calendar phases refresh at the 4h sleep ceiling; with the unchanged-frame
-  // skip (#73/#74) the only visible flash is the midnight rollover. The commute
-  // key is office_afternoon_commute (not a second afternoon_commute) because
-  // phase keys are globally unique across profiles — the test-<phaseKey>
-  // scenario slugs (#21) resolve a phase by bare key.
+  // bracketed by two-month calendars. On weekdays the phases tile the full day
+  // so the idle profile never engages; on weekends the mon–fri commute (#92)
+  // drops out and its slot falls through to idle_jokes — the unattended desk no
+  // longer burns those wakes. The only visible calendar flash is the midnight
+  // rollover (unchanged-frame skip, #73/#74). The key is
+  // office_afternoon_commute (not a second afternoon_commute) because phase
+  // keys are globally unique across profiles — the test-<phaseKey> scenario
+  // slugs (#21) resolve a phase by bare key.
   philip_office: {
     name: 'philip_office',
     phases: [
@@ -169,10 +160,9 @@ export const PROFILES: Record<string, Profile> = {
       },
     ],
   },
-  // Daughter's school-run profile (PRD §9): a priority_split_v2 morning phase
-  // over one bus transit target, then a minimal_clock idle phase. Stop 3234
-  // + routes 634/635 validated in GH #16 / the Metlink spike. runLimitMins left
-  // default (1) — see glossary.
+  // Daughter's school-run profile (PRD §9): stop 3234 + routes 634/635
+  // validated in GH #16 / the Metlink spike, then an idle clock the rest of
+  // the day.
   daughter_school: {
     name: 'daughter_school',
     phases: [
