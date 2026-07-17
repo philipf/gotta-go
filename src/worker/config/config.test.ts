@@ -42,18 +42,18 @@ describe('config.lookupRadiator', () => {
     const [morning, commute, evening] = radiator?.profile.phases ?? [];
     expect(morning?.key).toBe('morning_calendar');
     expect(morning?.startTime).toBe('00:00');
-    expect(morning?.endTime).toBe('15:00');
+    expect(morning?.endTime).toBe('15:30');
     expect(morning?.layout).toBe('dual_month_calendar');
     expect(morning?.refreshIntervalMinutes).toBe(240);
 
     expect(commute?.key).toBe('office_afternoon_commute');
-    expect(commute?.startTime).toBe('15:00');
-    expect(commute?.endTime).toBe('19:30');
+    expect(commute?.startTime).toBe('15:30');
+    expect(commute?.endTime).toBe('18:35');
     expect(commute?.layout).toBe('priority_split_v2');
     expect(commute?.refreshIntervalMinutes).toBe(1);
 
     expect(evening?.key).toBe('evening_calendar');
-    expect(evening?.startTime).toBe('19:30');
+    expect(evening?.startTime).toBe('18:35');
     expect(evening?.endTime).toBe('24:00');
     expect(evening?.layout).toBe('dual_month_calendar');
     expect(evening?.refreshIntervalMinutes).toBe(240);

@@ -76,7 +76,7 @@ export const PROFILES: Record<string, Profile> = {
       {
         key: 'morning_commute',
         startTime: '05:45',
-        endTime: '09:00',
+        endTime: '08:45',
         layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
@@ -98,33 +98,33 @@ export const PROFILES: Record<string, Profile> = {
       // Afternoon commute home from the city (the reverse of morning).
       // priority_split_v2 over the shared city→home pair (CITY_TO_HOME_TARGETS
       // above — stop/service rationale lives on the constant). Listed before
-      // daytime_calendar so its 15:15–21:00 window wins over the calendar
+      // daytime_calendar so its 16:00–18:30 window wins over the calendar
       // during the evening commute (resolver picks the first matching phase —
       // see resolve.ts). runLimitMins left default (1) — see glossary.
       {
         key: 'afternoon_commute',
-        startTime: '15:15',
-        endTime: '21:00',
+        startTime: '16:00',
+        endTime: '18:30',
         layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
         transitTargets: CITY_TO_HOME_TARGETS,
       },
       // Daytime two-month calendar between the morning and afternoon commute
-      // windows (GH #76, replacing the daytime clock). Window stays
-      // 09:00–21:00 but afternoon_commute precedes it in the array, so
-      // 15:15–21:00 resolves to the commute; the calendar only wins
-      // 09:00–15:15. Bounded at 21:00 (not all-day) so the 21:00–05:45
-      // overnight gap still falls through to the idle profile → idle_jokes
-      // (#17). The office radiator (philip_office below, #86) now carries
-      // #76's full-day calendar; this bedroom window stays alongside it. The
-      // calendar barely changes within a day, so a 3h refresh suffices —
-      // resolveProfilePhase truncates the sleep at the next phase boundary,
-      // so the 15:15 afternoon_commute pickup is never delayed, and the
+      // windows (GH #76, replacing the daytime clock). Starts at 08:45 to meet
+      // morning_commute's end (no idle gap), and afternoon_commute precedes it
+      // in the array, so 16:00–18:30 resolves to the commute; the calendar wins
+      // 08:45–16:00 and 18:30–21:00. Bounded at 21:00 (not all-day) so the
+      // 21:00–05:45 overnight gap still falls through to the idle profile →
+      // idle_jokes (#17). The office radiator (philip_office below, #86) now
+      // carries #76's full-day calendar; this bedroom window stays alongside
+      // it. The calendar barely changes within a day, so a 3h refresh suffices
+      // — resolveProfilePhase truncates the sleep at the next phase boundary,
+      // so the 16:00 afternoon_commute pickup is never delayed, and the
       // unchanged-frame skip (#73/#74) keeps each wake flash-free.
       {
         key: 'daytime_calendar',
-        startTime: '09:00',
+        startTime: '08:45',
         endTime: '21:00',
         layout: 'dual_month_calendar',
         refreshIntervalMinutes: 180,
@@ -134,8 +134,8 @@ export const PROFILES: Record<string, Profile> = {
   // Philip's F5 office-desk profile (#86): the city→home afternoon commute
   // bracketed by the two-month calendar. On weekdays the three phases cover the
   // full day (00:00–24:00) and the idle profile never engages; on weekends the
-  // mon–fri commute (#92) drops out, so its 15:00–19:30 slot falls through to
-  // idle_jokes — the unattended desk no longer burns ~270 wakes/weekend-day.
+  // mon–fri commute (#92) drops out, so its 15:30–18:35 slot falls through to
+  // idle_jokes — the unattended desk no longer burns those wakes/weekend-day.
   // Calendar phases refresh at the 4h sleep ceiling; with the unchanged-frame
   // skip (#73/#74) the only visible flash is the midnight rollover. The commute
   // key is office_afternoon_commute (not a second afternoon_commute) because
@@ -147,14 +147,14 @@ export const PROFILES: Record<string, Profile> = {
       {
         key: 'morning_calendar',
         startTime: '00:00',
-        endTime: '15:00',
+        endTime: '15:30',
         layout: 'dual_month_calendar',
         refreshIntervalMinutes: 240,
       },
       {
         key: 'office_afternoon_commute',
-        startTime: '15:00',
-        endTime: '19:30',
+        startTime: '15:30',
+        endTime: '18:35',
         layout: 'priority_split_v2',
         refreshIntervalMinutes: 1,
         days: WEEKDAYS,
@@ -162,7 +162,7 @@ export const PROFILES: Record<string, Profile> = {
       },
       {
         key: 'evening_calendar',
-        startTime: '19:30',
+        startTime: '18:35',
         endTime: '24:00',
         layout: 'dual_month_calendar',
         refreshIntervalMinutes: 240,

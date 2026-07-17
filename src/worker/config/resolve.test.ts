@@ -170,20 +170,20 @@ describe('config.resolveProfilePhase', () => {
     const radiator = lookupRadiator('bedroom-philip-tania')!;
 
     // 09:30 NZST Mon: daytime_calendar (180-min refresh); afternoon_commute
-    // opens 15:15 (345 min away) → the full interval fits, sleep = 180 min.
+    // opens 16:00 (390 min away) → the full interval fits, sleep = 180 min.
     const morning = resolveProfilePhase(radiator, new Date('2026-06-07T21:30:00Z'));
     expect(morning.profilePhase).toBe('daytime_calendar');
     expect(morning.sleepSeconds).toBe(180 * 60);
 
-    // 14:00 NZST Mon: 75 min to the 15:15 afternoon_commute start → truncated
+    // 14:00 NZST Mon: 120 min to the 16:00 afternoon_commute start → truncated
     // so the commute pickup is not delayed by the 3h interval.
     const preCommute = resolveProfilePhase(radiator, new Date('2026-06-08T02:00:00Z'));
     expect(preCommute.profilePhase).toBe('daytime_calendar');
-    expect(preCommute.sleepSeconds).toBe(75 * 60);
+    expect(preCommute.sleepSeconds).toBe(120 * 60);
 
-    // 20:45 NZST Mon: afternoon_commute (1-min refresh) — short intervals are
-    // unaffected by the 21:00 end boundary.
-    const commute = resolveProfilePhase(radiator, new Date('2026-06-08T08:45:00Z'));
+    // 18:00 NZST Mon: afternoon_commute (1-min refresh) — short intervals are
+    // unaffected by the 18:30 end boundary.
+    const commute = resolveProfilePhase(radiator, new Date('2026-06-08T06:00:00Z'));
     expect(commute.profilePhase).toBe('afternoon_commute');
     expect(commute.sleepSeconds).toBe(60);
   });
@@ -198,15 +198,15 @@ describe('config.resolveProfilePhase', () => {
 
     // 14:00 NZST Sun: afternoon_commute (mon–fri) is not eligible, so the
     // active phase is daytime_calendar — but the day-agnostic boundary scan
-    // still truncates the 3h interval at the 15:15 start → 75 min.
+    // still truncates the 3h interval at the 16:00 start → 120 min.
     const sun = resolveProfilePhase(radiator, new Date('2026-06-07T02:00:00Z'));
     expect(sun.profilePhase).toBe('daytime_calendar');
-    expect(sun.sleepSeconds).toBe(75 * 60);
+    expect(sun.sleepSeconds).toBe(120 * 60);
 
-    // 15:15 NZST Sun: the commute does NOT take over — still the calendar,
+    // 16:00 NZST Sun: the commute does NOT take over — still the calendar,
     // proving the wake at the truncated boundary self-corrects.
-    const sun1515 = resolveProfilePhase(radiator, new Date('2026-06-07T03:15:00Z'));
-    expect(sun1515.profilePhase).toBe('daytime_calendar');
+    const sun1600 = resolveProfilePhase(radiator, new Date('2026-06-07T04:00:00Z'));
+    expect(sun1600.profilePhase).toBe('daytime_calendar');
   });
 
   it("truncates at the active phase's own end when no phase starts there", () => {
@@ -218,8 +218,8 @@ describe('config.resolveProfilePhase', () => {
     expect(at2045.sleepSeconds).toBe(15 * 60);
   });
 
-  // office-f5 (#86) covers the full day — 00:00–15:00 / 15:00–19:30 /
-  // 19:30–24:00 — so the idle profile must never engage there, including
+  // office-f5 (#86) covers the full day — 00:00–15:30 / 15:30–18:35 /
+  // 18:35–24:00 — so the idle profile must never engage there, including
   // across the 24:00 end time (a first in the config: toMinutes("24:00") =
   // 1440 sits just above the 23:59 wall-clock maximum). June = NZST (UTC+12).
   it('never resolves idle for office-f5 - full-day coverage incl. the 24:00 end (#86)', () => {
@@ -231,18 +231,18 @@ describe('config.resolveProfilePhase', () => {
     expect(morning.layout).toBe('dual_month_calendar');
     expect(morning.sleepSeconds).toBe(14400);
 
-    // 15:00 NZST: half-open boundary — the commute window opens.
-    const commute = resolveProfilePhase(radiator, new Date('2026-06-08T03:00:00Z'));
+    // 15:30 NZST: half-open boundary — the commute window opens.
+    const commute = resolveProfilePhase(radiator, new Date('2026-06-08T03:30:00Z'));
     expect(commute.profilePhase).toBe('office_afternoon_commute');
     expect(commute.layout).toBe('priority_split_v2');
     expect(commute.sleepSeconds).toBe(60);
 
-    // 19:30 NZST: commute hands off to the evening calendar, not idle.
-    const evening = resolveProfilePhase(radiator, new Date('2026-06-08T07:30:00Z'));
+    // 18:35 NZST: commute hands off to the evening calendar, not idle.
+    const evening = resolveProfilePhase(radiator, new Date('2026-06-08T06:35:00Z'));
     expect(evening.profilePhase).toBe('evening_calendar');
     expect(evening.layout).toBe('dual_month_calendar');
 
-    // 23:50 NZST: still inside evening_calendar's [19:30, 24:00) window —
+    // 23:50 NZST: still inside evening_calendar's [18:35, 24:00) window —
     // no idle gap before midnight; sleep truncates to the 00:00 boundary
     // where morning_calendar takes over.
     const lateNight = resolveProfilePhase(radiator, new Date('2026-06-08T11:50:00Z'));
