@@ -7,6 +7,13 @@
     "enabled": true,
     "traces": {
       "enabled": true,
+      // Must match the destination name in the Cloudflare dashboard
+      "destinations": ["grafana-traces"],
+    },
+    "logs": {
+      "enabled": true,
+      // Must match the destination name in the Cloudflare dashboard
+      "destinations": ["grafana-logs"],
     },
   },
   "kv_namespaces": [{ "binding": "PUBLIC_HOLIDAYS", "id": "e6f049c0ba6a47cd8cb620223ed13c15" }],
