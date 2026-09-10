@@ -20,7 +20,7 @@
     "@types/react": "^19.2.14",
     "prettier": "^3.4.2",
     "typescript": "^5.5.2",
-    "vitest": "~3.2.6",
+    "vitest": "~4.1.11",
     "wrangler": "^4.105.0"
   },
   "dependencies": {
